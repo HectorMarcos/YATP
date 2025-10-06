@@ -1,0 +1,13 @@
+## Interface: 30300
+## Title: YATP
+## Notes: Yet Another Tweaks Pack
+## Author: Zavah
+## Version: 0.1
+## OptionalDeps: Ace3
+## OptionalDeps: LibSharedMedia-3.0
+
+Core.lua
+
+# Modules
+Modules/xpbar.lua
+
