@@ -24,6 +24,26 @@ local base = {
 for k,v in pairs(base) do
 	if not L[k] then L[k] = v end
 end
+-- ChatBubbles fallback additions
+local extra = {
+	["ChatBubbles"] = "ChatBubbles",
+	["Enable"] = "Enable",
+	["Font Face"] = "Font Face",
+	["Outline"] = "Outline",
+	["Utilities"] = "Utilities",
+	["Force Refresh"] = "Force Refresh",
+	["Advanced"] = "Advanced",
+	["Aggressive Scan"] = "Aggressive Scan",
+	["Scan Interval"] = "Scan Interval",
+	["Post-detection Sweeps"] = "Post-detection Sweeps",
+	["Continuously sweep world frames to strip bubble textures ASAP (slightly higher CPU)."] = "Continuously sweep world frames to strip bubble textures ASAP (slightly higher CPU).",
+	["Seconds between sweeps in aggressive mode."] = "Seconds between sweeps in aggressive mode.",
+	["Extra quick sweeps right after detecting a bubble."] = "Extra quick sweeps right after detecting a bubble.",
+}
+for k,v in pairs(extra) do if not L[k] then L[k] = v end end
+if not L["Toggle the ChatBubbles module. Removes bubble artwork and restyles the text using your chosen font settings."] then
+	L["Toggle the ChatBubbles module. Removes bubble artwork and restyles the text using your chosen font settings."] = "Toggle the ChatBubbles module. Removes bubble artwork and restyles the text using your chosen font settings."
+end
 --========================================================--
 -- YATP - Français (Fallback)
 --========================================================--
@@ -35,3 +55,4 @@ L["Reset Position"] = "Reset Position"
 L["Reset the bar position to its default location"] = "Reset the bar position to its default location"
 L["Debug Position"] = "Debug Position"
 L["Print coordinates to chat when position changes"] = "Print coordinates to chat when position changes"
+L["Hide Chat Bubbles"] = "Masquer les bulles de chat"
