@@ -15,7 +15,7 @@ local Module = YATP:NewModule(ModuleName, "AceConsole-3.0")
 
 -- Simple debug print helper
 function Module:Debug(msg)
-    if not self.db or not self.db.debug then return end
+    if not YATP or not YATP.IsDebug or not YATP:IsDebug() then return end
     DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:QC|r "..tostring(msg))
 end
 
@@ -28,7 +28,7 @@ Module.defaults = {
     autoTransmog = true,
     autoExit = true, -- renamed from autoLogout
     suppressClickSound = false, -- removed feature (kept key for backwards safety, no effect)
-    debug = false,
+    -- debug flag removed (now uses global YATP Extras > Debug Mode)
     minClickGap = 0.3, -- safeguard between automatic clicks
 }
 
@@ -90,10 +90,7 @@ function Module:OnEnable()
     if not self.db.enabled then return end
     self:StartScanner()
     self:InstallPopupHook()
-    self:RegisterChatCommand("qcdebug", function()
-        self.db.debug = not self.db.debug
-        self:Debug("debug="..tostring(self.db.debug))
-    end)
+    -- per-module debug chat command removed; uses global toggle now
     self:StartExitWatcher()
 end
 
@@ -111,7 +108,7 @@ function Module:InstallPopupHook()
         if not self.db or not self.db.enabled then return end
         if not text or text == "" then return end
         local lowerText = text:lower()
-        if self.db.debug then
+        if YATP:IsDebug() then
             DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff33ff99YATP:QuickConfirm|r show '%s' which=%s", (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")), tostring(which)))
         end
         -- Direct which detection (fast path) for transmog
@@ -142,7 +139,7 @@ function Module:ConfirmByWhich(which, originalText)
             return true
         end
     end
-    if self.db.debug then
+    if YATP:IsDebug() then
         DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:QuickConfirm|r could not find frame for which="..tostring(which))
     end
 end
@@ -160,7 +157,7 @@ function Module:ConfirmByText(text, reason)
             end
         end
     end
-    if self.db.debug then
+    if YATP:IsDebug() then
         DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:QuickConfirm|r text match failed")
     end
 end
@@ -194,7 +191,7 @@ end
 -- Core scan logic
 -------------------------------------------------
 function Module:ScanOnce()
-    if self.db.debug then self._scanTick = (self._scanTick or 0) + 1; if self._scanTick % 20 == 0 then self:Debug("scan running") end end
+    if YATP:IsDebug() then self._scanTick = (self._scanTick or 0) + 1; if self._scanTick % 20 == 0 then self:Debug("scan running") end end
     -- Iterate all possible StaticPopup frames (Blizzard creates up to 4)
     for i = 1, 4 do
         local frame = _G["StaticPopup"..i]
@@ -204,7 +201,7 @@ function Module:ScanOnce()
             local text = (textRegion and textRegion:GetText()) or ""
             local lowerText = text:lower()
 
-            if self.db.debug and text ~= "" then
+            if YATP:IsDebug() and text ~= "" then
                 DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff33ff99YATP:QC Debug|r popup%d which=%s text='%s'", i, tostring(which), lowerText:sub(1,80)))
             end
 
@@ -247,7 +244,7 @@ function Module:ScanOnce()
                 if txt ~= "" then
                     local lower = txt:lower()
                     if lower:find("are you sure you want to collect the appearance", 1, true) then
-                        if self.db.debug then
+                        if YATP:IsDebug() then
                             DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:QC Debug|r legacy pattern matched")
                         end
                         self:ClickPrimary(frame, "transmog-legacy") -- fallback
@@ -286,7 +283,7 @@ function Module:ClickPrimary(popup, reason)
     local name = popup:GetName()
     local button = _G[name.."Button1"] or _G[name.."Button2"] -- try Button2 if Button1 absent/disabled
     if not (button and button:IsShown() and button:IsEnabled()) then
-        if self.db.debug then
+        if YATP:IsDebug() then
             DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:QuickConfirm|r button not ready ("..(reason or "?")..")")
         end
         return
@@ -388,7 +385,7 @@ function Module:BuildOptions()
             headerOther = { type="header", name = L["Miscellaneous"] or "Miscellaneous", order = 20 },
             -- suppressClickSound removed; placeholder intentionally omitted
             scanInterval = { type="range", order=30, name=L["Scan Interval"] or "Scan Interval", min=0.05, max=0.5, step=0.01, get=get, set=function(i,v) set(i,v) end },
-            debug = { type="toggle", order=40, name = L["Debug Messages"] or "Debug Messages", get=get, set=set },
+            -- per-module debug toggle removed (uses global Extras > Debug Mode)
         }
     }
 end

@@ -37,7 +37,7 @@ local Module = YATP:NewModule("Template", "AceEvent-3.0", "AceConsole-3.0")
 -- Debug helper (activate by enabling the 'debug' toggle if you add one)
 -------------------------------------------------
 function Module:Debug(msg)
-    if not self.db or not self.db.debug then return end
+    if not YATP or not YATP.IsDebug or not YATP:IsDebug() then return end
     DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:Template|r "..tostring(msg))
 end
 
@@ -47,7 +47,7 @@ end
 Module.defaults = {
     enabled = true,            -- enable/disable the module
     exampleOption = true,      -- sample toggle
-    debug = false,             -- enable verbose debug messages (if used)
+    -- debug flag removed (uses global Extras > Debug Mode)
     -- Add more persistent keys below
 }
 
@@ -131,8 +131,6 @@ function Module:BuildOptions()
         self.db[key] = val
         if key == "enabled" then
             if val then self:Enable() else self:Disable() end
-        elseif key == "debug" then
-            self:Debug("Debug "..(val and "ON" or "OFF"))
         else
             -- Otros ajustes reactivos opcionalmente
         end
@@ -149,12 +147,7 @@ function Module:BuildOptions()
                 desc = L["Enable or disable this module."] or "Enable or disable this module.",
                 get=get, set=set,
             },
-            debug = {
-                type = "toggle", order = 2,
-                name = L["Debug Messages"] or "Debug Messages",
-                desc = L["Toggle verbose debug output in chat."] or "Toggle verbose debug output in chat.",
-                get=get, set=set,
-            },
+            -- per-module debug toggle removed (global debug controls output)
             exampleGroup = {
                 type = "group", inline = true, order = 10,
                 name = L["Example Settings"] or "Example Settings",

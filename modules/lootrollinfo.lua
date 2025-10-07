@@ -24,7 +24,6 @@ Module.defaults = {
   classColorNames = false,
   clearOnCancel = true,
   rarityThreshold = 0,    -- 0=poor,1=common,2=uncommon,... only track >= threshold (0 means all)
-  debug = false,
 }
 
 -- runtime roll storage
@@ -39,9 +38,11 @@ local ACTION_COLORS = {
 }
 
 local function dprint(self, ...)
-  if not self.db or not self.db.debug then return end
-  local msg = "|cff33ff99LRInfo|r "..string.format(...)
-  DEFAULT_CHAT_FRAME:AddMessage(msg)
+  local core = YATP
+  if not core or not core.IsDebug or not core:IsDebug() then return end
+  local ok, formatted = pcall(string.format, ...)
+  local msg = ok and formatted or "format-error"
+  DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99LRInfo|r "..msg)
 end
 
 --========================================================--
@@ -113,8 +114,7 @@ function Module:BuildOptions()
       hideChatRollMessages = { type="toggle", order=21, name=L["Hide Chat Messages"] or "Hide Chat Messages", desc=L["Suppress system loot roll lines from chat."] or "Suppress system loot roll lines from chat.", get=get, set=set },
       clearOnCancel = { type="toggle", order=22, name=L["Clear on Cancel"] or "Clear on Cancel", desc=L["Remove stored roll data when a roll is canceled."] or "Remove stored roll data when a roll is canceled.", get=get, set=set },
       rarityThreshold = { type="range", order=23, name=L["Track Minimum Rarity"] or "Track Minimum Rarity", min=0, max=5, step=1, get=get, set=set },
-      headerDebug = { type="header", order=50, name = L["Debug"] or "Debug" },
-      debug = { type="toggle", order=51, name=L["Debug Messages"] or "Debug Messages", get=get, set=set },
+  -- Debug option removed; now uses global YATP > Extras > Debug Mode
     }
   }
 end

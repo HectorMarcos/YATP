@@ -42,19 +42,19 @@ Selecting a hub exposes module groups in a tree; each module contributes its own
 ```
 Individual modules may add their own shortcuts (e.g. `/infobar`, `/xpbar`, `/chatbubbles`).
 
-### Debug / Silent Mode
-The addon is silent by default to keep chat clean (startup and module registration messages are suppressed).
-
-Toggle diagnostic output:
+### Debug Mode
+Global debug output can be toggled either via command or the Extras hub:
 ```
 /yatp debug
 ```
-When enabled you will see:
-- Initialization / loaded messages.
-- Module registration and hub assignment lines.
-- Output from `/yatp modules`.
+or open: YATP > Extras > Debug Mode
 
-Use it only when troubleshooting; toggle off afterwards to avoid clutter.
+When enabled you'll see:
+- Initialization / loaded messages
+- Module registration / hub assignment lines
+- Verbose per‑module diagnostic output (modules that implement debug hooks)
+
+Disable it after troubleshooting to avoid chat clutter.
 
 ## Localization
 - English (enUS) acts as the implicit fallback.
@@ -109,3 +109,12 @@ A single AceDB root: `YATP_DB` with a `profile.modules` table holding one sub‑
 - Built on the Ace3 framework and LibSharedMedia.
 
 Enjoy a cleaner UI with modular control!
+
+---
+
+### Changelog
+See `CHANGELOG.md` for a curated list of added / changed / removed items between releases. New development entries accumulate under the `[Unreleased]` section until the next version tag.
+
+### Roadmap & Idea Parking Lot
+High-level planned themes live in `docs/ROADMAP.md`.
+Early / unrefined feature thoughts are collected (not guaranteed) in `docs/IDEAS.md` so the README stays concise.

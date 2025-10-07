@@ -27,7 +27,8 @@ if not YATP then return end
 local defaults = {
     profile = {
         modules = {}, -- cada módulo guardará aquí su config
-        debug = false, -- flag global para mensajes de diagnóstico
+        debug = false, -- legacy flag (will mirror debugMode for backward compatibility)
+        debugMode = false, -- nuevo toggle unificado para todos los módulos
     }
 }
 
@@ -93,6 +94,25 @@ function YATP:OnInitialize()
         childGroups = "tree",
         args = {
             info = { type = "description", name = L["Miscellaneous small toggles and fixes."] or "Miscellaneous small toggles and fixes.", order = 1 },
+            debugHeader = { type="header", name = L["Debug"] or "Debug", order = 5 },
+            debugMode = {
+                type = "toggle",
+                name = L["Debug Mode"] or "Debug Mode",
+                desc = L["Enable verbose debug output for all modules that support it."] or "Enable verbose debug output for all modules that support it.",
+                order = 6,
+                get = function() return self.db and self.db.profile.debugMode end,
+                set = function(_, val)
+                    if not self.db then return end
+                    self.db.profile.debugMode = val
+                    -- mirror legacy flag for modules still checking .debug
+                    self.db.profile.debug = val
+                    if val then
+                        self:Print("Debug Mode ON")
+                    else
+                        self:Print("Debug Mode OFF")
+                    end
+                end,
+            },
         }
     }
     AceConfig:RegisterOptionsTable("YATP-Extras", self.extrasHubOptions)
@@ -303,4 +323,19 @@ end
 -------------------------------------------------
 function YATP:L(key)
     return L[key] or key
+end
+
+-------------------------------------------------
+-- Global Debug Helper API
+-------------------------------------------------
+function YATP:IsDebug()
+    if not self.db or not self.db.profile then return false end
+    return self.db.profile.debugMode or self.db.profile.debug
+end
+
+-- Backwards compat: modules calling YATP:Debug(msg)
+function YATP:Debug(msg)
+    if self:IsDebug() then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:Debug|r "..tostring(msg))
+    end
 end
