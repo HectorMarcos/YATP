@@ -4,6 +4,7 @@
 ## Author: Zavah
 ## Version: 0.1
 ## SavedVariables: YATP_DB
+## Notes-ESMX: Archivo duplicado raiz config.lua removido; usar core/config.lua
 
 # Libs (ensure these exist under YATP\Libs\)
 Libs\LibStub\LibStub.lua
@@ -33,3 +34,5 @@ modules\playerauras.lua
 modules\infobar.lua
 modules\quickconfirm.lua
 modules\hotkeys.lua
+modules\waadifix.lua
+modules\lootrollinfo.lua

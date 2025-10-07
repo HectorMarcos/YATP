@@ -379,7 +379,7 @@ function Module:BuildOptions()
                 get = function() return self.db.enabled end,
                 set = function(_, v) self.db.enabled = v; if v then self:Enable() else self:Disable() end end,
             },
-            desc = { type="description", order=2, fontSize="medium", name = L["Automatically confirms selected confirmation popups (transmog, logout)."] or "Automatically confirms selected confirmation popups (transmog, logout)." },
+            desc = { type="description", order=2, fontSize="medium", name = L["Automatically confirms selected confirmation popups (transmog, exit)."] or "Automatically confirms selected confirmation popups (transmog, exit)." },
             headerTransmog = { type="header", name = L["Transmog"] or "Transmog", order = 5 },
             autoTransmog = { type="toggle", order = 6, name = L["Auto-confirm transmog appearance popups"] or "Auto-confirm transmog appearance popups", get=get, set=set },
             headerExit = { type="header", name = L["Exit"] or "Exit", order = 10 },

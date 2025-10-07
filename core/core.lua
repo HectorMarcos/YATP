@@ -1,6 +1,10 @@
 --========================================================--
 -- YATP - Core (Ace3)
 --========================================================--
+-- NOTA: Este archivo crea el objeto base del addon y registra el panel
+-- principal simple. La lógica extendida de múltiples hubs/panels y
+-- registro avanzado de opciones se encuentra en `core/config.lua`.
+-- Mantener esta separación mientras se consolida la API interna.
 local ADDON_NAME = "YATP"
 
 local AceAddon        = LibStub("AceAddon-3.0")

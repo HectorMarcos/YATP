@@ -147,10 +147,12 @@ L["Auto-confirm logout / exit popups"] = true
 L["Miscellaneous"] = true
 L["Suppress click sound"] = true
 L["Scan Interval"] = true
+L["Debug"] = true
 L["Debug Messages"] = true
 -- Hotkeys Module
 L["Hotkeys"] = true
 L["Customize action button hotkey fonts and ability icon tint."] = true
+L["Hotkey Color"] = true
 L["Font"] = true -- already defined earlier, reuse
 L["Icon Tint"] = true
 L["Enable Tint"] = true
@@ -162,3 +164,36 @@ L["Behavior"] = true
 L["Trigger on Key Down"] = true
 L["Keyboard Only"] = true
 L["Apply 'key down' only if the button has a keyboard binding; mouse clicks stay default (on release)."] = true
+L["Fire actions on key press (may reduce perceived input lag)."] = true
+-- Exit / QuickConfirm updated keys
+L["Exit"] = true
+L["Auto-confirm exit popups"] = true
+-- Legacy description kept to avoid missing entry warning if cached
+L["Automatically confirms selected confirmation popups (transmog, logout)."] = true
+-- Extras / Fixes
+L["Extras"] = true
+L["Miscellaneous small toggles and fixes."] = true
+L["Fixes"] = true
+L["WAAdiFixes"] = "WA/Adi Fixes"
+L["(Migrated from 'Fixes' module name)"] = true
+L["Enable Resize API Fix"] = true
+L["Prevents SetResizeBounds/SetMaxResize errors injected by modern addons."] = true
+L["Various small compatibility toggles."] = true
+L["Compatibility Fixes"] = true
+L["WeakAuras / AdiBags"] = true
+L["Resize Bounds Patch"] = true
+L["Prevents errors when modern WeakAuras code calls SetResizeBounds on legacy client frames."] = true
+L["You can add more inline groups here for future fixes."] = true
+-- LootRollInfo
+L["LootRollInfo"] = true
+L["Shows who rolled Need/Greed/DE/Pass on loot frames."] = true
+L["Display"] = true
+L["Show Tooltips"] = true
+L["Show Counters"] = true
+L["Counter Size Delta"] = true
+L["Class Color Names"] = true
+L["Hide Chat Messages"] = true
+L["Suppress system loot roll lines from chat."] = true
+L["Clear on Cancel"] = true
+L["Remove stored roll data when a roll is canceled."] = true
+L["Track Minimum Rarity"] = true

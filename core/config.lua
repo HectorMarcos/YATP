@@ -2,6 +2,9 @@
 -- YATP - Core.lua
 -- Yet Another Tweaks Pack
 --========================================================--
+-- NOTA: Este archivo es la implementación vigente de configuración.
+-- El antiguo 'config.lua' en la raíz del addon fue eliminado por duplicado
+-- para evitar confusión. Mantener toda la lógica de registro de opciones aquí.
 
 local ADDON_NAME = "YATP"
 local AceAddon = LibStub("AceAddon-3.0")
@@ -81,6 +84,18 @@ function YATP:OnInitialize()
     AceConfig:RegisterOptionsTable("YATP-QualityOfLife", self.qolHubOptions)
     self.qolHubFrame = AceConfigDialog:AddToBlizOptions("YATP-QualityOfLife", L["Quality of Life"] or "Quality of Life", "YATP")
 
+    -- Panel padre 'Extras' para fixes / utilidades pequeñas
+    self.extrasHubOptions = {
+        type = "group",
+        name = L["Extras"] or "Extras",
+        childGroups = "tree",
+        args = {
+            info = { type = "description", name = L["Miscellaneous small toggles and fixes."] or "Miscellaneous small toggles and fixes.", order = 1 },
+        }
+    }
+    AceConfig:RegisterOptionsTable("YATP-Extras", self.extrasHubOptions)
+    self.extrasHubFrame = AceConfigDialog:AddToBlizOptions("YATP-Extras", L["Extras"] or "Extras", "YATP")
+
     -- Tabla para mapping de módulos registrados (para open rápido)
     self.interfaceHubModules = self.interfaceHubModules or {}
 
@@ -135,8 +150,15 @@ end
 -------------------------------------------------
 function YATP:AddModuleOptions(name, optionsTable, panel)
     if not name or not optionsTable then return end
-    -- panel: "Interface" (default) o "QualityOfLife"
-    local target = (panel == "QualityOfLife") and self.qolHubOptions or self.interfaceHubOptions
+    -- panel: "Interface" (default) | "QualityOfLife" | "Extras"
+    local target
+    if panel == "QualityOfLife" then
+        target = self.qolHubOptions
+    elseif panel == "Extras" then
+        target = self.extrasHubOptions
+    else
+        target = self.interfaceHubOptions
+    end
     if not target then return end
     local args = target.args
     local order = 10
@@ -154,11 +176,17 @@ function YATP:AddModuleOptions(name, optionsTable, panel)
     -- Notify the specific registry id used
     if panel == "QualityOfLife" then
         AceConfigRegistry:NotifyChange("YATP-QualityOfLife")
+        self.interfaceHubModules[name] = { panel = "qol" }
+        self:Print(string.format("Módulo '%s' añadido al panel Quality of Life", name))
+    elseif panel == "Extras" then
+        AceConfigRegistry:NotifyChange("YATP-Extras")
+        self.interfaceHubModules[name] = { panel = "extras" }
+        self:Print(string.format("Módulo '%s' añadido al panel Extras", name))
     else
         AceConfigRegistry:NotifyChange("YATP-InterfaceHub")
+        self.interfaceHubModules[name] = { panel = "interface" }
+        self:Print(string.format("Módulo '%s' añadido al panel Interface Hub", name))
     end
-    self.interfaceHubModules[name] = { panel = (panel == "QualityOfLife") and "qol" or "interface" }
-    self:Print(string.format("Módulo '%s' añadido al panel %s", name, (panel == "QualityOfLife" and "Quality of Life" or "Interface Hub")))
 end
 
 -------------------------------------------------
@@ -177,6 +205,10 @@ function YATP:OpenConfig(target)
         InterfaceOptionsFrame_OpenToCategory(self.qolHubFrame)
         InterfaceOptionsFrame_OpenToCategory(self.qolHubFrame)
         return
+    elseif target == "Extras" or target == "extras" then
+        InterfaceOptionsFrame_OpenToCategory(self.extrasHubFrame)
+        InterfaceOptionsFrame_OpenToCategory(self.extrasHubFrame)
+        return
     end
     -- Intentar abrir módulo en el panel adecuado
     if self.interfaceHubModules and self.interfaceHubModules[target] then
@@ -185,6 +217,10 @@ function YATP:OpenConfig(target)
             InterfaceOptionsFrame_OpenToCategory(self.qolHubFrame)
             InterfaceOptionsFrame_OpenToCategory(self.qolHubFrame)
             AceConfigDialog:SelectGroup("YATP-QualityOfLife", target)
+        elseif meta.panel == "extras" then
+            InterfaceOptionsFrame_OpenToCategory(self.extrasHubFrame)
+            InterfaceOptionsFrame_OpenToCategory(self.extrasHubFrame)
+            AceConfigDialog:SelectGroup("YATP-Extras", target)
         else
             InterfaceOptionsFrame_OpenToCategory(self.interfaceHubFrame)
             InterfaceOptionsFrame_OpenToCategory(self.interfaceHubFrame)
