@@ -1,4 +1,5 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
     <Script file="xprepbar.lua" />
     <Script file="chatbubbles.lua" />
+    <Script file="playerauras.lua" />
 </Ui>

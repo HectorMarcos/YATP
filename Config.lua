@@ -24,6 +24,7 @@ if not YATP then return end
 local defaults = {
     profile = {
         modules = {}, -- cada módulo guardará aquí su config
+        -- remove hub flags
     }
 }
 
@@ -56,9 +57,20 @@ function YATP:OnInitialize()
     AceConfig:RegisterOptionsTable("YATP", self.options)
     self.optionsFrame = AceConfigDialog:AddToBlizOptions("YATP", "YATP")
 
-    -- Crear categorías base para que aparezcan con el símbolo '+' aunque estén vacías
-    self:EnsureCategory("Interface", 10)
-    self:EnsureCategory("QualityOfLife", 11, true) -- placeholder
+    -- Panel padre 'Interface Hub' bajo YATP
+    self.interfaceHubOptions = {
+        type = "group",
+        name = L["Interface Hub"] or "Interface Hub",
+        childGroups = "tree",
+        args = {
+            info = { type = "description", name = L["Select a module from the list on the left."] or "Select a module from the list on the left.", order = 1 },
+        }
+    }
+    AceConfig:RegisterOptionsTable("YATP-InterfaceHub", self.interfaceHubOptions)
+    self.interfaceHubFrame = AceConfigDialog:AddToBlizOptions("YATP-InterfaceHub", L["Interface Hub"] or "Interface Hub", "YATP")
+
+    -- Tabla para mapping de módulos registrados (para open rápido)
+    self.interfaceHubModules = self.interfaceHubModules or {}
 
     -- Comando por chat
     self:RegisterChatCommand("yatp", "ChatCommand")
@@ -69,30 +81,7 @@ end
 -------------------------------------------------
 -- Crear / asegurar categoría (panel secundario)
 -------------------------------------------------
-function YATP:EnsureCategory(category, order, withPlaceholder)
-    if self.categories[category] then return self.categories[category] end
-
-    local key = "YATP-" .. category
-    -- Aceptamos dos posibles claves: "QualityOfLife" (sin espacios) y "Quality of Life" (con espacios)
-    local localizedName = L[category] or L[category == "QualityOfLife" and "Quality of Life" or category] or category
-
-    local opts = {
-        type = "group",
-        name = localizedName,
-        order = order or 100,
-        childGroups = "tab", -- dentro de la categoría los módulos serán tabs
-        args = {}
-    }
-    if withPlaceholder then
-        opts.args.placeholder = { type = "description", name = L["No modules in this category yet."] or "No modules in this category yet.", order = 1 }
-    end
-
-    self.categories[category] = opts
-    AceConfig:RegisterOptionsTable(key, opts)
-    local frame = AceConfigDialog:AddToBlizOptions(key, localizedName, "YATP")
-    self.categoryFrames[category] = frame
-    return opts
-end
+function YATP:EnsureCategory() return nil end
 
 -------------------------------------------------
 -- OnEnable
@@ -132,83 +121,64 @@ end
 -------------------------------------------------
 -- Añadir opciones al panel
 -------------------------------------------------
-function YATP:AddModuleOptions(name, optionsTable, category)
+function YATP:AddModuleOptions(name, optionsTable)
     if not name or not optionsTable then return end
-    category = category or "Interface"
-
-    local catOpts = self:EnsureCategory(category)
-    if not catOpts.args then catOpts.args = {} end
-
-    if catOpts.args.placeholder then
-        catOpts.args.placeholder = nil
+    -- Añadimos como grupo interno dentro de interfaceHubOptions
+    local args = self.interfaceHubOptions.args
+    if args.info then
+        -- mantener info en top, pero módulos después
     end
-
-    -- Siempre crear un grupo para el módulo (consistente y visible)
-    -- Calcular orden en base a cuántos grupos ya hay (ignorando placeholder)
-    local count = 0
-    for k,_ in pairs(catOpts.args) do
-        if k ~= "placeholder" then count = count + 1 end
+    local order = 10
+    for k,v in pairs(args) do
+        if type(v) == "table" and v.type == "group" and k ~= "info" then
+            order = math.max(order, (v.order or 10)+1)
+        end
     end
-    local order = 10 + count
-
-    catOpts.args[name] = {
+    args[name] = {
         type = "group",
         name = L[name] or name,
         order = order,
-        args = optionsTable.args or {},
+        args = optionsTable.args or optionsTable
     }
-    -- Tabs sólo si más de un módulo
-    local realModules = 0
-    for k,v in pairs(catOpts.args) do
-        if type(v) == "table" and v.type == "group" and k ~= "placeholder" then
-            realModules = realModules + 1
-        end
-    end
-    catOpts.childGroups = (realModules > 1) and "tab" or nil
-
-    AceConfigRegistry:NotifyChange("YATP-" .. category)
-    self:Print(string.format("Opciones registradas para módulo '%s' en categoría '%s'", name, category))
+    AceConfigRegistry:NotifyChange("YATP-InterfaceHub")
+    self.interfaceHubModules[name] = name
+    self:Print(string.format("Módulo '%s' añadido al árbol interno del Interface Hub", name))
 end
 
 -------------------------------------------------
 -- Abrir configuración
 -------------------------------------------------
 function YATP:OpenConfig(target)
-    -- Abrir raíz siempre primero para asegurar lista expandible
+    -- Abre el panel raíz siempre
     InterfaceOptionsFrame_OpenToCategory(self.optionsFrame)
-    InterfaceOptionsFrame_OpenToCategory(self.optionsFrame) -- doble llamada por bug
-
-    if not target or target:trim() == "" then
-        return -- About ya visible al seleccionar raíz
-    end
-
-    -- ¿Es una categoría?
-    if self.categoryFrames[target] then
-        InterfaceOptionsFrame_OpenToCategory(self.categoryFrames[target])
-        InterfaceOptionsFrame_OpenToCategory(self.categoryFrames[target])
+    InterfaceOptionsFrame_OpenToCategory(self.optionsFrame)
+    if not target or target == "" then return end
+    if target == "InterfaceHub" or target == "interfacehub" then
+        InterfaceOptionsFrame_OpenToCategory(self.interfaceHubFrame)
+        InterfaceOptionsFrame_OpenToCategory(self.interfaceHubFrame)
         return
     end
-
-    -- Buscar módulo dentro de categorías
-    for cat, opts in pairs(self.categories) do
-        if opts.args and opts.args[target] then
-            local frame = self.categoryFrames[cat]
-            if frame then
-                InterfaceOptionsFrame_OpenToCategory(frame)
-                InterfaceOptionsFrame_OpenToCategory(frame)
-                -- Seleccionar el grupo (tab) del módulo dentro de la categoría
-                AceConfigDialog:SelectGroup("YATP-" .. cat, target)
-            end
-            return
-        end
+    -- Intentar abrir módulo dentro del hub
+    if self.interfaceHubModules and self.interfaceHubModules[target] then
+        InterfaceOptionsFrame_OpenToCategory(self.interfaceHubFrame)
+        InterfaceOptionsFrame_OpenToCategory(self.interfaceHubFrame)
+        -- seleccionar el grupo dentro del árbol
+        AceConfigDialog:SelectGroup("YATP-InterfaceHub", target)
+        return
     end
+    -- Fallback: abrir por label directo (por si algo quedó raíz)
+    local label = L[target] or target
+    InterfaceOptionsFrame_OpenToCategory(label)
+    InterfaceOptionsFrame_OpenToCategory(label)
 end
+
+-- Hub eliminado
 
 -------------------------------------------------
 -- Chat Command
 -------------------------------------------------
 function YATP:ChatCommand(input)
-    input = input and input:trim():lower() or ""
+    input = input and strtrim(input):lower() or ""
 
     if input == "" then
         self:OpenConfig()
