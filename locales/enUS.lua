@@ -116,3 +116,18 @@ L["Continuously sweep world frames to strip bubble textures ASAP (slightly highe
 L["Seconds between sweeps in aggressive mode."] = "Seconds between sweeps in aggressive mode."
 L["Extra quick sweeps right after detecting a bubble."] = "Extra quick sweeps right after detecting a bubble."
 L["Toggle the ChatBubbles module. Removes bubble artwork and restyles the text using your chosen font settings."] = "Toggle the ChatBubbles module. Removes bubble artwork and restyles the text using your chosen font settings."
+-- InfoBar / Quality of Life
+L["Info Bar"] = true
+L["Enable Module"] = true
+L["Lock Frame"] = true
+L["Update Interval (seconds)"] = true
+L["Metrics"] = true
+L["Show FPS"] = true
+L["Show Ping"] = true
+L["Show Durability"] = true
+L["Low Durability Threshold"] = true
+L["Only color durability below threshold"] = true
+L["Appearance"] = true
+L["Font Color"] = true
+L["Show Background"] = true
+L["Durability"] = true

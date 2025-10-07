@@ -23,8 +23,11 @@ Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
 locales\enUS.lua
 
 # Core
-YATP.lua
-Config.lua
+core\core.lua
+core\config.lua
 
-# Modules
-Modules\Modules.xml
+# Modules (direct includes, replacing Modules\Modules.xml)
+modules\xprepbar.lua
+modules\chatbubbles.lua
+modules\playerauras.lua
+modules\infobar.lua
