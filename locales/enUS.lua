@@ -131,3 +131,20 @@ L["Appearance"] = true
 L["Font Color"] = true
 L["Show Background"] = true
 L["Durability"] = true
+-- Common formatting terms
+L["None"] = "None"
+L["Outline"] = "Outline"
+L["Thick Outline"] = "Thick Outline"
+-- Ensure InfoBar canonical key (module internally may request 'InfoBar')
+L["InfoBar"] = "Info Bar"
+-- QuickConfirm
+L["QuickConfirm"] = true
+L["Automatically confirms selected confirmation popups (transmog, logout)."] = true
+L["Transmog"] = true
+L["Auto-confirm transmog appearance popups"] = true
+L["Logout / Exit"] = true
+L["Auto-confirm logout / exit popups"] = true
+L["Miscellaneous"] = true
+L["Suppress click sound"] = true
+L["Scan Interval"] = true
+L["Debug Messages"] = true

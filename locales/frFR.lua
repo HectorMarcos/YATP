@@ -118,3 +118,17 @@ if not L["Appearance"] then L["Appearance"] = "Appearance" end
 if not L["Font Color"] then L["Font Color"] = "Font Color" end
 if not L["Show Background"] then L["Show Background"] = "Show Background" end
 if not L["Durability"] then L["Durability"] = "Durability" end
+if not L["None"] then L["None"] = "None" end
+if not L["Thick Outline"] then L["Thick Outline"] = "Thick Outline" end
+if not L["InfoBar"] then L["InfoBar"] = "Info Bar" end
+-- QuickConfirm (fallbacks)
+if not L["QuickConfirm"] then L["QuickConfirm"] = "QuickConfirm" end
+if not L["Automatically confirms selected confirmation popups (transmog, logout)."] then L["Automatically confirms selected confirmation popups (transmog, logout)."] = "Automatically confirms selected confirmation popups (transmog, logout)." end
+if not L["Transmog"] then L["Transmog"] = "Transmog" end
+if not L["Auto-confirm transmog appearance popups"] then L["Auto-confirm transmog appearance popups"] = "Auto-confirm transmog appearance popups" end
+if not L["Logout / Exit"] then L["Logout / Exit"] = "Logout / Exit" end
+if not L["Auto-confirm logout / exit popups"] then L["Auto-confirm logout / exit popups"] = "Auto-confirm logout / exit popups" end
+if not L["Miscellaneous"] then L["Miscellaneous"] = "Miscellaneous" end
+if not L["Suppress click sound"] then L["Suppress click sound"] = "Suppress click sound" end
+if not L["Scan Interval"] then L["Scan Interval"] = "Scan Interval" end
+if not L["Debug Messages"] then L["Debug Messages"] = "Debug Messages" end

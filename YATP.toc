@@ -31,3 +31,4 @@ modules\xprepbar.lua
 modules\chatbubbles.lua
 modules\playerauras.lua
 modules\infobar.lua
+modules\quickconfirm.lua
