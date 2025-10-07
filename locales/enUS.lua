@@ -188,6 +188,32 @@ L["WeakAuras / AdiBags"] = true
 L["Resize Bounds Patch"] = true
 L["Prevents errors when modern WeakAuras code calls SetResizeBounds on legacy client frames."] = true
 L["You can add more inline groups here for future fixes."] = true
+-- Background FPS Management
+L["Performance"] = true
+L["Background FPS"] = true
+L["Manage Background FPS Cap"] = true
+L["When enabled, sets /console maxfpsbk to the value below and restores the previous value when disabled."] = true
+L["Background FPS Value"] = true
+L["Target FPS while the game is unfocused (0 disables override logic)."] = true
+L["Current: %s (Prev: %s) State: %s"] = true
+L["Active"] = true
+L["Inactive"] = true
+L["Hint: Shift-Right-Click the InfoBar to quick toggle."] = true
+L["Shift-Right-Click to toggle management."] = true
+L["State"] = true
+L["Target"] = true
+L["Original"] = true
+L["Managed"] = true
+L["Unmanaged"] = true
+-- Background FPS Fix (separate module variant without slider)
+L["Tweaks"] = true
+L["Enable Background FPS Fix"] = true
+L["When enabled, forces a background FPS cap and restores the previous value when disabled."] = true
+L["State: %s  Current: %s  Previous: %s"] = true
+L["This tweak uses an internal default (60 FPS) for now."] = true
+L["Background FPS Cap"] = true
+L["Set the background framerate cap. 0 = do not override. This slider removes the old 60 FPS ceiling."] = true
+L["Note: Previous UI limited this to 60 FPS; this module lets you set higher values."] = true
 -- LootRollInfo
 L["LootRollInfo"] = true
 L["Shows who rolled Need/Greed/DE/Pass on loot frames."] = true

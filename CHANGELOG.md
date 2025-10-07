@@ -13,6 +13,23 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 ### Security
 ### Internal / Maintenance
 
+## [0.3.1] - 2025-10-07
+
+### 0.3.1 Additions
+
+- BackgroundFPSFix module (Extras > Tweaks): provides a configurable background framerate cap (`/console maxfpsbk`) with restore-on-disable behavior and slider up to 240 FPS (0 = no override). Replaces earlier experimental embedding attempt inside WAAdiFixes.
+
+### 0.3.1 Changes
+
+- TOC: added `modules/backgroundfpsfix.lua` entry.
+- README: documented Tweaks panel presence (Background FPS Fix).
+- IDEAS: moved "Background FPS Limit Toggle" to Historical as shipped.
+
+### 0.3.1 Internal / Maintenance
+
+- Refactored WAAdiFixes to remove temporary background FPS logic.
+- Introduced Tweaks group under Extras for future small performance toggles.
+
 ## [0.3] - 2025-10-07
 ### Added
 - ChatFilters module (Quality of Life): suppresses repetitive system error spam ("Interface action failed because of an AddOn" / UI Error variants) with substring + token matching, color code stripping, optional diagnostic logging.
@@ -67,7 +84,8 @@ The following early commits were consolidated into this initial snapshot:
 - `8224f9a` debug clean (preparation for unified debug approach)
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
-[Unreleased]: https://example.com/compare/v0.3...HEAD
+[Unreleased]: https://example.com/compare/v0.3.1...HEAD
+[0.3.1]: https://example.com/releases/tag/v0.3.1
 [0.3]: https://example.com/releases/tag/v0.3
 [0.2]: https://example.com/releases/tag/v0.2
 [0.1]: https://example.com/releases/tag/v0.1

@@ -110,6 +110,21 @@ function Module:CreateFrame()
         GameTooltip:Hide()
     end)
 
+    -- Quick toggle: Shift + Right Click toggles Background FPS management (if WAAdiFixes present)
+    f:SetScript("OnMouseUp", function(_, button)
+        if button == "RightButton" and IsShiftKeyDown() then
+            local fixes = YATP and YATP:GetModule("WAAdiFixes", true)
+            if fixes and type(fixes.ToggleBackgroundFPS) == "function" then
+                fixes:ToggleBackgroundFPS()
+                self:RefreshText() -- in case we later display state inline
+                -- Refresh tooltip if still hovered
+                if GameTooltip:IsOwned(f) then
+                    self:ShowTooltip()
+                end
+            end
+        end
+    end)
+
     self.frame = f
 end
 
@@ -228,6 +243,27 @@ function Module:ShowTooltip()
         GameTooltip:AddDoubleLine(name, string.format("|cffffffff%.0f%%|r", entry.pct))
     end
     GameTooltip:Show()
+
+    -- Append Background FPS management status (even if durability hidden? we early returned; keep coupled for now)
+    local fixes = YATP and YATP:GetModule("WAAdiFixes", true)
+    if fixes and fixes.db then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(L["Background FPS"] or "Background FPS")
+        local state = fixes.db.bgFPSManage and (L["Managed"] or "Managed") or (L["Unmanaged"] or "Unmanaged")
+        local value = fixes.db.bgFPSValue or 0
+        if fixes._bgFPSActive and fixes._bgFPSPrevValue then
+            GameTooltip:AddDoubleLine(L["State"] or "State", state)
+            GameTooltip:AddDoubleLine(L["Target"] or "Target", tostring(value))
+            GameTooltip:AddDoubleLine(L["Original"] or "Original", tostring(fixes._bgFPSPrevValue))
+        else
+            GameTooltip:AddDoubleLine(L["State"] or "State", state)
+            if fixes.db.bgFPSManage then
+                GameTooltip:AddDoubleLine(L["Target"] or "Target", tostring(value))
+            end
+        end
+        GameTooltip:AddLine(L["Shift-Right-Click to toggle management."] or "Shift-Right-Click to toggle management.", 0.6,0.8,1)
+        GameTooltip:Show()
+    end
 end
 
 -------------------------------------------------

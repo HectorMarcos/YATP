@@ -39,15 +39,19 @@ Score: I=?, E=?, R=? -> Priority=?
 These score highest by formula (2). Focus first among seeds.
 
  
-### Background FPS Limit Toggle
+<!-- Moved to Historical (shipped as BackgroundFPSFix module in 0.3.1) -->
+
+### ChatFilters: Suppress Login Welcome Spam
+
 Status: seed  
-Problem: Background FPS limit too low wastes smoothness (or too high wastes resources).  
-Proposal: Expose a slider (0 = no change) for `/console maxfpsbk <n>` plus quick toggle in InfoBar.  
-Notes: Store previous value and restore when disabling; optionally consider foreground `maxfps`.  
-Score (recalc): I=2 E=1 R=1 -> Priority=2
+Problem: Standard Ascension login chat lines (Welcome to Ascension!, Server uptime..., Total time played..., Time played in this level...) add noise every session and push recent context out of view.  
+Proposal: Extend ChatFilters patterns to optionally suppress (or collapse into a single compact summary line) these predictable startup messages. Provide a toggle and (optional) hold-modifier-to-show passthrough.  
+Notes: Identify channel/event source (system vs. addon broadcast), ensure we don't hide first-run tutorial or GM messages. Add a small counter of suppressed lines if debug enabled.  
+Score (draft): I=2 E=1 R=1 -> Priority=2
 
  
 ### Auto Item Compare Hover
+
 Status: seed  
 Problem: Players must hold Shift (or the configured modifier) every time to see side-by-side comparison when mousing over equippable items, adding friction to quick loot evaluation.  
 Proposal: Automatically show equipped item comparison tooltips on hover for equippable gear without requiring the modifier key (simulate modifier or call comparison API). Provide a toggle and optional key to suppress (e.g. hold Alt to hide compare).  
@@ -56,6 +60,7 @@ Score (recalc): I=2 E=1 R=1 -> Priority=2
 
  
 ### Compact Minimap Enhancer
+
 Status: seed  
 Problem: Default minimap clutter & inconsistent scaling across UIs.  
 Proposal: Module to unify border, hide zone text until hover, add quick toggles (tracking, difficulty).  
@@ -64,6 +69,7 @@ Score (recalc): I=2 E=2 R=1 -> Priority=1 (was 2 manual)
 
  
 ### Aura Blacklist Import / Export
+
 Status: seed  
 Problem: Sharing custom aura filters between players is manual.  
 Proposal: Export to compressed string & import (AceSerializer + LibDeflate).  
@@ -72,6 +78,7 @@ Score (recalc): I=2 E=2 R=1 -> Priority=1 (was 2 manual)
 
  
 ### Frame Scale Memory
+
 Status: seed  
 Problem: Players resize Blizzard frames manually each session.  
 Proposal: Store & restore scale for selected frames (Map, Who, LFG, etc.).  
@@ -84,6 +91,7 @@ Medium leverage or upgraded manually from formula 0/negative.
 
  
 ### Reaction Skills Warning
+
 Status: seed  
 Problem: Players miss reactive abilities (proc / aura triggers) if they don't run WeakAuras.  
 Proposal: Editable spell list that triggers a glow / border highlight on its action button when conditions are met (aura active, usable, off cooldown).  
@@ -92,6 +100,7 @@ Score (recalc): I=3 E=3 R=2 -> Priority=1
 
  
 ### Performance Profiler Micro-Panel
+
 Status: seed  
 Problem: Users suspect addon cost but no at-a-glance info.  
 Proposal: On-demand panel listing per-module update counts / cpu (if profiling enabled).  
@@ -100,6 +109,7 @@ Score (recalc): I=3 E=3 R=2 -> Priority=1
 
  
 ### Party Name Privacy
+
 Status: seed  
 Problem: Player wants to hide other players' names (immersion / screenshots) but still see group/raid members for coordination.  
 Proposal: Rewrite non-party names to "Player" or configurable alias except party/raid, target, focus.  
@@ -112,6 +122,7 @@ Low leverage or deferred.
 
  
 ### DataBroker Bridge
+
 Status: seed  
 Problem: Users wanting LDB feeds (latency, fps, durability) for existing panels.  
 Proposal: Optional lightweight LDB provider toggled via Extras.  
@@ -120,6 +131,7 @@ Score (recalc): I=2 E=2 R=2 -> Priority=0
 
  
 ### In-Game Profile Snapshot Export
+
 Status: seed  
 Problem: Hard to compare config differences across machines.  
 Proposal: Serialize enabled modules + key settings into a readable block for pastebin.  
@@ -128,6 +140,7 @@ Score (recalc): I=2 E=3 R=1 -> Priority=0
 
  
 ### Buff Duration Compact Formatting
+
 Status: seed  
 Problem: Buff duration text shows a space between value and unit ("23 m"), wasting horizontal space and causing slight alignment jitter.  
 Proposal: Normalize formatting to compact style ("23m", "45s", "2h") in PlayerAuras (and any other duration displays) while preserving color logic.  
@@ -148,6 +161,7 @@ Reference of completed ideas (retain for context, remove later if cluttered).
 
  
 ### Chat System Filters (Shipped in 0.3)
+
 Status: shipped  
 Solution: Implemented as the `ChatFilters` module (Quality of Life). Future enhancements could add user-defined patterns & counters.  
 Score (historic): I=2 E=2 R=1 -> Priority=2
