@@ -2,9 +2,9 @@
 -- YATP - Core.lua
 -- Yet Another Tweaks Pack
 --========================================================--
--- NOTA: Este archivo es la implementación vigente de configuración.
--- El antiguo 'config.lua' en la raíz del addon fue eliminado por duplicado
--- para evitar confusión. Mantener toda la lógica de registro de opciones aquí.
+-- NOTE: This is the current configuration implementation.
+-- The old root-level 'config.lua' (duplicate) was removed to avoid confusion.
+-- Keep all option registration logic consolidated here.
 
 local ADDON_NAME = "YATP"
 local AceAddon = LibStub("AceAddon-3.0")
@@ -27,7 +27,7 @@ if not YATP then return end
 local defaults = {
     profile = {
         modules = {}, -- cada módulo guardará aquí su config
-        -- remove hub flags
+        debug = false, -- flag global para mensajes de diagnóstico
     }
 }
 
@@ -40,7 +40,9 @@ function YATP:OnInitialize()
     self.categories = self.categories or {}          -- tablas de opciones por categoría
     self.categoryFrames = self.categoryFrames or {}  -- referencias a frames de InterfaceOptions
 
-    self:Print("|cff33ff99YATP|r inicializando...")
+    if self.db.profile.debug then
+        self:Print("|cff33ff99YATP|r initializing...")
+    end
 
     local version = GetAddOnMetadata(ADDON_NAME, "Version") or "?"
 
@@ -96,13 +98,15 @@ function YATP:OnInitialize()
     AceConfig:RegisterOptionsTable("YATP-Extras", self.extrasHubOptions)
     self.extrasHubFrame = AceConfigDialog:AddToBlizOptions("YATP-Extras", L["Extras"] or "Extras", "YATP")
 
-    -- Tabla para mapping de módulos registrados (para open rápido)
+    -- Internal lookup table so OpenConfig can quickly determine which hub a module lives in
     self.interfaceHubModules = self.interfaceHubModules or {}
 
     -- Comando por chat
     self:RegisterChatCommand("yatp", "ChatCommand")
 
-    self:Print("YATP inicializado correctamente.")
+    if self.db.profile.debug then
+        self:Print("YATP inicializado correctamente.")
+    end
 end
 
 -------------------------------------------------
@@ -114,33 +118,43 @@ function YATP:EnsureCategory() return nil end
 -- OnEnable
 -------------------------------------------------
 function YATP:OnEnable()
-    self:Print("YATP cargado. Usa /yatp para configurar.")
+    if self.db and self.db.profile.debug then
+        self:Print("YATP cargado. Usa /yatp para configurar.")
+    end
 end
 
 -------------------------------------------------
--- Registro de módulos
+-- Module registration
 -------------------------------------------------
 function YATP:RegisterModule(name, module)
     if not name or not module then
-        self:Print("Error: módulo inválido.")
+    if self.db and self.db.profile.debug then
+        self:Print("Error: invalid module reference.")
+    end
         return
     end
 
     if self.modules[name] then
-        self:Print("Módulo '" .. name .. "' ya está registrado.")
+    if self.db and self.db.profile.debug then
+        self:Print("Module '" .. name .. "' is already registered.")
+    end
         return
     end
 
     self.modules[name] = module
-    self:Print("Registrando módulo: " .. name)
+    if self.db and self.db.profile.debug then
+        self:Print("Registering module: " .. name)
+    end
 
     if type(module.OnModuleInitialize) == "function" then
-        -- Inicializar el módulo
+    -- Initialize the module's own state / DB migrations
         local success, err = pcall(function() module:OnModuleInitialize() end)
-        if not success then
-            self:Print("Error inicializando módulo " .. name .. ": " .. tostring(err))
-        else
-            self:Print("Módulo " .. name .. " inicializado correctamente.")
+        if self.db and self.db.profile.debug then
+            if not success then
+                self:Print("Error initializing module " .. name .. ": " .. tostring(err))
+            else
+                self:Print("Module " .. name .. " initialized successfully.")
+            end
         end
     end
 end
@@ -177,15 +191,21 @@ function YATP:AddModuleOptions(name, optionsTable, panel)
     if panel == "QualityOfLife" then
         AceConfigRegistry:NotifyChange("YATP-QualityOfLife")
         self.interfaceHubModules[name] = { panel = "qol" }
-        self:Print(string.format("Módulo '%s' añadido al panel Quality of Life", name))
+        if self.db and self.db.profile.debug then
+            self:Print(string.format("Module '%s' added to Quality of Life hub", name))
+        end
     elseif panel == "Extras" then
         AceConfigRegistry:NotifyChange("YATP-Extras")
         self.interfaceHubModules[name] = { panel = "extras" }
-        self:Print(string.format("Módulo '%s' añadido al panel Extras", name))
+        if self.db and self.db.profile.debug then
+            self:Print(string.format("Module '%s' added to Extras hub", name))
+        end
     else
         AceConfigRegistry:NotifyChange("YATP-InterfaceHub")
         self.interfaceHubModules[name] = { panel = "interface" }
-        self:Print(string.format("Módulo '%s' añadido al panel Interface Hub", name))
+        if self.db and self.db.profile.debug then
+            self:Print(string.format("Module '%s' added to Interface Hub", name))
+        end
     end
 end
 
@@ -210,7 +230,7 @@ function YATP:OpenConfig(target)
         InterfaceOptionsFrame_OpenToCategory(self.extrasHubFrame)
         return
     end
-    -- Intentar abrir módulo en el panel adecuado
+    -- Attempt to open a specific module inside the correct hub
     if self.interfaceHubModules and self.interfaceHubModules[target] then
         local meta = self.interfaceHubModules[target]
         if meta.panel == "qol" then
@@ -245,18 +265,37 @@ function YATP:ChatCommand(input)
     if input == "" then
         self:OpenConfig()
     elseif input == "modules" then
-        self:Print("Módulos registrados:")
+    if self.db and self.db.profile.debug then
+        self:Print("Registered modules:")
+    end
         for name in pairs(self.modules) do
-            self:Print(" - " .. name)
+            if self.db and self.db.profile.debug then
+                self:Print(" - " .. name)
+            end
         end
     elseif input == "reload" then
         ReloadUI()
     else
-        self:Print("Comandos disponibles:")
-        self:Print("/yatp → abre la configuración")
-        self:Print("/yatp modules → lista los módulos activos")
-        self:Print("/yatp reload → recarga la interfaz")
+    self:Print("/yatp  - abre la configuración")
+    self:Print("/yatp modules - lista módulos (requiere debug activado para ver salida)")
+    self:Print("/yatp reload  - recarga la interfaz")
+    self:Print("/yatp debug   - alterna mensajes de diagnóstico")
     end
+end
+
+-------------------------------------------------
+-- Toggle debug via command
+-------------------------------------------------
+-- Añadimos un comando simple: /yatp debug
+local origChatCommand = YATP.ChatCommand
+function YATP:ChatCommand(input)
+    input = input and strtrim(input):lower() or ""
+    if input == "debug" then
+        self.db.profile.debug = not self.db.profile.debug
+        self:Print("Debug " .. (self.db.profile.debug and "activado" or "desactivado"))
+        return
+    end
+    origChatCommand(self, input)
 end
 
 -------------------------------------------------

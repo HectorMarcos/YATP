@@ -56,7 +56,8 @@ local TRANSMOG_WHICH = {
 -- Additional lowercase textual cues (extended with Spanish variants)
 local EXIT_TEXT_CUES = {
     "exit", "quit", "camp", "leave world", -- English
-    "salir", "abandonar", -- Spanish core verbs
+    -- Spanish verbs kept for cross‑locale detection
+    "salir", "abandonar",
 }
 
 -- Utility: lowercase contains any of patterns

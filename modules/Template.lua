@@ -1,40 +1,40 @@
 --========================================================--
--- YATP - Module Template (Guía completa)
+-- YATP - Module Template (Comprehensive Guide)
 --========================================================--
--- Cómo usar esta plantilla:
--- 1. Copia este archivo y renómbralo (ej: MyFeature.lua) dentro de Modules/.
--- 2. Sustituye TODAS las apariciones de "Template" por el nombre real del módulo.
--- 3. Añade claves de localización necesarias en locales/*.lua (enUS siempre fallback).
--- 4. Ajusta defaults y BuildOptions según tus necesidades.
--- 5. Mantén el módulo registrado automáticamente (YATP:AddModuleOptions) para mostrarlo en Interface Hub.
+-- How to use this template:
+-- 1. Copy this file and rename it (e.g. MyFeature.lua) inside Modules/.
+-- 2. Replace EVERY occurrence of "Template" with the real module name.
+-- 3. Add localization keys you need in locales/*.lua (enUS acts as fallback).
+-- 4. Adjust defaults and BuildOptions for your needs.
+-- 5. Keep automatic registration (YATP:AddModuleOptions) so it appears in the Interface Hub.
 --
--- Convenciones YATP:
---  * self.db                   -> tabla de configuración por perfil (AceDB) en YATP.db.profile.modules[Nombre]
---  * Module.defaults           -> semilla clonada con CopyTable() la primera vez
---  * AddModuleOptions(nombre)  -> inserta el grupo en el panel 'Interface Hub'
---  * Debug()                   -> usar método de debug condicional para no saturar el chat
---  * Notación camelCase para claves DB; nombres legibles en UI mediante locales
+-- YATP conventions:
+--  * self.db                   -> per-profile config table (AceDB) at YATP.db.profile.modules[Name]
+--  * Module.defaults           -> cloned via CopyTable() first initialization
+--  * AddModuleOptions(name)    -> inserts the group into the Interface Hub panel
+--  * Debug()                   -> conditional debug output (avoid chat spam)
+--  * camelCase for DB keys; user-facing names provided via locales
 --
--- Sugerencias de calidad:
---  * Evita crear tablas por frame en OnUpdate (reutiliza / cachea referencias)
---  * Usa eventos en lugar de escaneos periódicos siempre que sea viable
---  * Rate‑limit acciones potencialmente costosas (usa timestamps o C_Timer)
---  * Aísla funciones de migración para facilitar futuras versiones
+-- Quality suggestions:
+--  * Avoid allocating tables every frame in OnUpdate (reuse / cache references)
+--  * Prefer events over periodic polling where viable
+--  * Rate‑limit potentially expensive actions (timestamps or C_Timer)
+--  * Isolate migration helpers for future versions
 --========================================================--
 
 local L   = LibStub("AceLocale-3.0"):GetLocale("YATP", true) or setmetatable({}, { __index=function(_,k) return k end })
 local LSM = LibStub("LibSharedMedia-3.0", true)
 local YATP = LibStub("AceAddon-3.0"):GetAddon("YATP", true)
 if not YATP then
-    print("YATP no encontrado, abortando módulo Template.lua")
+    print("YATP not found, aborting Template.lua module")
     return
 end
 
--- Crea el módulo (ajusta el nombre entre comillas)
+-- Create the module (adjust the quoted name)
 local Module = YATP:NewModule("Template", "AceEvent-3.0", "AceConsole-3.0")
 
 -------------------------------------------------
--- Debug helper (activar con /yatp y toggle en opciones si añades 'debug')
+-- Debug helper (activate by enabling the 'debug' toggle if you add one)
 -------------------------------------------------
 function Module:Debug(msg)
     if not self.db or not self.db.debug then return end
@@ -45,18 +45,18 @@ end
 -- Defaults
 -------------------------------------------------
 Module.defaults = {
-    enabled = true,            -- activar/desactivar módulo
-    exampleOption = true,      -- ejemplo de toggle
-    debug = false,             -- activar mensajes de debug (si se usa)
-    -- Añade aquí más claves persistentes
+    enabled = true,            -- enable/disable the module
+    exampleOption = true,      -- sample toggle
+    debug = false,             -- enable verbose debug messages (if used)
+    -- Add more persistent keys below
 }
 
 -------------------------------------------------
--- (Opcional) Migraciones de versión
--- Llama a esta función en OnInitialize si necesitas adaptar datos antiguos
+-- (Optional) Version migrations
+-- Call this function inside OnInitialize if you need to adapt older saved data
 -------------------------------------------------
 local function RunMigrations(self)
-    -- Ejemplo:
+    -- Example:
     -- if self.db.oldKey ~= nil and self.db.newKey == nil then
     --     self.db.newKey = self.db.oldKey; self.db.oldKey = nil
     -- end
@@ -66,7 +66,7 @@ end
 -- OnInitialize
 -------------------------------------------------
 function Module:OnInitialize()
-    -- Asegura subtabla de módulos
+    -- Ensure per-module subtable exists
     if not YATP.db.profile.modules then YATP.db.profile.modules = {} end
     if not YATP.db.profile.modules.Template then
         YATP.db.profile.modules.Template = CopyTable(self.defaults)
@@ -76,10 +76,10 @@ function Module:OnInitialize()
     -- Ejecutar migraciones si procede
     RunMigrations(self)
 
-    -- Registro de comando rápido (opcional; renombra 'template')
+    -- Optional quick slash command (rename 'template')
     self:RegisterChatCommand("template", function() self:OpenConfig() end)
 
-    -- Registrar opciones en Interface Hub
+    -- Register options inside the Interface Hub
     if YATP.AddModuleOptions then
         YATP:AddModuleOptions("Template", self:BuildOptions())
     end
@@ -90,30 +90,30 @@ end
 -------------------------------------------------
 function Module:OnEnable()
     if not self.db.enabled then return end
-    -- Registra eventos aquí (ejemplo):
+    -- Register events here (example):
     -- self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnterWorld")
     -- self:RegisterEvent("PLAYER_REGEN_DISABLED", "OnCombatStart")
-    self:Debug("Template habilitado")
+    self:Debug("Template enabled")
 end
 
 -------------------------------------------------
 -- OnDisable
 -------------------------------------------------
 function Module:OnDisable()
-    -- Cancela timers, unregister events si usaste RegisterAllEvents (no habitual)
-    -- Limpia referencias si creaste frames propios (frame:Hide(); frame:SetScript(nil))
-    self:Debug("Template deshabilitado")
+    -- Cancel timers, unregister events if you used broad registrations
+    -- Clean up custom frames if created (frame:Hide(); frame:SetScript(nil))
+    self:Debug("Template disabled")
 end
 
 -------------------------------------------------
--- Ejemplo de evento
+-- Example event handler
 -------------------------------------------------
 function Module:OnEnterWorld()
-    -- Ejemplo de respuesta a evento
+    -- Example event response
     self:Debug("PLAYER_ENTERING_WORLD")
 end
 
--- Ejemplo adicional de eventos
+-- Additional event example
 -- function Module:OnCombatStart()
 --     self:Debug("Entrando en combate")
 -- end
@@ -173,7 +173,7 @@ function Module:BuildOptions()
 end
 
 -------------------------------------------------
--- Abrir configuración desde el módulo
+-- Open configuration from the module
 -------------------------------------------------
 function Module:OpenConfig()
     if YATP.OpenConfig then
@@ -184,11 +184,11 @@ function Module:OpenConfig()
 end
 
 -------------------------------------------------
--- Notas rápidas para autores:
---  * Añade timers: local t = C_Timer.NewTicker(segundos, function() ... end)
---  * Cancela timers en OnDisable.
---  * Usa EnumerateFrames sólo si no hay eventos; limita frecuencia.
---  * Para interacción con otros módulos: YATP.modules["Nombre"] si deseas comprobar estado.
+-- Quick author notes:
+--  * Add timers: local t = C_Timer.NewTicker(seconds, function() ... end)
+--  * Cancel timers in OnDisable.
+--  * Use EnumerateFrames only if events are insufficient; limit frequency.
+--  * For cross-module checks: YATP.modules["Name"] if you need to inspect state.
 -------------------------------------------------
 
 return Module

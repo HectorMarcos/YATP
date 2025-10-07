@@ -4,7 +4,7 @@
 --========================================================--
 
 local ADDON = "YATP"
-local ModuleName = "Hotkeys" -- Short, claro y extensible
+local ModuleName = "Hotkeys" -- Short, clear and extensible
 
 local YATP = LibStub("AceAddon-3.0"):GetAddon(ADDON, true)
 if not YATP then return end
@@ -70,7 +70,7 @@ Module.defaults = {
   size = 13,
   flags = "OUTLINE",
   hotkeyColor = {1,1,1},
-  tintEnabled = true, -- permitir desactivar tintado
+  tintEnabled = true, -- allow turning icon tinting off
   colors = {
     range = {0.8,0.1,0.1},
     mana  = {0.5,0.5,1.0},
@@ -78,7 +78,7 @@ Module.defaults = {
     normal = {1,1,1},
   },
   anyDown = false, -- toggle para RegisterForClicks("AnyDown")
-  keyboardOnly = true, -- solicitado: limitar a teclado, explicamos limitación (ver comentarios)
+  keyboardOnly = true, -- requested: limit AnyDown to keys only (heuristic, see comments)
 }
 
 -- ========================================================
@@ -196,16 +196,11 @@ function Module:SetupButton(button)
   if not button or button.__YATP_HK_Setup then return end
   button.__YATP_HK_Setup = true
 
-  -- AnyDown toggle (solo si db.anyDown true). Limitar a teclado SOLICITADO:
-  -- Nota técnica: Blizzard no expone una API para distinguir eventos de teclado vs ratón
-  -- en RegisterForClicks. Para simular "solo teclado" evitaríamos registrar AnyDown y
-  -- simplemente dejar default (mouse up). Dado que la petición es: "que solo tenga en cuenta
-  -- pulsaciones de teclado y no de ratón", la interpretación práctica aquí es:
-  --  * Si anyDown activado, forzamos AnyDown SOLO cuando el binding sea una tecla de teclado.
-  --    Detectar eso de forma fiable dentro de la secure environment no es trivial sin taint.
-  --  * Solución minimal segura: aplicar AnyDown global (como original) y exponer doc en options
-  --    explicando limitación. Para cumplir con lo pedido, añadimos una heurística opcional que
-  --    ignora clics de ratón en el pre-cast hooking (no implementado todavía para mantener simpleza).
+  -- AnyDown toggle (only if db.anyDown true). Keyboard-only requested:
+  -- Technical note: The Blizzard API does not expose a direct way to distinguish keyboard vs mouse
+  -- for RegisterForClicks decisions. To approximate "keyboard only" we check if a key binding exists;
+  -- if present we register AnyDown, otherwise fall back to AnyUp. This is a safe heuristic that avoids taint.
+  -- More advanced filtering (e.g. pre-cast mouse suppression) intentionally omitted for simplicity.
   local db = self.db
   if button.RegisterForClicks then
     if db.anyDown then

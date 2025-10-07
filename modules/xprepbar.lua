@@ -469,7 +469,7 @@ function XPRepBar:UpdateReputation()
         local percent = ((value - min) / (max - min)) * 100
         self.repFrame.text:SetText(string.format("%s: %d / %d (%.1f%%)", name, value - min, max - min, percent))
     else
-        self.repFrame.text:SetText("") -- Ocultamos el texto por defecto
+    self.repFrame.text:SetText("") -- Hide text by default when mouseover mode active
     end
 
     -- Update text visibility on mouseover
