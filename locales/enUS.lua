@@ -7,8 +7,9 @@ if not L then return end
 L["General"] = "General"
 L["A modular collection of interface tweaks and utilities."] = "A modular collection of interface tweaks and utilities."
 
--- XPBar Module
+-- XP & Reputation Module
 L["XP Bar"] = "XP Bar"
+L["XP & Reputation"] = "XP & Reputation"
 L["Lock bar"] = "Lock bar"
 L["Width"] = "Width"
 L["Height"] = "Height"
@@ -29,6 +30,22 @@ L["Position Y"] = "Position Y"
 L["Horizontal offset of the XP bar"] = "Horizontal offset of the XP bar"
 L["Vertical offset of the XP bar"] = "Vertical offset of the XP bar"
 L["XPBar"] = "XP Bar"
+L["XPRepBar"] = "XP & Reputation"
 L["Font"] = "Font"
 L["Show text only on mouseover"] = "Show text only on mouseover"
 L["If enabled, the XP text will only show when hovering the bar."] = "If enabled, the XP text will only show when hovering the bar."
+L["Position"] = "Position"
+
+-- Newly added position utilities
+L["Reset Position"] = "Reset Position"
+L["Reset the bar position to its default location"] = "Reset the bar position to its default location"
+L["Debug Position"] = "Debug Position"
+L["Print coordinates to chat when position changes"] = "Print coordinates to chat when position changes"
+L["About"] = "About"
+L["Author"] = "Author"
+L["Version"] = "Version"
+L["Interface"] = "Interface"
+L["Quality of Life"] = "Quality of Life"
+L["QualityOfLife"] = "Quality of Life"
+L["Select a category tab to configure modules."] = "Select a category tab to configure modules."
+L["No modules in this category yet."] = "No modules in this category yet."

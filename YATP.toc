@@ -19,8 +19,10 @@ Libs\AceHook-3.0\AceHook-3.0.xml
 Libs\AceTimer-3.0\AceTimer-3.0.xml
 Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
 
+# Locales
+locales\enUS.lua
+
 # Core
-Localization.lua
 YATP.lua
 Config.lua
 
