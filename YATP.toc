@@ -32,3 +32,4 @@ modules\chatbubbles.lua
 modules\playerauras.lua
 modules\infobar.lua
 modules\quickconfirm.lua
+modules\hotkeys.lua

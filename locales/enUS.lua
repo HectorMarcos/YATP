@@ -139,7 +139,7 @@ L["Thick Outline"] = "Thick Outline"
 L["InfoBar"] = "Info Bar"
 -- QuickConfirm
 L["QuickConfirm"] = true
-L["Automatically confirms selected confirmation popups (transmog, logout)."] = true
+L["Automatically confirms selected confirmation popups (transmog, exit)."] = true
 L["Transmog"] = true
 L["Auto-confirm transmog appearance popups"] = true
 L["Logout / Exit"] = true
@@ -148,3 +148,17 @@ L["Miscellaneous"] = true
 L["Suppress click sound"] = true
 L["Scan Interval"] = true
 L["Debug Messages"] = true
+-- Hotkeys Module
+L["Hotkeys"] = true
+L["Customize action button hotkey fonts and ability icon tint."] = true
+L["Font"] = true -- already defined earlier, reuse
+L["Icon Tint"] = true
+L["Enable Tint"] = true
+L["Out of Range"] = true
+L["Not Enough Mana"] = true
+L["Unusable"] = true
+L["Normal"] = true
+L["Behavior"] = true
+L["Trigger on Key Down"] = true
+L["Keyboard Only"] = true
+L["Apply 'key down' only if the button has a keyboard binding; mouse clicks stay default (on release)."] = true
