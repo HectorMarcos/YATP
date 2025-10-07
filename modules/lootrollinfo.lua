@@ -69,6 +69,7 @@ function Module:OnEnable()
     self._chatFilterApplied = true
   end
   self:HookGroupLootFrames()
+  self:SetupDebugSlash()
 end
 
 function Module:OnDisable()
@@ -197,9 +198,18 @@ function Module:HookButtons(rollID)
               btn:HookScript("OnEnter", function(b) self:ShowTooltip(b, key) end)
               btn:HookScript("OnLeave", function() GameTooltip:Hide() end)
             end
+            -- create fontstring now so later updates (when action messages arrive) always have it
+            if self.db.showCounts and not btn.LRIText then
+              btn.LRIText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+              local font, size, flags = btn.LRIText:GetFont()
+              btn.LRIText:SetFont(font, size + (self.db.fontSizeDelta or 4), flags or "OUTLINE")
+              -- mimic working prototype: numbers in top-right corner with a slight negative offset
+              btn.LRIText:ClearAllPoints()
+              btn.LRIText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -3, -2)
+            end
             btn._LRIHooked = true
           end
-          self:UpdateButtonText(rollID, key, btn)
+          self:UpdateButtonText(rollID, key, btn) -- initial update (may hide if 0)
         end
       end
       return
@@ -238,15 +248,32 @@ end
 --========================================================--
 function Module:UpdateButtonText(rollID, key, btn)
   if not self.db.showCounts then return end
-  if not btn then return end
   local data = rolls[rollID]
   if not data then return end
+
+  -- If button not provided (e.g., called from RefreshRoll), locate it like the standalone version did
+  if not btn then
+    for i=1,4 do
+      local frame = _G["GroupLootFrame"..i]
+      if frame and frame:IsShown() and frame.rollID == rollID then
+        local prefix = frame:GetName()
+        if key == "need" then btn = _G[prefix.."RollButton"] or frame.needButton end
+        if key == "greed" then btn = _G[prefix.."GreedButton"] or frame.greedButton end
+        if key == "de" then btn = _G[prefix.."DisenchantButton"] or frame.disenchantButton end
+        if key == "pass" then btn = _G[prefix.."PassButton"] or frame.passButton end
+        if btn then break end
+      end
+    end
+  end
+  if not btn then return end
+
   local count = data[key] and #data[key] or 0
   if not btn.LRIText then
     btn.LRIText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     local font, size, flags = btn.LRIText:GetFont()
     btn.LRIText:SetFont(font, size + (self.db.fontSizeDelta or 4), flags or "OUTLINE")
-    btn.LRIText:SetPoint("CENTER", btn, "CENTER", 0, 0)
+    btn.LRIText:ClearAllPoints()
+    btn.LRIText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -3, -2)
   end
   if count > 0 then
     btn.LRIText:SetText(count)
@@ -299,6 +326,20 @@ function Module:ParseLootMessage(msg)
     local a,b = msg:match(self._pPass)
     if a and b then player, item, action = a, b, "pass" end
   end
+  -- Fallback to simple English patterns (like working prototype) if localized ones failed
+  if not (player and item and action) then
+    local p, act, it = msg:match("^(.-) has selected (.-) for: (.+)$")
+    if p and act and it then
+      player, item = p, it
+      act = act:lower()
+      if act == "disenchant" then action = "de" elseif act == "greed" then action = "greed" elseif act == "need" then action = "need" end
+    else
+      local p2, it2 = msg:match("^(.-) has passed on: (.+)$")
+      if p2 and it2 then
+        player, item, action = p2, it2, "pass"
+      end
+    end
+  end
   if not (player and item and action) then return end
   -- Extract item name inside link if present
   local linkName = item:match("%[(.+)%]") or item
@@ -328,6 +369,91 @@ function Module:RefreshRoll(rollID, lastKey)
   self:HookButtons(rollID) -- ensures new buttons are hooked if needed
   -- update just the affected key
   self:UpdateButtonText(rollID, lastKey, nil) -- if btn nil, HookButtons already handled
+end
+
+--========================================================--
+-- Debug Helpers (simulate Blizzard group loot frame)
+--========================================================--
+-- We re-use the existing GroupLootFrame1 to display a synthetic test item
+-- Commands (only active if debug option enabled):
+--   /lriblizz [itemID]
+--   /lripop   <Name action>  (action = need/greed/de/pass)
+--   /lrihide
+
+local DEBUG_ROLL_ID = "LRI_DBG1"
+
+function Module:Debug_ShowBlizzFrame(itemID)
+  if not self.db.debug then
+    dprint(self, "Debug disabled in options.")
+    return
+  end
+  local frame = _G["GroupLootFrame1"]
+  if not frame then
+    dprint(self, "GroupLootFrame1 not found (UI replaced?).")
+    return
+  end
+
+  itemID = tonumber(itemID) or 18803
+  local link = select(2, GetItemInfo(itemID))
+  if not link then
+    link = "|cff0070dd|Hitem:18803:0:0:0:0:0:0:0|h[Finkle's Lava Dredger]|h|r" -- fallback if not cached
+  end
+
+  rolls[DEBUG_ROLL_ID] = { itemLink = link, itemName = link:match("%[(.+)%]") or link, need = {}, greed = {}, de = {}, pass = {}, quality = 3 }
+
+  local prefix = frame:GetName()
+  local icon   = _G[prefix.."Icon"] or frame.Icon
+  local nameFS = _G[prefix.."Name"] or frame.Name
+  local tex = GetItemIcon(itemID)
+  if icon and tex then icon:SetTexture(tex) end
+  if nameFS then nameFS:SetText(link) end
+
+  frame.rollID = DEBUG_ROLL_ID
+  frame:Show()
+
+  self:HookButtons(DEBUG_ROLL_ID)
+  for _,k in ipairs({"need","greed","de","pass"}) do
+    self:UpdateButtonText(DEBUG_ROLL_ID, k)
+  end
+  dprint(self, "Debug loot frame shown for %s", link)
+end
+
+function Module:Debug_HideBlizzFrame()
+  if not self.db.debug then return end
+  local frame = _G["GroupLootFrame1"]
+  if frame then frame:Hide() end
+  rolls[DEBUG_ROLL_ID] = nil
+  dprint(self, "Debug loot frame hidden.")
+end
+
+function Module:Debug_PopRoll(msg)
+  if not self.db.debug then return end
+  if not rolls[DEBUG_ROLL_ID] then
+    dprint(self, "No debug roll active. Use /lriblizz first.")
+    return
+  end
+  local who, act = msg:match("^(%S+)%s+(%S+)")
+  who = who or "Tester"
+  act = act and act:lower() or "need"
+  local data = rolls[DEBUG_ROLL_ID]
+  local itemName = data.itemLink:match("%[(.+)%]") or data.itemName or "Item"
+  local actionWord = (act == "de" and "Disenchant") or (act == "greed" and "Greed") or (act == "pass" and "Pass") or "Need"
+  local line = (act == "pass")
+    and (who.." has passed on: ["..itemName.."]")
+    or (who.." has selected "..actionWord.." for: ["..itemName.."]")
+  self:ParseLootMessage(line)
+end
+
+function Module:SetupDebugSlash()
+  if self._debugSlashRegistered then return end
+  -- Always register so user can toggle debug on via options without /reload
+  SLASH_LRIBLIZZ1 = "/lriblizz"
+  SlashCmdList["LRIBLIZZ"] = function(msg) self:Debug_ShowBlizzFrame(msg) end
+  SLASH_LRIPOP1 = "/lripop"
+  SlashCmdList["LRIPOP"] = function(msg) self:Debug_PopRoll(msg or "") end
+  SLASH_LRIHIDE1 = "/lrihide"
+  SlashCmdList["LRIHIDE"] = function() self:Debug_HideBlizzFrame() end
+  self._debugSlashRegistered = true
 end
 
 --========================================================--
