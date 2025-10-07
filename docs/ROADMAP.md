@@ -17,15 +17,15 @@ High-level view of how raw ideas become shipped features. This is intentionally 
 - Acceptance tests bullet list written.
 
 ## Version Buckets (Tentative)
-### 0.3 (Next)
-- (placeholder) Select 1–2 quick wins from IDEAS with high Impact / low Effort.
-- Possibly: Aura Blacklist Import/Export.
+### 0.3 (Shipped)
+- ChatFilters module (system chat suppression) delivered.
 
-### 0.4
-- DataBroker Bridge (conditional loading).
+### 0.4 (Next)
+- Aura Blacklist Import/Export (evaluation / spec).
 - Frame Scale Memory utility.
 
 ### 0.5
+- DataBroker Bridge (conditional loading).
 - Performance Profiler Micro-Panel (depends on validation of CPU cost benefits).
 
 ### 1.0 Goal Themes

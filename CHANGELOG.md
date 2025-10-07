@@ -13,6 +13,20 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 ### Security
 ### Internal / Maintenance
 
+## [0.3] - 2025-10-07
+### Added
+- ChatFilters module (Quality of Life): suppresses repetitive system error spam ("Interface action failed because of an AddOn" / UI Error variants) with substring + token matching, color code stripping, optional diagnostic logging.
+
+### Changed
+- README: documented new ChatFilters module.
+- TOC: version bump to 0.3.
+
+### Fixed
+- Locale: added missing keys (Debug Mode, verbose debug description, ChatFilters labels) eliminating AceLocale missing entry warnings.
+
+### Internal / Maintenance
+- ChatFilters logic includes extensible placeholders for future pattern list & summary counters (currently hidden advanced toggles).
+
 ## [0.2] - 2025-10-07
 ### Added
 - Global Debug Mode toggle under `YATP > Extras` controlling verbose output for all modules.
@@ -53,6 +67,7 @@ The following early commits were consolidated into this initial snapshot:
 - `8224f9a` debug clean (preparation for unified debug approach)
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
-[Unreleased]: https://example.com/compare/v0.2...HEAD
+[Unreleased]: https://example.com/compare/v0.3...HEAD
+[0.3]: https://example.com/releases/tag/v0.3
 [0.2]: https://example.com/releases/tag/v0.2
 [0.1]: https://example.com/releases/tag/v0.1

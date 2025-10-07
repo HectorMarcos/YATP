@@ -49,6 +49,10 @@ L["Quality of Life"] = "Quality of Life"
 L["QualityOfLife"] = "Quality of Life"
 L["Select a category tab to configure modules."] = "Select a category tab to configure modules."
 L["No modules in this category yet."] = "No modules in this category yet."
+L["Debug Mode"] = true
+L["Enable verbose debug output for all modules that support it."] = true
+L["ChatFilters"] = "Chat Filters"
+L["Chat Filters"] = true
 -- ChatBubbles / Advanced
 L["ChatBubbles"] = "ChatBubbles"
 L["Enable"] = "Enable"

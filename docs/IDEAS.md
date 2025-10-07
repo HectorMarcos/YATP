@@ -32,12 +32,12 @@ Score: I=?, E=?, R=? -> Priority=?
 
 ## Modules / Features (Unsorted)
 
-### Chat System Filters
-Status: seed  
-Problem: Repetitive interface error lines ("Interface action failed because of an AddOn", "UI Error: an interface error occurred.") spam the chat and distract.  
-Proposal: Configurable filter that suppresses exact lines / patterns plus optional counter (e.g. "[2 suppressed]").  
-Notes: Use `ChatFrame_AddMessageEventFilter` and allow a list of plain or (sandboxed) Lua patterns. Option to temporarily reveal suppressed lines via `/yatp chatdebug`.  
-Score: I=2 E=2 R=1 -> Priority=2
+### Chat System Filters (Shipped in 0.3)
+Status: shipped  
+Problem: Repetitive interface error lines ("Interface action failed because of an AddOn", UI error variants) spam the chat and distract.  
+Solution: Implemented as the `ChatFilters` module (Quality of Life). Substring + token matching with color code stripping suppresses noisy lines; hidden diagnostics available for future expansion.  
+Notes: Future enhancements could add user-defined pattern list & summary counters.  
+Score (historic): I=2 E=2 R=1 -> Priority=2
 
 ### Party Name Privacy
 Status: seed  

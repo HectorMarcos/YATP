@@ -18,6 +18,7 @@ A modular World of Warcraft (3.3.5 / legacy) addon that consolidates a curated s
 | LootRollInfo | Quality of Life | Shows per‑roll Need / Greed / Disenchant / Pass counters on Group Loot frames with tooltips listing players; optional chat suppression & rarity threshold. |
 | InfoBar | Quality of Life | Compact performance/character status bar (FPS, latency, durability %) with colorized low durability warning. Drag (unlock) + font & update interval controls. |
 | QuickConfirm | Quality of Life | Auto‑confirms specific StaticPopup dialogs (transmog appearance collection, exit / quit confirmations) with throttled scanning & pattern hooks. |
+| ChatFilters | Quality of Life | Suppresses noisy repeated system error lines (interface action failed / UI error) with smart substring matching and optional diagnostics. |
 | WAAdiFixes | Extras | Small compatibility patches (currently legacy resize API wrapper for WeakAuras / AdiBags). Built for future micro‑fix groups. |
 
 ## Installation

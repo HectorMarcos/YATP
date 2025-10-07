@@ -2,7 +2,7 @@
 ## Title: YATP
 ## Notes: Yet Another Tweaks Pack
 ## Author: Zavah
-## Version: 0.2
+## Version: 0.3
 ## SavedVariables: YATP_DB
 ## Notes-ESMX: Archivo duplicado raiz config.lua removido; usar core/config.lua
 
@@ -36,3 +36,4 @@ modules\quickconfirm.lua
 modules\hotkeys.lua
 modules\waadifix.lua
 modules\lootrollinfo.lua
+modules\chatfilters.lua
