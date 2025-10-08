@@ -13,37 +13,21 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 - XPRepBar: nueva opción "Enable Module" para activar/desactivar completamente la barra (oculta frames y desregistra eventos al deshabilitarla).
 - Core: diálogo de confirmación para /reload al cambiar cualquier "Enable Module" (aparece opción YES/CANCEL).
 - Todos los módulos: tooltips de los toggles ahora indican que se recomienda /reload para aplicar totalmente el cambio.
+- PlayerAuraFilter: nuevo módulo separado que gestiona la lista de ocultar buffs por nombre (inicia vacío, no migra datos de PlayerAuras previos).
 
 ### Changed (Unreleased)
 
 - Unificación del patrón de enable/disable para que coincida con otros módulos (Hotkeys, QuickConfirm) usando `self:Enable()/self:Disable()` de AceAddon.
 - Consistencia de UX: tras togglear se ofrece popup de reload evitando confusión sobre estados parciales sin recarga.
+- PlayerAuras: ahora sólo maneja layout (escala, filas, orden, fuente de duración). Lógica de filtrado eliminada y delegada a PlayerAuraFilter.
 
-## [0.4.0] - 2025-10-08
+### Removed (Unreleased)
 
-### Summary
-
-Performance consolidation release: centralized scheduler replaces multiple OnUpdate loops; simplified modules (no aggressive scans or auto-exit watcher); user‑tunable Hotkeys update interval for better range tint responsiveness with minimal CPU.
-
-### Added
-
-- Hotkeys: interval slider (0.10–0.40s) + slash `/yatphotkint <seconds>` for rapid tuning.
-- Scheduler: dynamic interval support (task can return next delay) enabling adaptive future logic.
-- Docs: `docs/INGAME_TESTS.md` in‑game validation guide.
-
-### Changed
-
-- Hotkeys: default update interval lowered to 0.15s (was 0.25) keeping batch size 18; removed burst prototype for predictable cadence.
-- ChatBubbles: event-driven with limited post-sweeps only (aggressive scanning removed) reducing idle CPU.
-- QuickConfirm: narrowed strictly to transmog confirmations (removed exit auto-confirm logic).
-- Localization: pruned unused keys (Aggressive Scan, exit auto-confirm) to reduce noise.
-
-### Removed
-
-- ChatBubbles: Aggressive Scan toggle and scan interval option.
+- ChatBubbles: Aggressive Scan toggle y scan interval option.
 - QuickConfirm: exit watcher & auto-exit option plus related text cues and frame scanning logic.
 - Hotkeys: temporary target-change burst refresh system (superseded by steady interval + immediate recolor on slider change).
-- ChatFilters: obsolete loot money filtering option (redundant with base client; legacy profile key ignored).
+- ChatFilters: obsolete loot money filtering option (redundant con base client; legacy profile key ignored).
+- PlayerAuras: claves antiguas `knownBuffs` y UI de filtros (sustituidas por el nuevo módulo). Cualquier configuración previa de ocultar buffs se ignora.
 
 ### Fixed
 
@@ -166,6 +150,7 @@ Added:
 Commit History Notes:
 
 The following early commits were consolidated into this initial snapshot:
+
 - `8605cc3` xbar test (prototype groundwork for XP/Rep bar)
 - `e6d5e6f` xpbar (establish XP/Rep bar module structure)
 - `057763b` xprepbar (refinement & rename of the bar module)
@@ -179,7 +164,6 @@ The following early commits were consolidated into this initial snapshot:
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
 [Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/zavahcodes/YATP/releases/tag/v0.4.0
 [0.3.3]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.3
 [0.3.2]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.2
 [0.3.1]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.1

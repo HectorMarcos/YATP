@@ -12,20 +12,8 @@ local Module = YATP:NewModule("PlayerAuras", "AceEvent-3.0")
 ------------------------------------------------------------
 -- Defaults
 ------------------------------------------------------------
-local DEFAULT_KNOWN_BUFFS = {
-    ["PvE Mode"] = { hide = false, _default = true },
-    ["Titan Scroll: Norgannon"] = { hide = false, _default = true },
-    ["Titan Scroll: Khaz'goroth"] = { hide = false, _default = true },
-    ["Titan Scroll: Eonar"] = { hide = false, _default = true },
-    ["Titan Scroll: Aggramar"] = { hide = false, _default = true },
-    ["Titan Scroll: Golganneth"] = { hide = false, _default = true },
-    ["Keeper's Scroll: Steadfast"] = { hide = false, _default = true },
-    ["Keeper's Scroll: Featherfall"] = { hide = false, _default = true },
-    ["Keeper's Scroll: Crafting Speed"] = { hide = false, _default = true },
-    ["Keeper's Scroll: Ghost Runner"] = { hide = false, _default = true },
-    ["Keeper's Scroll: Gathering Speed"] = { hide = false, _default = true },
-    ["Khaz'goroth's Blessing"] = { hide = false, _default = true },
-}
+-- Filtering (knownBuffs) removed; moved to PlayerAuraFilter module (clean slate)
+-- Legacy default buff list intentionally not migrated.
 
 local defaults = {
     profile = {
@@ -41,8 +29,7 @@ local defaults = {
         durationFontSize = 12,
         durationOutline = "OUTLINE",
         durationFont = "STANDARD_TEXT_FONT",
-        knownBuffs = DEFAULT_KNOWN_BUFFS,
-        knownDebuffs = {},        -- placeholder for future specific debuff hides
+        -- Filtering data moved to PlayerAuraFilter; no longer stored here.
     }
 }
 
@@ -80,11 +67,11 @@ end
 ------------------------------------------------------------
 -- Migration
 ------------------------------------------------------------
+-- Migration of BetterBuffs filtering intentionally omitted (filtering moved modules)
 local function MigrateFromBetterBuffs(moduleDB)
     if YATP.db.profile.migratedBetterBuffs then return end
     if _G.BetterBuffsDB and _G.BetterBuffsDB.profile then
         local src = _G.BetterBuffsDB.profile
-        -- map fields if they exist
         local map = {
             enabled = "enabled",
             iconScale = "iconScale",
@@ -92,15 +79,10 @@ local function MigrateFromBetterBuffs(moduleDB)
             durationFontSize = "durationFontSize",
             durationOutline = "durationOutline",
             durationFont = "durationFont",
-            knownBuffs = "knownBuffs",
         }
         for old,newKey in pairs(map) do
             if moduleDB[newKey] == nil and src[old] ~= nil then
-                if old == "knownBuffs" then
-                    moduleDB[newKey] = SafeCopyTable(src[old])
-                else
-                    moduleDB[newKey] = src[old]
-                end
+                moduleDB[newKey] = src[old]
             end
         end
         YATP.db.profile.migratedBetterBuffs = true
@@ -132,8 +114,11 @@ function Module:Refresh()
             if not name then break end
             local button = _G["BuffButton"..i]
             if button then
-                local known = p.knownBuffs
-                local hide = (known[name] and known[name].hide) or false
+                local filterMod = YATP:GetModule("PlayerAuraFilter", true)
+                local hide = false
+                if filterMod and filterMod.db and filterMod.db.profile.enabled then
+                    hide = filterMod:ShouldHideAura(name, false)
+                end
                 if hide then
                     button:Hide()
                 else
@@ -371,7 +356,7 @@ function Module:BuildOptions()
                         get=function() return p.enabled end,
                         set=function(_,v) p.enabled=v; if v then self:OnEnable() end self:MarkDirty(); if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end end },
                     manageBuffs = { type="toggle", name=L["Manage Buffs"] or "Manage Buffs", order=2, width="full",
-                        desc = L["If enabled, PlayerAuras filters and repositions your buffs (hiding those you mark)."] or "If enabled, PlayerAuras filters and repositions your buffs (hiding those you mark).",
+                        desc = L["If enabled, PlayerAuras repositions your buffs (visual layout)."] or "If enabled, PlayerAuras repositions your buffs (visual layout).",
                         get=get, set=set },
                     manageDebuffs = { type="toggle", name=L["Manage Debuffs"] or "Manage Debuffs", order=3, width="full",
                         desc = L["If enabled, PlayerAuras repositions your debuffs applying the same scaling and sorting."] or "If enabled, PlayerAuras repositions your debuffs applying the same scaling and sorting.",
@@ -410,64 +395,11 @@ function Module:BuildOptions()
                     },
                 }
             },
-            -- (Filters moved to separate panel for better scrolling)
         },
     }
 
-    -- Register into central config system
     if YATP.AddModuleOptions then
         YATP:AddModuleOptions("PlayerAuras", self.options, "Interface")
-        -- Separate scrollable filters panel
-        self.filterOptions = {
-            type = "group",
-            name = (L["PlayerAuras Filters"] or (L["PlayerAuras"] or "PlayerAuras") .. " - " .. (L["Filters"] or "Filters")),
-            args = {
-                header = { type = "header", name = L["BronzeBeard Buffs"] or "BronzeBeard Buffs", order = 0 },
-                addGroup = {
-                    type = "group", inline = true, order = 1,
-                    name = L["Custom Buffs"] or "Custom Buffs",
-                    args = {
-                        newBuff = {
-                            type = "input",
-                            name = L["Add Buff"] or "Add Buff",
-                            desc = L["Enter the exact buff name to add it to the list and toggle hide/show."] or "Enter the exact buff name to add it to the list and toggle hide/show.",
-                            order = 1,
-                            get = function() return p._pendingNewBuff or "" end,
-                            set = function(_, val) p._pendingNewBuff = val end,
-                        },
-                        addBtn = {
-                            type = "execute",
-                            name = L["Add"] or "Add",
-                            order = 2,
-                            func = function()
-                                local name = (p._pendingNewBuff or ""):gsub("^%s+"," "):gsub("%s+$","")
-                                if name ~= "" and not p.knownBuffs[name] then
-                                    p.knownBuffs[name] = { hide = false }
-                                    p._pendingNewBuff = ""
-                                    self:BuildOptions()
-                                    self:MarkDirty()
-                                end
-                            end,
-                        },
-                    }
-                },
-                defaultsGroup = {
-                    type = "group",
-                    name = L["BronzeBeard Buffs"] or "BronzeBeard Buffs",
-                    order = 2,
-                    inline = true,
-                    args = defaultToggles,
-                },
-                customGroup = {
-                    type = "group",
-                    name = L["Custom Added Buffs"] or "Custom Added Buffs",
-                    order = 3,
-                    inline = true,
-                    args = customToggles,
-                },
-            }
-        }
-        YATP:AddModuleOptions("PlayerAurasFilters", self.filterOptions, "Interface")
     end
 end
 
