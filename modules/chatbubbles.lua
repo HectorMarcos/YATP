@@ -243,9 +243,14 @@ function ChatBubbles:BuildOptions()
             general = {
                 type="group", name=L["General"], inline=true, order=1,
                 args = {
-                    enabled = { type="toggle", name=L["Hide Chat Bubbles"] or L["Enable"] or "Hide Chat Bubbles", order=1, width="full", 
-                        desc = L["Toggle the ChatBubbles module. Removes bubble artwork and restyles the text using your chosen font settings."] or "Toggle the ChatBubbles module. Removes bubble artwork and restyles the text using your chosen font settings.",
-                        get=get, set=set },
+                    enabled = { type="toggle", name=L["Enable Module"] or "Enable Module", order=1, width="full",
+                        desc = (L["Enable or disable chat bubble texture removal and font styling."] or "Enable or disable chat bubble texture removal and font styling.") .. "\n" .. (L["Requires /reload to fully apply enabling or disabling."] or "Requires /reload to fully apply enabling or disabling."),
+                        get=function() return self.db.enabled end,
+                        set=function(_, v)
+                            self.db.enabled = v
+                            if v then self:Enable() else self:Disable() end
+                            if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end
+                        end },
                 }
             },
             fontGroup = {

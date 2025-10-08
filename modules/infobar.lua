@@ -311,10 +311,12 @@ function Module:BuildOptions()
                 type = "toggle",
                 name = L["Enable Module"] or "Enable Module",
                 order = 1,
+                desc = (L["Enable or disable this module."] or "Enable or disable this module.") .. "\n" .. (L["Requires /reload to fully apply enabling or disabling."] or "Requires /reload to fully apply enabling or disabling."),
                 get = function() return self.db.enabled end,
                 set = function(_, v)
                     self.db.enabled = v
                     if v then self:Enable() else self:Disable() end
+                    if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end
                 end,
             },
             general = {

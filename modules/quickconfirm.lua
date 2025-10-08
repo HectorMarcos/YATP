@@ -285,8 +285,13 @@ function Module:BuildOptions()
             enabled = {
                 type = "toggle", order = 1,
                 name = L["Enable Module"] or "Enable Module",
+                desc = L["Requires /reload to fully apply enabling or disabling."] or "Requires /reload to fully apply enabling or disabling.",
                 get = function() return self.db.enabled end,
-                set = function(_, v) self.db.enabled = v; if v then self:Enable() else self:Disable() end end,
+                set = function(_, v)
+                    self.db.enabled = v
+                    if v then self:Enable() else self:Disable() end
+                    if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end
+                end,
             },
             desc = { type="description", order=2, fontSize="medium", name = L["Automatically confirms selected transmog confirmation popups."] or "Automatically confirms selected transmog confirmation popups." },
             headerTransmog = { type="header", name = L["Transmog"] or "Transmog", order = 5 },

@@ -398,7 +398,12 @@ function Module:BuildOptions()
     type = "group",
     name = L[ModuleName] or ModuleName,
     args = {
-      enabled = { type="toggle", order=1, name=L["Enable Module"] or "Enable Module", get=get, set=set },
+      enabled = { type="toggle", order=1, name=L["Enable Module"] or "Enable Module",
+        desc = L["Requires /reload to fully apply enabling or disabling."] or "Requires /reload to fully apply enabling or disabling.",
+        get=get, set=function(info,val)
+          set(info,val)
+          if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end
+        end },
       desc = { type="description", order=2, fontSize="medium", name = L["Customize action button hotkey fonts and ability icon tint."] or "Customize action button hotkey fonts and ability icon tint." },
       fontGroup = { type="group", order=10, inline=true, name=L["Font"], args = {
         font = { type="select", order=1, name=L["Font Face"], values=fontValues(), get=get, set=set },

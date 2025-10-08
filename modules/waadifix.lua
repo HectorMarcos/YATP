@@ -113,7 +113,9 @@ function Module:BuildOptions()
     type = "group",
     name = L[ModuleName] or ModuleName,
     args = {
-      enabled = { type="toggle", order=1, name=L["Enable Module"] or "Enable Module", get=get, set=set },
+      enabled = { type="toggle", order=1, name=L["Enable Module"] or "Enable Module",
+        desc = (L["Enable or disable this module."] or "Enable or disable this module.") .. "\n" .. (L["Requires /reload to fully apply enabling or disabling."] or "Requires /reload to fully apply enabling or disabling."),
+        get=get, set=function(info,val) set(info,val); if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end end },
       desc = { type="description", order=2, name = L["Various small compatibility toggles."] or "Various small compatibility toggles." },
       compHeader = { type="header", order=5, name = L["Compatibility Fixes"] or "Compatibility Fixes" },
       waAdiGroup = { type="group", order=10, inline=true, name = L["WeakAuras / AdiBags" ] or "WeakAuras / AdiBags", args = {

@@ -7,7 +7,17 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
-_No changes yet._
+### Added (Unreleased)
+
+- ChatBubbles: toggle de "Enable Module" estandarizado (antes el texto podía resultar ambiguo al decir "Hide Chat Bubbles").
+- XPRepBar: nueva opción "Enable Module" para activar/desactivar completamente la barra (oculta frames y desregistra eventos al deshabilitarla).
+- Core: diálogo de confirmación para /reload al cambiar cualquier "Enable Module" (aparece opción YES/CANCEL).
+- Todos los módulos: tooltips de los toggles ahora indican que se recomienda /reload para aplicar totalmente el cambio.
+
+### Changed (Unreleased)
+
+- Unificación del patrón de enable/disable para que coincida con otros módulos (Hotkeys, QuickConfirm) usando `self:Enable()/self:Disable()` de AceAddon.
+- Consistencia de UX: tras togglear se ofrece popup de reload evitando confusión sobre estados parciales sin recarga.
 
 ## [0.4.0] - 2025-10-08
 

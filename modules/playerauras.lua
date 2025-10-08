@@ -367,9 +367,9 @@ function Module:BuildOptions()
                 name = L["General"] or "General",
                 args = {
                     enabled = { type="toggle", name=L["Enable PlayerAuras"] or "Enable PlayerAuras", order=1, width="full",
-                        desc = L["Enable or disable the PlayerAuras module (all features)."] or "Enable or disable the PlayerAuras module (all features).",
+                        desc = (L["Enable or disable the PlayerAuras module (all features)."] or "Enable or disable the PlayerAuras module (all features).") .. "\n" .. (L["Requires /reload to fully apply enabling or disabling."] or "Requires /reload to fully apply enabling or disabling."),
                         get=function() return p.enabled end,
-                        set=function(_,v) p.enabled=v; if v then self:OnEnable() end self:MarkDirty() end },
+                        set=function(_,v) p.enabled=v; if v then self:OnEnable() end self:MarkDirty(); if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end end },
                     manageBuffs = { type="toggle", name=L["Manage Buffs"] or "Manage Buffs", order=2, width="full",
                         desc = L["If enabled, PlayerAuras filters and repositions your buffs (hiding those you mark)."] or "If enabled, PlayerAuras filters and repositions your buffs (hiding those you mark).",
                         get=get, set=set },

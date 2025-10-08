@@ -144,8 +144,8 @@ function Module:BuildOptions()
             enabled = {
                 type = "toggle", order = 1,
                 name = L["Enable Module"] or "Enable Module",
-                desc = L["Enable or disable this module."] or "Enable or disable this module.",
-                get=get, set=set,
+                desc = (L["Enable or disable this module."] or "Enable or disable this module.") .. "\n" .. (L["Requires /reload to fully apply enabling or disabling."] or "Requires /reload to fully apply enabling or disabling."),
+                get=get, set=function(info,val) set(info,val); if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end end,
             },
             -- per-module debug toggle removed (global debug controls output)
             exampleGroup = {

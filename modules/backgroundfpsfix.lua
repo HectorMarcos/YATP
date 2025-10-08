@@ -93,7 +93,7 @@ function Module:BuildOptions()
     type = "group",
     name = L["Tweaks"] or "Tweaks",
     args = {
-      enabled = { type="toggle", order=1, name=L["Enable Background FPS Fix"] or "Enable Background FPS Fix", desc = L["When enabled, forces a background FPS cap and restores the previous value when disabled."] or "When enabled, forces a background FPS cap and restores the previous value when disabled.", get=get, set=set },
+  enabled = { type="toggle", order=1, name=L["Enable Background FPS Fix"] or "Enable Background FPS Fix", desc = (L["When enabled, forces a background FPS cap and restores the previous value when disabled."] or "When enabled, forces a background FPS cap and restores the previous value when disabled.") .. "\n" .. (L["Requires /reload to fully apply enabling or disabling."] or "Requires /reload to fully apply enabling or disabling."), get=get, set=function(info,val) set(info,val); if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end end },
       targetFPS = { type="range", order=2, name=L["Background FPS Cap"] or "Background FPS Cap", desc = L["Set the background framerate cap. 0 = do not override. This slider removes the old 60 FPS ceiling."] or "Set the background framerate cap. 0 = do not override. This slider removes the old 60 FPS ceiling.", min=0, max=240, step=1, get=get, set=set },
       status = { type="description", order=5, fontSize="small", name=function()
         local cur = GetCVar("maxfpsbk")

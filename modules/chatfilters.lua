@@ -437,8 +437,9 @@ function Module:BuildOptions()
             enabled = {
                 type = "toggle", order = 1,
                 name = "Enable Module",
-                desc = "Enable or disable suppression of predefined chat system lines.",
-                get = get, set = set,
+                desc = "Enable or disable suppression of predefined chat system lines.\nRequires /reload to fully apply enabling or disabling.",
+                get = get,
+                set = function(info,val) set(info,val); if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end end,
             },
             description = {
                 type = "description", order = 2, fontSize = "small",

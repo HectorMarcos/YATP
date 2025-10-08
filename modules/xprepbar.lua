@@ -23,6 +23,7 @@ local REP_NEUTRAL    = { r = 0.8,  g = 0.7,  b = 0.2 }    -- fallback rep color 
 -- Defaults
 -------------------------------------------------
 XPRepBar.defaults = {
+    enabled = true,
     width = 400,
     height = 15,
     locked = true,
@@ -71,6 +72,7 @@ end
 -- OnEnable
 -------------------------------------------------
 function XPRepBar:OnEnable()
+    if not self.db or not self.db.enabled then return end
     self:CreateBar()
     self:ApplySettings()
     self:UpdateXP()
@@ -82,6 +84,13 @@ function XPRepBar:OnEnable()
     self:RegisterEvent("PLAYER_LEVEL_UP", "UpdateXP")
     self:RegisterEvent("UPDATE_FACTION", "UpdateReputation")
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "UpdateReputation")
+end
+
+function XPRepBar:OnDisable()
+    -- Unregister events and hide frames without destroying settings
+    self:UnregisterAllEvents()
+    if self.frame then self.frame:Hide() end
+    if self.repFrame then self.repFrame:Hide() end
 end
 
 -------------------------------------------------
@@ -532,7 +541,12 @@ end
 function XPRepBar:BuildOptions()
     local get = function(info) return self.db[ info[#info] ] end
     local set = function(info, val)
-        self.db[ info[#info] ] = val
+        local key = info[#info]
+        self.db[key] = val
+        if key == "enabled" then
+            if val then self:Enable() else self:Disable() end
+            return
+        end
         self:ApplySettings()
         self:UpdateXP()
         self:UpdateReputation()
@@ -550,6 +564,14 @@ function XPRepBar:BuildOptions()
         type = "group",
         name = L["XP Bar"],
         args = {
+            enabled = { type="toggle", name=L["Enable Module"] or "Enable Module", order=0, width="full",
+                desc = L["Requires /reload to fully apply enabling or disabling."] or "Requires /reload to fully apply enabling or disabling.",
+                get=function() return self.db.enabled end,
+                set=function(_, v)
+                    self.db.enabled = v
+                    if v then self:Enable() else self:Disable() end
+                    if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end
+                end },
             generalGroup = {
                 type = "group",
                 name = L["General"],

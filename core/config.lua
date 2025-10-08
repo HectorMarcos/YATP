@@ -339,3 +339,33 @@ function YATP:Debug(msg)
         DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:Debug|r "..tostring(msg))
     end
 end
+
+-------------------------------------------------
+-- Reload Prompt Helper (used after toggling modules)
+-------------------------------------------------
+-- Static popup definition (idempotent)
+StaticPopupDialogs["YATP_RELOAD_UI"] = StaticPopupDialogs["YATP_RELOAD_UI"] or {
+    text = "A reload (/reload) is recommended to fully apply this change. Reload now?",
+    button1 = YES,
+    button2 = CANCEL,
+    OnAccept = function() ReloadUI() end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+function YATP:ShowReloadPrompt()
+    if not StaticPopupDialogs["YATP_RELOAD_UI"] then return end
+    if not InCombatLockdown or (InCombatLockdown and not InCombatLockdown()) then
+        StaticPopup_Show("YATP_RELOAD_UI")
+    else
+        -- Combat lockdown: delay prompt until out of combat
+        local f = CreateFrame("Frame")
+        f:RegisterEvent("PLAYER_REGEN_ENABLED")
+        f:SetScript("OnEvent", function(self)
+            self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+            StaticPopup_Show("YATP_RELOAD_UI")
+        end)
+    end
+end
