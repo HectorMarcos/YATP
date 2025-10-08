@@ -75,7 +75,7 @@ end
 -- Bubble skinning adapted
 -------------------------------------------------
 local function SkinFrame(frame)
-    if frame.__cbStyled then return end
+    -- Siempre re-strip textures (algunos núcleos reciclan y vuelven a aplicar artwork)
     local hasFont
     for i = 1, select("#", frame:GetRegions()) do
         local region = select(i, frame:GetRegions())
@@ -96,7 +96,6 @@ local function SkinFrame(frame)
             frame:HookScript("OnHide", function() frame.inUse = false end)
             frame.__cb_hooked = true
         end
-        frame.__cbStyled = true
     end
 end
 
@@ -125,7 +124,7 @@ end
 local function FullSweep()
     local children = { WorldFrame:GetChildren() }
     for _, frame in ipairs(children) do
-        if frame and not frame:GetName() and not frame.__cbStyled then
+        if frame and not frame:GetName() then
             SkinFrame(frame)
         end
     end
