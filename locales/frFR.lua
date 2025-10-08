@@ -36,7 +36,6 @@ local extra = {
 	["Utilities"] = "Utilities",
 	["Force Refresh"] = "Force Refresh",
 	["Advanced"] = "Advanced",
-	["Aggressive Scan"] = "Aggressive Scan",
 	["Scan Interval"] = "Scan Interval",
 	["Post-detection Sweeps"] = "Post-detection Sweeps",
 	["Continuously sweep world frames to strip bubble textures ASAP (slightly higher CPU)."] = "Continuously sweep world frames to strip bubble textures ASAP (slightly higher CPU).",
@@ -123,11 +122,9 @@ if not L["Thick Outline"] then L["Thick Outline"] = "Thick Outline" end
 if not L["InfoBar"] then L["InfoBar"] = "Info Bar" end
 -- QuickConfirm (fallbacks)
 if not L["QuickConfirm"] then L["QuickConfirm"] = "QuickConfirm" end
-if not L["Automatically confirms selected confirmation popups (transmog, exit)."] then L["Automatically confirms selected confirmation popups (transmog, exit)."] = "Automatically confirms selected confirmation popups (transmog, exit)." end
+if not L["Automatically confirms selected confirmation popups (transmog)."] then L["Automatically confirms selected confirmation popups (transmog)."] = "Automatically confirms selected confirmation popups (transmog)." end
 if not L["Transmog"] then L["Transmog"] = "Transmog" end
 if not L["Auto-confirm transmog appearance popups"] then L["Auto-confirm transmog appearance popups"] = "Auto-confirm transmog appearance popups" end
-if not L["Exit"] then L["Exit"] = "Exit" end
-if not L["Auto-confirm exit popups"] then L["Auto-confirm exit popups"] = "Auto-confirm exit popups" end
 if not L["Miscellaneous"] then L["Miscellaneous"] = "Miscellaneous" end
 if not L["Suppress click sound"] then L["Suppress click sound"] = "Suppress click sound" end
 if not L["Scan Interval"] then L["Scan Interval"] = "Scan Interval" end
@@ -135,9 +132,7 @@ if not L["Debug"] then L["Debug"] = "Debug" end
 if not L["Debug Messages"] then L["Debug Messages"] = "Debug Messages" end
 if not L["Hotkey Color"] then L["Hotkey Color"] = "Hotkey Color" end
 if not L["Fire actions on key press (may reduce perceived input lag)."] then L["Fire actions on key press (may reduce perceived input lag)."] = "Fire actions on key press (may reduce perceived input lag)." end
-if not L["Exit"] then L["Exit"] = "Exit" end
-if not L["Auto-confirm exit popups"] then L["Auto-confirm exit popups"] = "Auto-confirm exit popups" end
-if not L["Automatically confirms selected confirmation popups (transmog, logout)."] then L["Automatically confirms selected confirmation popups (transmog, logout)."] = "Automatically confirms selected confirmation popups (transmog, logout)." end
+-- Removed exit/logout QuickConfirm keys (scope narrowed to transmog)
 -- Extras / Fixes (fallback)
 if not L["Extras"] then L["Extras"] = "Extras" end
 if not L["Miscellaneous small toggles and fixes."] then L["Miscellaneous small toggles and fixes."] = "Miscellaneous small toggles and fixes." end

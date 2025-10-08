@@ -47,7 +47,6 @@ L["Outline"] = "Contorno"
 L["Utilities"] = "Utilidades"
 L["Force Refresh"] = "Forzar refresco"
 L["Advanced"] = "Avanzado"
-L["Aggressive Scan"] = "Escaneo agresivo"
 L["Scan Interval"] = "Intervalo de escaneo"
 -- Formatting / shared keys (added)
 L["None"] = "Ninguno"
@@ -129,12 +128,9 @@ L["Show Background"] = "Mostrar fondo"
 L["Durability"] = "Durabilidad"
 -- QuickConfirm
 L["QuickConfirm"] = "Confirmación Rápida"
-L["Automatically confirms selected confirmation popups (transmog, exit)."] = "Confirma automáticamente ciertos cuadros de confirmación (transmog, salir)."
+L["Automatically confirms selected confirmation popups (transmog)."] = "Confirma automáticamente ciertos cuadros de confirmación (transmog)."
 L["Transmog"] = "Transmog"
 L["Auto-confirm transmog appearance popups"] = "Auto-confirmar ventanas de apariencia de transmog"
--- Actualizado: solo salida
-L["Exit"] = "Salir"
-L["Auto-confirm exit popups"] = "Auto-confirmar ventanas de salir"
 L["Miscellaneous"] = "Misceláneo"
 L["Suppress click sound"] = "Suprimir sonido de clic"
 L["Scan Interval"] = "Intervalo de escaneo"
@@ -154,8 +150,7 @@ L["Trigger on Key Down"] = "Activar al pulsar tecla"
 L["Keyboard Only"] = "Sólo teclado"
 L["Apply 'key down' only if the button has a keyboard binding; mouse clicks stay default (on release)."] = "Aplica 'al pulsar' solo si el botón tiene un atajo; el ratón sigue en liberación."
 L["Fire actions on key press (may reduce perceived input lag)."] = "Lanza acciones al presionar la tecla (reduce la sensación de retardo)."
--- Legacy quickconfirm description to silence old reference
-L["Automatically confirms selected confirmation popups (transmog, logout)."] = "Confirma automáticamente ciertos cuadros de confirmación (transmog, salir)."
+-- Removed legacy exit-related QuickConfirm keys (scope only transmog)
 -- Extras / Fixes
 L["Extras"] = "Extras"
 L["Miscellaneous small toggles and fixes."] = "Pequeños ajustes y correcciones variadas."

@@ -17,8 +17,7 @@ ChatBubbles.defaults = {
     fontSize = 14,
     font = "FRIZQT",       -- FRIZQT, ARIALN, MORPHEUS, SKURRI
     flags = "OUTLINE",      -- "", OUTLINE, THICKOUTLINE
-    aggressive = false,      -- continuous sweeping
-    scanInterval = 0.08,     -- seconds between sweeps when aggressive
+    -- aggressive/scanInterval removed (performance: event + post-sweeps is suficiente)
     postSweeps = 2,          -- extra sweeps after a detection
 }
 
@@ -37,9 +36,9 @@ local FLAG_LABELS = {
 
 -- Forward declarations
 local evtFrame
-local scanFrame -- for aggressive / scheduled sweeps
-local pendingSweeps = 0
-local sweepAccumulator = 0
+local pendingSweeps = 0       -- sweeps extra post-detección (consumidos por tarea scheduler)
+local scheduled = false       -- marca si la tarea ya registrada
+local postTaskName = "ChatBubblesPostSweeps"
 
 -------------------------------------------------
 -- Utility helpers
@@ -74,24 +73,28 @@ end
 -- Bubble skinning adapted
 -------------------------------------------------
 local function SkinFrame(frame)
+    -- Siempre re-strip textures (algunos núcleos reciclan y vuelven a aplicar artwork)
+    local hasFont
     for i = 1, select("#", frame:GetRegions()) do
         local region = select(i, frame:GetRegions())
-        if region and region:GetObjectType() == "Texture" then
-            region:SetTexture(nil)
+        if region then
+            local otype = region:GetObjectType()
+            if otype == "Texture" then
+                region:SetTexture(nil)
+            elseif otype == "FontString" then
+                hasFont = true
+                frame.text = frame.text or region
+            end
         end
     end
-    for i = 1, select("#", frame:GetRegions()) do
-        local region = select(i, frame:GetRegions())
-        if region and region:GetObjectType() == "FontString" then
-            frame.text = region
-            break
-        end
-    end
-    if frame.text then
+    if hasFont and frame.text then
         ChatBubbles:StyleText(frame.text)
+        frame.inUse = true
+        if not frame.__cb_hooked then
+            frame:HookScript("OnHide", function() frame.inUse = false end)
+            frame.__cb_hooked = true
+        end
     end
-    frame.inUse = true
-    frame:HookScript("OnHide", function() frame.inUse = false end)
 end
 
 local function UpdateFrame(frame)
@@ -116,67 +119,35 @@ local function FindFrame(msg)
     end
 end
 
-local function FullSweep(selfRef)
-    -- Iterate all potential bubble frames and strip textures / restyle
-    for i = 1, WorldFrame:GetNumChildren() do
-        local frame = select(i, WorldFrame:GetChildren())
+local function FullSweep()
+    local children = { WorldFrame:GetChildren() }
+    for _, frame in ipairs(children) do
         if frame and not frame:GetName() then
-            local hasFont
-            for j = 1, select("#", frame:GetRegions()) do
-                local region = select(j, frame:GetRegions())
-                if region then
-                    local otype = region:GetObjectType()
-                    if otype == "Texture" then
-                        region:SetTexture(nil)
-                    elseif otype == "FontString" then
-                        hasFont = true
-                        if not frame.text then frame.text = region end
-                    end
-                end
-            end
-            if hasFont then
-                frame.inUse = true
-                ChatBubbles:StyleText(frame.text)
-                if not frame.__cb_hooked then
-                    frame:HookScript("OnHide", function() frame.inUse = false end)
-                    frame.__cb_hooked = true
-                end
-            end
+            SkinFrame(frame)
         end
     end
 end
 
-local function EnsureScanFrame()
-    if not scanFrame then
-        scanFrame = CreateFrame("Frame")
-        scanFrame:SetScript("OnUpdate", function(self, elapsed)
-            local db = ChatBubbles.db
-            if not (db and db.enabled) then return end
-            if pendingSweeps > 0 then
-                -- rapid sweeps consume 1 per frame or every ~0.02s to avoid heavy spike
-                sweepAccumulator = sweepAccumulator + elapsed
-                if sweepAccumulator >= 0.02 then
-                    sweepAccumulator = 0
-                    pendingSweeps = pendingSweeps - 1
-                    FullSweep(ChatBubbles)
-                end
-                return
-            end
-            if db.aggressive then
-                sweepAccumulator = sweepAccumulator + elapsed
-                if sweepAccumulator >= db.scanInterval then
-                    sweepAccumulator = 0
-                    FullSweep(ChatBubbles)
-                end
-            end
-        end)
+local function RunPostSweep()
+    if pendingSweeps > 0 then
+        pendingSweeps = pendingSweeps - 1
+        FullSweep()
     end
+end
+
+local function EnsureScheduled()
+    if scheduled then return end
+    local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
+    if not sched then return end
+    -- Sólo mantenemos la tarea de post-sweeps (micro barridos tras detección)
+    sched:AddTask(postTaskName, 0.07, RunPostSweep, { spread = 0.05 })
+    scheduled = true
 end
 
 local function SchedulePostSweeps(n)
     if n <= 0 then return end
-    EnsureScanFrame()
-    pendingSweeps = math.max(pendingSweeps, n)
+    pendingSweeps = math.min(5, math.max(pendingSweeps, n)) -- cap 5
+    EnsureScheduled()
 end
 
 local chatEvents = {
@@ -219,7 +190,7 @@ end
 
 function ChatBubbles:OnEnable()
     if not self.db.enabled then return end
-    EnsureScanFrame()
+    EnsureScheduled()
     evtFrame = evtFrame or CreateFrame("Frame")
     for ev in pairs(chatEvents) do evtFrame:RegisterEvent(ev) end
     evtFrame:SetScript("OnEvent", function(_, event, msg)
@@ -248,7 +219,7 @@ function ChatBubbles:OnDisable()
         evtFrame:SetScript("OnEvent", nil)
         evtFrame:SetScript("OnUpdate", nil)
     end
-    -- Do not destroy scanFrame; leave idle.
+    -- Las tareas del scheduler verificarán db.enabled y no harán trabajo.
 end
 
 -------------------------------------------------
@@ -288,16 +259,7 @@ function ChatBubbles:BuildOptions()
             advanced = {
                 type="group", name=L["Advanced"] or "Advanced", inline=true, order=20,
                 args = {
-                    aggressive = { type="toggle", name=L["Aggressive Scan"] or "Aggressive Scan", order=1, width="full",
-                        desc = L["Continuously sweep world frames to strip bubble textures ASAP (slightly higher CPU)."] or "Continuously sweep world frames to strip bubble textures ASAP (slightly higher CPU).",
-                        get = function() return self.db.aggressive end,
-                        set = function(_, v) self.db.aggressive = v end },
-                    scanInterval = { type="range", name=L["Scan Interval"] or "Scan Interval", order=2, width="full",
-                        min=0.02, max=0.25, step=0.01, bigStep=0.01,
-                        desc = L["Seconds between sweeps in aggressive mode."] or "Seconds between sweeps in aggressive mode.",
-                        get = function() return self.db.scanInterval end,
-                        set = function(_, v) self.db.scanInterval = v end },
-                    postSweeps = { type="range", name=L["Post-detection Sweeps"] or "Post-detection Sweeps", order=3, width="full",
+                    postSweeps = { type="range", name=L["Post-detection Sweeps"] or "Post-detection Sweeps", order=1, width="full",
                         min=0, max=5, step=1,
                         desc = L["Extra quick sweeps right after detecting a bubble."] or "Extra quick sweeps right after detecting a bubble.",
                         get = function() return self.db.postSweeps end,

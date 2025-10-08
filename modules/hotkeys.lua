@@ -15,7 +15,12 @@ local Module = YATP:NewModule(ModuleName, "AceConsole-3.0", "AceEvent-3.0")
 -- ========================================================
 -- Constantes / Config por defecto
 -- ========================================================
-local UPDATE_INTERVAL = 0.15
+-- Intervalo base anterior: 0.15. Ahora gestionado vía scheduler central.
+local UPDATE_INTERVAL = 0.15 -- intervalo base (ajustable por usuario)
+local BATCH_SIZE = 18         -- número de botones procesados por tick (round-robin)
+local MIN_INTERVAL = 0.10
+local MAX_INTERVAL = 0.40
+-- Burst reactivo eliminado (mantener intervalo uniforme para simplificar y evitar micro picos)
 
 local FONTS = {
   FRIZQT   = { name = "Friz Quadrata", path = "Fonts\\FRIZQT__.TTF" },
@@ -66,6 +71,7 @@ end
 
 Module.defaults = {
   enabled = true,
+  interval = 0.15, -- user adjustable (default lowered per feedback)
   font = "FRIZQT",
   size = 13,
   flags = "OUTLINE",
@@ -130,9 +136,11 @@ end
 -- ========================================================
 -- Tint Logic (centralizado)
 -- ========================================================
-local activeButtons = {}
-local rangeTickerFrame
-local accum = 0
+local activeButtons = {}   -- set de botones registrados
+local activeList = {}      -- lista indexada para batching
+local activeCount = 0
+local rrIndex = 1          -- índice round-robin
+local scheduled = false    -- marca si la tarea del scheduler ya está añadida
 
 local function UpdateUsable(button, db)
   local icon = GetButtonIcon(button)
@@ -160,33 +168,48 @@ local function UpdateUsable(button, db)
   end
 end
 
-local function CentralOnUpdate(self, elapsed)
-  accum = accum + elapsed
-  if accum < UPDATE_INTERVAL then return end
-  accum = 0
+-- Ejecuta un lote de botones (batch) y avanza rrIndex.
+local function ProcessBatch()
   local db = Module.db
   if not (db and db.enabled) then return end
-  for button in pairs(activeButtons) do
-    if button.action and HasAction(button.action) then
-      if ActionHasRange(button.action) then
-        local inRange = IsActionInRange(button.action)
-        button.__YATP_OutOfRange = (inRange == 0)
+  if activeCount == 0 then return end
+  local processed = 0
+  while processed < BATCH_SIZE do
+    if activeCount == 0 then break end
+    if rrIndex > activeCount then rrIndex = 1 end
+    local button = activeList[rrIndex]
+    rrIndex = rrIndex + 1
+    processed = processed + 1
+    if button and activeButtons[button] then
+      if button.action and HasAction(button.action) then
+        if ActionHasRange(button.action) then
+          local inRange = IsActionInRange(button.action)
+          button.__YATP_OutOfRange = (inRange == 0)
+        else
+          button.__YATP_OutOfRange = false
+        end
+        UpdateUsable(button, db)
       else
-        button.__YATP_OutOfRange = false
+        local icon = GetButtonIcon(button)
+        if icon then icon:SetVertexColor(1,1,1) end
       end
-      UpdateUsable(button, db)
-    else
-      local icon = GetButtonIcon(button)
-      if icon then icon:SetVertexColor(1,1,1) end
     end
+    if processed >= BATCH_SIZE then break end
   end
 end
 
-local function EnsureTicker()
-  if not rangeTickerFrame then
-    rangeTickerFrame = CreateFrame("Frame")
-    rangeTickerFrame:SetScript("OnUpdate", CentralOnUpdate)
-  end
+local function EnsureScheduled()
+  if scheduled then return end
+  local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
+  if not sched then return end
+  -- Usamos función de intervalo dinámica para soportar burst y slider
+  sched:AddTask("HotkeysUpdate", function()
+    local db = Module.db
+    local iv = (db and tonumber(db.interval)) or UPDATE_INTERVAL
+    if iv < MIN_INTERVAL then iv = MIN_INTERVAL elseif iv > MAX_INTERVAL then iv = MAX_INTERVAL end
+    return iv
+  end, ProcessBatch, { spread = 0 })
+  scheduled = true
 end
 
 -- ========================================================
@@ -222,11 +245,21 @@ function Module:SetupButton(button)
   end
 
   self:StyleHotkey(button)
-  activeButtons[button] = true
-  UpdateUsable(button, self.db)
+  if not activeButtons[button] then
+    activeButtons[button] = true
+    activeCount = activeCount + 1
+    activeList[activeCount] = button
+  end
+  UpdateUsable(button, self.db) -- actualización inmediata inicial
+  EnsureScheduled()
 end
 
 function Module:ForceAll()
+  -- reconstruir listas (útil si barras cambiaron)
+  wipe(activeButtons)
+  wipe(activeList)
+  activeCount = 0
+  rrIndex = 1
   for _, group in ipairs(BUTTON_GROUPS) do
     local prefix, count = group[1], group[2]
     for i=1, count do
@@ -234,7 +267,11 @@ function Module:ForceAll()
       if btn then self:SetupButton(btn) end
     end
   end
+  EnsureScheduled()
 end
+
+-- Forzar una actualización completa inmediata (sin esperar batches) útil en burst
+-- ImmediateFullRefresh eliminado (ya no necesario sin burst)
 
 -- Reapply click registration for all active buttons when bindings/flags change
 function Module:ReapplyClickRegistration()
@@ -292,25 +329,40 @@ function Module:OnInitialize()
   end
 
   self:RegisterChatCommand("yatphotkeys", function() self:OpenConfig() end)
+  -- Comando rápido para cambiar intervalo: /yatphotkint 0.18
+  self:RegisterChatCommand("yatphotkint", function(input)
+    local v = tonumber(input)
+    if not v then
+      DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:Hotkeys|r Usa /yatphotkint <segundos>. Actual: "..tostring(self.db.interval))
+      return
+    end
+    if v < MIN_INTERVAL then v = MIN_INTERVAL elseif v > MAX_INTERVAL then v = MAX_INTERVAL end
+    self.db.interval = v
+    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:Hotkeys|r Intervalo ajustado a "..string.format("%.2f", v))
+  end)
 end
 
 function Module:OnEnable()
   if not self.db.enabled then return end
-  EnsureTicker()
+  EnsureScheduled()
   hooksecurefunc("ActionButton_Update", HookActionUpdate)
   hooksecurefunc("ActionButton_UpdateHotkeys", HookHotkeyUpdate)
   hooksecurefunc("ActionButton_UpdateUsable", HookUsableUpdate)
   -- Listen for keybinding updates so we can re-evaluate keyboardOnly heuristics
   self:RegisterEvent("UPDATE_BINDINGS", function() self:ReapplyClickRegistration() end)
+  -- Burst cuando cambia el objetivo para reacción rápida de rango
+  -- Sin burst: se mantiene actualización uniforme basado en intervalo
   self:ForceAll()
 end
 
 function Module:OnDisable()
   -- Limpieza ligera: no desmontamos hooksecurefunc (no se puede), sólo paramos frame
-  if rangeTickerFrame then rangeTickerFrame:SetScript("OnUpdate", nil) end
-  -- Not strictly necessary to wipe, but keeps memory tidy
+  -- Detener sólo el estado interno (el scheduler mantiene la tarea, pero inactiva al ver enabled=false)
   wipe(activeButtons)
+  wipe(activeList)
   wipe(buttonBindings)
+  activeCount = 0
+  rrIndex = 1
 end
 
 -- ========================================================
@@ -362,6 +414,21 @@ function Module:BuildOptions()
         mana = { type="color", order=3, name=L["Not Enough Mana"], get=get, set=set },
         unusable = { type="color", order=4, name=L["Unusable"], get=get, set=set },
         normal = { type="color", order=5, name=L["Normal"], get=get, set=set },
+        interval = { type="range", order=6, name=L["Update Interval"], desc=L["Base seconds between tint update batches (lower = more responsive, higher = cheaper)."], min=MIN_INTERVAL, max=MAX_INTERVAL, step=0.01, get=get, set=function(info,v)
+          set(info,v)
+          -- Pequeño refresco rápido para que el usuario note el cambio al bajar intervalo
+          for btn in pairs(activeButtons) do
+            if btn and btn.action and HasAction(btn.action) then
+              if ActionHasRange(btn.action) then
+                local inRange = IsActionInRange(btn.action)
+                btn.__YATP_OutOfRange = (inRange == 0)
+              else
+                btn.__YATP_OutOfRange = false
+              end
+              UpdateUsable(btn, self.db)
+            end
+          end
+        end },
       }},
       behaviorGroup = { type="group", order=30, inline=true, name=L["Behavior"], args = {
         anyDown = { type="toggle", order=1, name=L["Trigger on Key Down"], desc=L["Fire actions on key press (may reduce perceived input lag)."], get=get, set=function(info,v) set(info,v); self:ReapplyClickRegistration() end },
