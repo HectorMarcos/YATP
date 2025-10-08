@@ -106,26 +106,31 @@ end
 -------------------------------------------------
 function Module:InstallPopupHook()
     if self._popupHookInstalled then return end
-    local function hookFn(which, text)
+    local function hookFn(which, text, ...)
         if not self.db or not self.db.enabled then return end
-        if not text or text == "" then return end
-        local lowerText = text:lower()
+        local safeText = type(text) == "string" and text or ""
+        local lowerText = safeText:lower()
         if YATP:IsDebug() then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff33ff99YATP:QuickConfirm|r show '%s' which=%s", (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")), tostring(which)))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff33ff99YATP:QuickConfirm|r show which=%s text='%s'", tostring(which), (safeText:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))))
         end
-        local needTransmog
-        if which and TRANSMOG_WHICH[which] and self.db.autoTransmog then
-            needTransmog = true
-        elseif self.db.autoTransmog then
-            for _, pat in ipairs(TRANSMOG_SUBSTRINGS) do
-                if lowerText:find(pat, 1, true) then
-                    needTransmog = true
-                    break
+        local needTransmog = false
+        if self.db.autoTransmog then
+            if which and TRANSMOG_WHICH[which] then
+                needTransmog = true
+            else
+                -- intentar detección por fragmentos de texto si se recibió alguno
+                if safeText ~= "" then
+                    for _, pat in ipairs(TRANSMOG_SUBSTRINGS) do
+                        if lowerText:find(pat, 1, true) then
+                            needTransmog = true
+                            break
+                        end
+                    end
                 end
             end
         end
         if needTransmog then
-            self:SchedulePopupRetries({ mode = "transmog", which = which, text = text })
+            self:SchedulePopupRetries({ mode = "transmog", which = which, text = safeText })
         end
     end
     hooksecurefunc("StaticPopup_Show", hookFn)
@@ -181,25 +186,46 @@ function Module:ScanOnce() end
 function Module:SchedulePopupRetries(meta)
     local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
     if not sched then return end
-    local baseName = "QuickConfirmPopup:"..(meta.mode or "?")..":"..(meta.which or meta.text or "?")
+    local baseName = "QuickConfirmPopup:"..(meta.mode or "?")..":"..(meta.which or "-")
     local attempts = 0
     local maxAttempts = self.db.retryAttempts or 4
     local step = self.db.retryStep or 0.15
+    if YATP:IsDebug() then
+        self:Debug(string.format("schedule transmog retries name=%s max=%d step=%.2f", baseName, maxAttempts, step))
+    end
     sched:AddTask(baseName, step, function()
-        return step
-    end, function()
         attempts = attempts + 1
-        if not self.db or not self.db.enabled then
+        if not self.db or not self.db.enabled or not self.db.autoTransmog then
             sched:RemoveTask(baseName)
             return
         end
-        local success
-        if meta.which and TRANSMOG_WHICH[meta.which] then
-            success = self:ConfirmByWhich(meta.which, meta.text)
-        elseif meta.text then
-            success = self:ConfirmByText(meta.text, "retry-text")
+        local targetFrame
+        for i=1,4 do
+            local frame = _G["StaticPopup"..i]
+            if frame and frame:IsShown() then
+                local which = frame.which
+                local tr = _G[frame:GetName().."Text"]
+                local txt = (tr and tr:GetText()) or ""
+                local lower = txt:lower()
+                if (meta.which and which == meta.which) then
+                    targetFrame = frame; break
+                else
+                    for _, pat in ipairs(TRANSMOG_SUBSTRINGS) do
+                        if lower:find(pat, 1, true) then targetFrame = frame; break end
+                    end
+                    if targetFrame then break end
+                end
+            end
         end
-        if success or attempts >= maxAttempts then
+        if targetFrame then
+            self:ClickPrimary(targetFrame, "transmog-auto")
+            sched:RemoveTask(baseName)
+            return
+        end
+        if attempts >= maxAttempts then
+            if YATP:IsDebug() then
+                self:Debug("transmog retries exhausted")
+            end
             sched:RemoveTask(baseName)
         end
     end, { spread = 0 })
