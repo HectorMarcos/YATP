@@ -20,7 +20,7 @@ Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Ena
 ## Install
 
 1. Put folder named `YATP` into `Interface/AddOns`.
-2. Restart or /reload.
+2. Restart (or /reload if updating).
 3. `/yatp` to open config.
 
 Hubs: Interface / Quality of Life / Extras (Tweaks subgroup inside Extras). Each module adds its own panel.
