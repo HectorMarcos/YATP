@@ -61,7 +61,6 @@ L["Outline"] = "Outline"
 L["Utilities"] = "Utilities"
 L["Force Refresh"] = "Force Refresh"
 L["Advanced"] = "Advanced"
-L["Aggressive Scan"] = "Aggressive Scan"
 L["Scan Interval"] = "Scan Interval"
 L["Post-detection Sweeps"] = "Post-detection Sweeps"
 L["Hide Chat Bubbles"] = true
@@ -143,11 +142,9 @@ L["Thick Outline"] = "Thick Outline"
 L["InfoBar"] = "Info Bar"
 -- QuickConfirm
 L["QuickConfirm"] = true
-L["Automatically confirms selected confirmation popups (transmog, exit)."] = true
+L["Automatically confirms selected confirmation popups (transmog)."] = true
 L["Transmog"] = true
 L["Auto-confirm transmog appearance popups"] = true
-L["Logout / Exit"] = true
-L["Auto-confirm logout / exit popups"] = true
 L["Miscellaneous"] = true
 L["Suppress click sound"] = true
 L["Scan Interval"] = true
@@ -174,11 +171,7 @@ L["Trigger on Key Down"] = true
 L["Keyboard Only"] = true
 L["Apply 'key down' only if the button has a keyboard binding; mouse clicks stay default (on release)."] = true
 L["Fire actions on key press (may reduce perceived input lag)."] = true
--- Exit / QuickConfirm updated keys
-L["Exit"] = true
-L["Auto-confirm exit popups"] = true
--- Legacy description kept to avoid missing entry warning if cached
-L["Automatically confirms selected confirmation popups (transmog, logout)."] = true
+-- Legacy QuickConfirm exit-related keys removed (scope now only transmog)
 -- Extras / Fixes
 L["Extras"] = true
 L["Miscellaneous small toggles and fixes."] = true

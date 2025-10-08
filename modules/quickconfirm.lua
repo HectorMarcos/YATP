@@ -2,7 +2,7 @@
 -- YATP - QuickConfirm (Quality of Life)
 -- Automatically confirms selected StaticPopup dialogs:
 --  * Transmog appearance collection (appearance learn)
---  * Exit game dialogs (QUIT / CONFIRM_EXIT) – does NOT auto-confirm logout (CAMP)
+--  * (Exit auto-confirm feature removed)
 --========================================================--
 local ADDON = "YATP"
 local ModuleName = "QuickConfirm"
@@ -26,7 +26,7 @@ Module.defaults = {
     enabled = true,
     scanInterval = 0.25, -- (legacy) mantenido para compat; ya no se usa como OnUpdate scanner continuo
     autoTransmog = true,
-    autoExit = true, -- renamed from autoLogout
+    -- autoExit removed
     suppressClickSound = false, -- removed feature (kept key for backwards safety, no effect)
     -- debug flag removed (now uses global YATP Extras > Debug Mode)
     minClickGap = 0.3, -- safeguard between automatic clicks
@@ -81,10 +81,7 @@ function Module:OnInitialize()
         YATP.db.profile.modules[ModuleName] = CopyTable(self.defaults)
     end
     self.db = YATP.db.profile.modules[ModuleName]
-    -- Migration: if old autoLogout exists and autoExit not yet defined, copy value
-    if self.db.autoExit == nil and self.db.autoLogout ~= nil then
-        self.db.autoExit = self.db.autoLogout
-    end
+    -- Removed: autoExit/autoLogout migration (feature deleted)
 
     if YATP.AddModuleOptions then
         YATP:AddModuleOptions(ModuleName, self:BuildOptions(), "QualityOfLife")
@@ -94,12 +91,9 @@ end
 function Module:OnEnable()
     if not self.db.enabled then return end
     self:InstallPopupHook()
-    self:StartExitWatcher()
 end
 
-function Module:OnDisable()
-    self:StopExitWatcher()
-end
+function Module:OnDisable() end
 
 -------------------------------------------------
 -- Hook StaticPopup_Show to catch texts immediately
@@ -275,68 +269,7 @@ end
 -------------------------------------------------
 -- Exit countdown watcher (non-StaticPopup frames)
 -------------------------------------------------
-local function FrameHasExitText(frame)
-    if not frame or not frame:IsShown() then return false end
-    if frame.GetObjectType and frame:GetObjectType() == "Button" then return false end
-    local regions = { frame:GetRegions() }
-    for _, r in ipairs(regions) do
-        if r and r.GetObjectType and r:GetObjectType()=="FontString" then
-            local txt = r:GetText()
-            if txt then
-                local l = txt:lower()
-                if l:find("seconds until exit", 1, true)
-                   -- Removed: "seconds until logout" to avoid auto-confirming logout.
-                   or l:find("segundos hasta salir",1,true) or l:find("segundos hasta la salida",1,true) then
-                    return true
-                end
-            end
-        end
-    end
-    return false
-end
-
-function Module:StartExitWatcher()
-    if self._exitSched or not self.db.autoExit then return end
-    local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
-    if not sched then return end
-    local name = "QuickConfirmExitWatcher"
-    sched:AddTask(name, 0.8, function() return 0.8 end, function()
-        if not self.db.enabled or not self.db.autoExit then return end
-        local f = EnumerateFrames()
-        local found
-        local scans = 0
-        while f and scans < 300 do -- límite para no recorrer demasiados frames
-            if FrameHasExitText(f) then found = f; break end
-            f = EnumerateFrames(f)
-            scans = scans + 1
-        end
-        if found then
-            self:Debug("exit countdown frame detected")
-            local clicked
-            for i=1, found:GetNumChildren() do
-                local child = select(i, found:GetChildren())
-                if child and child.GetObjectType and child:GetObjectType()=="Button" and child:IsEnabled() and child:IsShown() then
-                    local ok = pcall(function() child:Click() end)
-                    self:Debug("attempt child button click: "..tostring(ok))
-                    clicked = true
-                    break
-                end
-            end
-            if not clicked then
-                self:ForceImmediateExit()
-            end
-        end
-    end, { spread = 0.4 })
-    self._exitSched = name
-end
-
-function Module:StopExitWatcher()
-    if self._exitSched then
-        local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
-        if sched then sched:RemoveTask(self._exitSched) end
-        self._exitSched = nil
-    end
-end
+-- Exit watcher removed
 
 -------------------------------------------------
 -- Options (minimal per requirements)
@@ -355,11 +288,10 @@ function Module:BuildOptions()
                 get = function() return self.db.enabled end,
                 set = function(_, v) self.db.enabled = v; if v then self:Enable() else self:Disable() end end,
             },
-            desc = { type="description", order=2, fontSize="medium", name = L["Automatically confirms selected confirmation popups (transmog, exit)."] or "Automatically confirms selected confirmation popups (transmog, exit)." },
+            desc = { type="description", order=2, fontSize="medium", name = L["Automatically confirms selected transmog confirmation popups."] or "Automatically confirms selected transmog confirmation popups." },
             headerTransmog = { type="header", name = L["Transmog"] or "Transmog", order = 5 },
             autoTransmog = { type="toggle", order = 6, name = L["Auto-confirm transmog appearance popups"] or "Auto-confirm transmog appearance popups", get=get, set=set },
-            headerExit = { type="header", name = L["Exit"] or "Exit", order = 10 },
-            autoExit = { type="toggle", order = 11, name = L["Auto-confirm exit popups"] or "Auto-confirm exit popups", get=get, set=set },
+            -- exit section removed
             headerOther = { type="header", name = L["Miscellaneous"] or "Miscellaneous", order = 20 },
             -- suppressClickSound removed; placeholder intentionally omitted
             scanInterval = { type="range", hidden=true, order=30, name=L["(Legacy) Scan Interval"] or "(Legacy) Scan Interval", min=0.05, max=0.5, step=0.01, get=get, set=function(i,v) set(i,v) end },
@@ -373,12 +305,6 @@ end
 function Module:OnSettingChanged(key)
     if key == "scanInterval" then
         if self.scanner then self.scanner.accum = 0 end
-    elseif key == "autoExit" then
-        if self.db.autoExit then
-            self:StartExitWatcher()
-        else
-            self:StopExitWatcher()
-        end
     end
 end
 

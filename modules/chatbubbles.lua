@@ -17,8 +17,7 @@ ChatBubbles.defaults = {
     fontSize = 14,
     font = "FRIZQT",       -- FRIZQT, ARIALN, MORPHEUS, SKURRI
     flags = "OUTLINE",      -- "", OUTLINE, THICKOUTLINE
-    aggressive = false,      -- continuous sweeping
-    scanInterval = 0.08,     -- seconds between sweeps when aggressive
+    -- aggressive/scanInterval removed (performance: event + post-sweeps is suficiente)
     postSweeps = 2,          -- extra sweeps after a detection
 }
 
@@ -39,7 +38,6 @@ local FLAG_LABELS = {
 local evtFrame
 local pendingSweeps = 0       -- sweeps extra post-detección (consumidos por tarea scheduler)
 local scheduled = false       -- marca si la tarea ya registrada
-local aggressiveTaskName = "ChatBubblesAggressive"
 local postTaskName = "ChatBubblesPostSweeps"
 
 -------------------------------------------------
@@ -141,16 +139,7 @@ local function EnsureScheduled()
     if scheduled then return end
     local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
     if not sched then return end
-    -- Aggressive sweep tarea (solo ejecuta si aggressive activo)
-    sched:AddTask(aggressiveTaskName, function()
-        return ChatBubbles.db and (ChatBubbles.db.scanInterval or 0.12) or 0.12
-    end, function()
-        local db = ChatBubbles.db
-        if db and db.enabled and db.aggressive then
-            FullSweep()
-        end
-    end, { spread = 0.1 })
-    -- Post sweeps (rápidas) intervalo fijo pequeño mientras haya pendientes
+    -- Sólo mantenemos la tarea de post-sweeps (micro barridos tras detección)
     sched:AddTask(postTaskName, 0.07, RunPostSweep, { spread = 0.05 })
     scheduled = true
 end
@@ -270,16 +259,7 @@ function ChatBubbles:BuildOptions()
             advanced = {
                 type="group", name=L["Advanced"] or "Advanced", inline=true, order=20,
                 args = {
-                    aggressive = { type="toggle", name=L["Aggressive Scan"] or "Aggressive Scan", order=1, width="full",
-                        desc = L["Continuously sweep world frames to strip bubble textures ASAP (slightly higher CPU)."] or "Continuously sweep world frames to strip bubble textures ASAP (slightly higher CPU).",
-                        get = function() return self.db.aggressive end,
-                        set = function(_, v) self.db.aggressive = v end },
-                    scanInterval = { type="range", name=L["Scan Interval"] or "Scan Interval", order=2, width="full",
-                        min=0.02, max=0.25, step=0.01, bigStep=0.01,
-                        desc = L["Seconds between sweeps in aggressive mode."] or "Seconds between sweeps in aggressive mode.",
-                        get = function() return self.db.scanInterval end,
-                        set = function(_, v) self.db.scanInterval = v end },
-                    postSweeps = { type="range", name=L["Post-detection Sweeps"] or "Post-detection Sweeps", order=3, width="full",
+                    postSweeps = { type="range", name=L["Post-detection Sweeps"] or "Post-detection Sweeps", order=1, width="full",
                         min=0, max=5, step=1,
                         desc = L["Extra quick sweeps right after detecting a bubble."] or "Extra quick sweeps right after detecting a bubble.",
                         get = function() return self.db.postSweeps end,
