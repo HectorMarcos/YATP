@@ -18,13 +18,16 @@ High-level view of how raw ideas become shipped features. This is intentionally 
 
 ## Version Buckets (Tentative)
 ### 0.3 (Shipped)
-- ChatFilters module (system chat suppression) delivered.
+
+- ChatFilters module (system chat suppression) initial delivery.
+- ChatFilters enhancements (0.3.1–0.3.2): money loot line suppression, login welcome + first automatic /played suppression, live session stats refresh, hidden advanced hook toggles.
 
 ### 0.4 (Next)
 
 - Aura Blacklist Import/Export (evaluation / spec).
 - Frame Scale Memory utility.
 - Potential foreground FPS cap management (extension of BackgroundFPSFix if demand confirmed).
+- ChatFilters: Loot item quality filtering (evaluation) – optional suppression below threshold with quest/gathering exceptions.
 
 ### 0.5
 
@@ -46,6 +49,7 @@ When moving an item forward, reference its short title in commits, e.g.:
 ```text
 feat(aura-filters): add blacklist export serialization
 ```
+
 Then add the change under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Deferral / Dropping

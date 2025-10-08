@@ -6,12 +6,42 @@ The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/)
 and this project adheres (aspirationally) to Semantic Versioning once it reaches 1.0.
 
 ## [Unreleased]
+
+### Added (placeholder)
+
+### Changed (placeholder)
+
+### Fixed (placeholder)
+
+### Removed (placeholder)
+
+### Security (placeholder)
+
+### Internal / Maintenance (placeholder)
+
+## [0.3.2] - 2025-10-08
+
 ### Added
+
+- ChatFilters: automatic suppression of first login/reload /played dump (manual /played remains visible).
+- IDEAS: added concept for loot item quality filtering (threshold + quest/gathering exceptions).
+
 ### Changed
+
+- ChatFilters: consolidated advanced toggles (AddMessage hook, /played suppression options) into hidden defaults; user-facing option now a single "Suppress Login Welcome Lines" toggle.
+- README: updated ChatFilters module summary to reflect current behavior (money lines, login spam, first /played suppression).
+
 ### Fixed
+
+- ChatFilters: dynamic Session Stats now refresh via throttled AceConfigRegistry notifications; first /played suppression increments login spam counter.
+
 ### Removed
-### Security
+
+- ChatFilters: exposed UI options for AddMessage hook and /played fine-grain settings (retained internally for compatibility).
+
 ### Internal / Maintenance
+
+- Refactored time played hook to a narrow proxy around ChatFrame_DisplayTimePlayed with first-call suppression logic and safe restore on module disable.
 
 ## [0.3.1] - 2025-10-07
 
@@ -31,6 +61,7 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 - Introduced Tweaks group under Extras for future small performance toggles.
 
 ## [0.3] - 2025-10-07
+
 ### Added
 - ChatFilters module (Quality of Life): suppresses repetitive system error spam ("Interface action failed because of an AddOn" / UI Error variants) with substring + token matching, color code stripping, optional diagnostic logging.
 
@@ -45,6 +76,7 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 - ChatFilters logic includes extensible placeholders for future pattern list & summary counters (currently hidden advanced toggles).
 
 ## [0.2] - 2025-10-07
+
 ### Added
 - Global Debug Mode toggle under `YATP > Extras` controlling verbose output for all modules.
 - Consolidated debug helper API: `YATP:IsDebug()` and `YATP:Debug(msg)`.
@@ -65,6 +97,7 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 - Standardized internal debug print prefix formatting.
 
 ## [0.1] - Initial Snapshot
+
 ### Added
 - Core addon skeleton with Ace3 framework (core + config hubs: Interface Hub, Quality of Life, Extras).
 - Modules included: xprepbar, chatbubbles, playerauras, infobar, quickconfirm, hotkeys, waadifix, lootrollinfo (early integration).
@@ -84,7 +117,8 @@ The following early commits were consolidated into this initial snapshot:
 - `8224f9a` debug clean (preparation for unified debug approach)
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
-[Unreleased]: https://example.com/compare/v0.3.1...HEAD
+[Unreleased]: https://example.com/compare/v0.3.2...HEAD
+[0.3.2]: https://example.com/releases/tag/v0.3.2
 [0.3.1]: https://example.com/releases/tag/v0.3.1
 [0.3]: https://example.com/releases/tag/v0.3
 [0.2]: https://example.com/releases/tag/v0.2

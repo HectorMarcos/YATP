@@ -1,14 +1,16 @@
-# YATP – Yet Another Tweaks Pack
+﻿# YATP – Yet Another Tweaks Pack
 
 A modular World of Warcraft (3.3.5 / legacy) addon that consolidates a curated set of quality‑of‑life interface tweaks under one lightweight Ace3 powered framework. Each feature lives in its own self‑contained module so you only pay for what you enable.
 
 ## Core Goals
+
 - Keep modules decoupled and easy to maintain.
 - Provide consistent configuration panels using AceConfig (grouped into Interface, Quality of Life and Extras hubs).
 - Offer safe migrations for users coming from small standalone addons (chat bubbles, buffs, keybind styling, etc.).
 - Remain readable: clear English comments, minimal hidden magic.
 
 ## Main Features (Modules)
+
 | Module | Hub | Summary |
 |--------|-----|---------|
 | ChatBubbles | Interface | Strips default bubble art and restyles text (font face / outline / size, aggressive scan & sweep tuning). Migrates legacy NoBubbles profile values if present. |
@@ -18,7 +20,7 @@ A modular World of Warcraft (3.3.5 / legacy) addon that consolidates a curated s
 | LootRollInfo | Quality of Life | Shows per‑roll Need / Greed / Disenchant / Pass counters on Group Loot frames with tooltips listing players; optional chat suppression & rarity threshold. |
 | InfoBar | Quality of Life | Compact performance/character status bar (FPS, latency, durability %) with colorized low durability warning. Drag (unlock) + font & update interval controls. |
 | QuickConfirm | Quality of Life | Auto‑confirms specific StaticPopup dialogs (transmog appearance collection, exit / quit confirmations) with throttled scanning & pattern hooks. |
-| ChatFilters | Quality of Life | Suppresses noisy repeated system error lines (interface action failed / UI error) with smart substring matching and optional diagnostics. |
+| ChatFilters | Quality of Life | Suppresses system spam: interface action failed, UI error variants, repetitive loot money lines, welcome/uptime login lines, and auto‑hides only the first automatic /played dump (manual /played still shows). Advanced toggle hooks hidden by default. |
 | WAAdiFixes | Extras | Small compatibility patches (currently legacy resize API wrapper for WeakAuras / AdiBags). Built for future micro‑fix groups. |
 | BackgroundFPSFix (Tweaks) | Extras | Adjustable background framerate cap (0 disables override) with automatic restore of original value when disabled. |
 
