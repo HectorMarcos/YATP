@@ -8,7 +8,8 @@ Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Ena
 |--------|-----|---------|
 | ChatBubbles | Interface | Restyle & clean chat bubbles (migrates NoBubbles). |
 | Hotkeys | Interface | Hotkey font + range / mana tinting. |
-| PlayerAuras | Interface | Buff/debuff filter, sort, scale (BetterBuffs migration). |
+| PlayerAuras | Interface | Buff/debuff layout: scale, rows, growth, sorting, duration styling. |
+| PlayerAuraFilter | Interface | Simple name-based hide list for player buffs (clean slate; optional). |
 | XPRepBar | Interface | Unified XP + Rep bar w/ mouseover text. |
 | LootRollInfo | QoL | Per-option roll counters + tooltips. |
 | InfoBar | QoL | FPS / latency / durability micro bar. |
@@ -33,20 +34,25 @@ Hubs: Interface / Quality of Life / Extras (Tweaks subgroup inside Extras). Each
 /yatp reload    # Reload the UI
 /yatp debug     # Toggle global debug
 ```
+
 Modules may expose short extra slash commands.
 
 ## Localization
+
 Fallback enUS, optional overrides in `locales/`. Missing keys fall back safely.
 
 ## Dev
+
 Copy `modules/Template.lua`, rename, set `defaults`, implement `:OnInitialize()`, `:OnEnable()`, optional `:BuildOptions()`. Register via `YATP:NewModule()` then `YATP:AddModuleOptions()`.
 
 State: single AceDB root `YATP_DB.profile.modules[ModuleName]`. Migrations pull from older standalone SVs when found.
 
 ## Contributing
+
 Open issue / PR. Keep changes module‑scoped, avoid editing vendored libs. Test with a fresh profile.
 
 ## Credits
+
 Ace3, LibSharedMedia, plus original micro‑addons merged (NoBubbles, BetterBuffs, etc.).
 
 ## Related Ascension Addons

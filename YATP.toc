@@ -31,6 +31,7 @@ core\scheduler.lua
 # Modules (direct includes, replacing Modules\Modules.xml)
 modules\xprepbar.lua
 modules\chatbubbles.lua
+modules\playeraurafilter.lua
 modules\playerauras.lua
 modules\infobar.lua
 modules\quickconfirm.lua
