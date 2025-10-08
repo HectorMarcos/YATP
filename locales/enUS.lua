@@ -151,6 +151,11 @@ L["Auto-confirm logout / exit popups"] = true
 L["Miscellaneous"] = true
 L["Suppress click sound"] = true
 L["Scan Interval"] = true
+L["(Legacy) Scan Interval"] = true
+L["Retry Attempts"] = true
+L["Number of scheduled retry attempts when a popup appears and the confirm button may not yet be ready."] = true
+L["Retry Interval"] = true
+L["Seconds between retry attempts."] = true
 L["Debug"] = true
 L["Debug Messages"] = true
 -- Hotkeys Module

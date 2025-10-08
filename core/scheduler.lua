@@ -64,30 +64,41 @@ local function EnsureFrame()
 end
 
 function Scheduler:AddTask(name, interval, func, opts)
-    if not name or not func or not interval then return end
+    if not name or not func or interval == nil then return end
     if tasks[name] then -- actualizar existente
         local t = tasks[name]
         t.interval = interval
         t.func = func
-        if opts then
+        if type(opts) == "table" then
             for k,v in pairs(opts) do t[k] = v end
         end
         return t
     end
     local now = time()
-    local spread = opts and opts.spread or 0
-    local firstDelay = interval
+    local spread = (type(opts) == "table" and opts.spread) or 0
+    local numericInterval = interval
+    if type(numericInterval) == "function" then
+        local okEval, dyn = pcall(numericInterval)
+        if okEval and type(dyn) == "number" and dyn > 0 then
+            numericInterval = dyn
+        else
+            numericInterval = 0.2
+        end
+    end
+    if numericInterval <= 0 then numericInterval = 0.01 end
+    local firstDelay = numericInterval
     if spread and spread > 0 then
-        -- aleatorio para distribuir carga inicial
-        firstDelay = math.random() * math.min(spread, interval)
+        local maxSpread = spread
+        if maxSpread > numericInterval then maxSpread = numericInterval end
+        firstDelay = math.random() * maxSpread
     end
     tasks[name] = {
         name = name,
         interval = interval,
         func = func,
-        enabled = opts and (opts.enabled ~= false) or true,
+        enabled = (type(opts) == "table" and opts.enabled == false) and false or true,
         nextRun = now + firstDelay,
-        context = opts and opts.context,
+        context = (type(opts) == "table" and opts.context) or nil,
     }
     EnsureFrame()
     return tasks[name]
