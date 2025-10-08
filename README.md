@@ -1,6 +1,6 @@
 ﻿# YATP – Yet Another Tweaks Pack
 
-Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / legacy). Ace3 based. Enable only what you want.
+Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Enable only what you want.
 
 ## Modules
 
