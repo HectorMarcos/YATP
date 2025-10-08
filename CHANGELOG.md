@@ -7,38 +7,49 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
-### Added (Unreleased)
+_No changes yet._
 
-- ChatBubbles: toggle de "Enable Module" estandarizado (antes el texto podía resultar ambiguo al decir "Hide Chat Bubbles").
-- XPRepBar: nueva opción "Enable Module" para activar/desactivar completamente la barra (oculta frames y desregistra eventos al deshabilitarla).
-- Core: diálogo de confirmación para /reload al cambiar cualquier "Enable Module" (aparece opción YES/CANCEL).
-- Todos los módulos: tooltips de los toggles ahora indican que se recomienda /reload para aplicar totalmente el cambio.
-- PlayerAuraFilter: nuevo módulo separado que gestiona la lista de ocultar buffs por nombre (inicia vacío, no migra datos de PlayerAuras previos).
+## [0.4.1] - 2025-10-08
 
-### Changed (Unreleased)
+### Added
 
-- Unificación del patrón de enable/disable para que coincida con otros módulos (Hotkeys, QuickConfirm) usando `self:Enable()/self:Disable()` de AceAddon.
-- Consistencia de UX: tras togglear se ofrece popup de reload evitando confusión sobre estados parciales sin recarga.
-- PlayerAuras: ahora sólo maneja layout (escala, filas, orden, fuente de duración). Lógica de filtrado eliminada y delegada a PlayerAuraFilter.
+- ChatBubbles: standardized "Enable Module" toggle (previous wording "Hide Chat Bubbles" could be ambiguous).
+- XPRepBar: new "Enable Module" master toggle (hides frames & unregisters events when disabled).
+- Core: confirmation dialog for /reload after toggling any module enable state (YES / CANCEL).
+- All modules: enable toggle tooltips now indicate a /reload is recommended for a fully clean apply.
+- PlayerAuraFilter: new separated module for name-based buff hiding (starts empty; no migration of legacy PlayerAuras list).
 
-### Removed (Unreleased)
+### Changed
 
-- ChatBubbles: Aggressive Scan toggle y scan interval option.
-- QuickConfirm: exit watcher & auto-exit option plus related text cues and frame scanning logic.
-- Hotkeys: temporary target-change burst refresh system (superseded by steady interval + immediate recolor on slider change).
-- ChatFilters: obsolete loot money filtering option (redundant con base client; legacy profile key ignored).
-- PlayerAuras: claves antiguas `knownBuffs` y UI de filtros (sustituidas por el nuevo módulo). Cualquier configuración previa de ocultar buffs se ignora.
+- Unified enable/disable pattern to consistently use AceAddon `:Enable()` / `:Disable()` across modules (Hotkeys, QuickConfirm, etc.).
+- UX consistency: post-toggle reload prompt avoids confusion about partial state without UI reload.
+- PlayerAuras: now layout-only (scale, rows, growth, sort, duration font). Filtering logic extracted to PlayerAuraFilter.
+- Localization: remaining Spanish comments in PlayerAuras translated to English for repository consistency.
+
+### Removed
+
+- ChatBubbles: Aggressive Scan toggle and scan interval option.
+- QuickConfirm: legacy exit watcher & auto-exit logic (now focused narrowly on transmog confirmations only).
+- Hotkeys: temporary target-change burst refresh system (replaced by steady timer + immediate recolor on adjustments).
+- ChatFilters: obsolete loot money filtering option (redundant with base client; legacy profile key now ignored).
+- PlayerAuras: old `knownBuffs` keys and filter UI (superseded by the new PlayerAuraFilter module). Prior hidden list data intentionally discarded.
 
 ### Fixed
 
-- Hotkeys: moving interval slider triggers immediate one-pass recolor for fast feedback.
-- Scheduler: tasks updated to ignore removed options cleanly (no dangling references / errors).
+- Hotkeys: changing interval slider triggers immediate one-pass recolor for fast visual feedback.
+- Scheduler: updated to ignore removed option keys gracefully (no dangling references / errors).
+- Locale: added missing keys to eliminate AceLocale runtime warnings.
+
+### Temporarily Disabled Modules
+
+- PlayerAuras: forcibly disabled this release pending review of recent aura frame/API behavior; Blizzard default layout in use.
+- PlayerAuraFilter: forcibly disabled (filter logic suspended) to avoid confusion while layout module is inactive.
 
 ### Internal / Maintenance
 
 - Hotkeys task refactored to dynamic interval function (future adaptive tuning hook).
-- Locales (enUS/esES/frFR) cleaned of deprecated keys to prevent stale UI clutter.
-- README & CHANGELOG synchronized with feature removals.
+- Locales cleaned of deprecated keys to prevent stale UI clutter; added missing runtime keys.
+- README updated to reflect module split and temporary suspension notice for aura modules.
 
 ## [0.3.3] - 2025-10-08
 

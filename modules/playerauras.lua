@@ -1,7 +1,6 @@
--- PlayerAuras (formerly BetterBuffs integration)
--- Unifies player buff & debuff filtering and layout under YATP.
--- Provides configurable scaling, per-row counts, duration styling, and hide lists.
--- Future-ready for pattern filters or categorization.
+-- PlayerAuras
+-- Only manages the visual layout and styling of player buffs / debuffs.
+-- Filtering logic was extracted and is currently disabled (see PlayerAuraFilter).
 
 local addonName, ns = ...
 local YATP = YATP or LibStub("AceAddon-3.0"):GetAddon("YATP")
@@ -12,12 +11,11 @@ local Module = YATP:NewModule("PlayerAuras", "AceEvent-3.0")
 ------------------------------------------------------------
 -- Defaults
 ------------------------------------------------------------
--- Filtering (knownBuffs) removed; moved to PlayerAuraFilter module (clean slate)
--- Legacy default buff list intentionally not migrated.
+-- Filtering removed: this module no longer decides to hide auras.
 
 local defaults = {
     profile = {
-        enabled = true,
+        enabled = true, -- valor almacenado será ignorado y forzado a false en runtime
     throttle = 0.12,           -- (antes 0.1) ligero aumento reduce frecuencia de layout
         manageBuffs = true,
         manageDebuffs = true,
@@ -102,7 +100,7 @@ local auraButtonsCount = { buffs = 0, debuffs = 0 }
 function Module:Refresh()
     if not self.db.profile.enabled then return end
 
-    -- reset counts (no wipe para evitar realloc)
+    -- reset counts (avoid table reallocation by not wiping)
     auraButtonsCount.buffs = 0
     auraButtonsCount.debuffs = 0
 
@@ -114,23 +112,15 @@ function Module:Refresh()
             if not name then break end
             local button = _G["BuffButton"..i]
             if button then
-                local filterMod = YATP:GetModule("PlayerAuraFilter", true)
-                local hide = false
-                if filterMod and filterMod.db and filterMod.db.profile.enabled then
-                    hide = filterMod:ShouldHideAura(name, false)
-                end
-                if hide then
-                    button:Hide()
-                else
-                    button:Show()
-                    button.__paName = name
-                    auraButtonsCount.buffs = auraButtonsCount.buffs + 1
-                    auraButtonsCache.buffs[auraButtonsCount.buffs] = button
-                end
+                -- Always show (filtering disabled)
+                button:Show()
+                button.__paName = name
+                auraButtonsCount.buffs = auraButtonsCount.buffs + 1
+                auraButtonsCache.buffs[auraButtonsCount.buffs] = button
             end
             i = i + 1
         end
-        -- nil out sobrantes previo layout (si la lista se achicó)
+    -- nil out any leftover entries (if fewer auras than previous pass)
         for j = auraButtonsCount.buffs + 1, #auraButtonsCache.buffs do
             auraButtonsCache.buffs[j] = nil
         end
@@ -143,6 +133,8 @@ function Module:Refresh()
             if not name then break end
             local button = _G["DebuffButton"..i]
             if button then
+                -- Ensure any previous hidden state is reverted
+                button:Show()
                 button.__paName = name
                 auraButtonsCount.debuffs = auraButtonsCount.debuffs + 1
                 auraButtonsCache.debuffs[auraButtonsCount.debuffs] = button
@@ -151,6 +143,21 @@ function Module:Refresh()
         end
         for j = auraButtonsCount.debuffs + 1, #auraButtonsCache.debuffs do
             auraButtonsCache.debuffs[j] = nil
+        end
+    end
+
+    -- Safety pass: show any base buttons Blizzard might have hidden (previous filtering / consolidation)
+    -- only if we are managing buffs/debuffs.
+    if p.manageBuffs then
+        for i = 1, 40 do
+            local b = _G["BuffButton"..i]
+            if b and not b:IsShown() then b:Show() end
+        end
+    end
+    if p.manageDebuffs then
+        for i = 1, 40 do
+            local b = _G["DebuffButton"..i]
+            if b and not b:IsShown() then b:Show() end
         end
     end
 
@@ -224,7 +231,7 @@ function Module:Layout(kind, list, perRow, isDebuff)
             end
             local text = button.duration:GetText()
             if text and text ~= button.__paLastDurationText then
-                -- Solo aplicar gsub si contiene espacio + unidad probable (simple heuristic)
+                -- Only apply gsub if it contains a space + probable unit (simple heuristic)
                 if text:find(" ") then
                     local newText = text:gsub("(%d+)%s+([smhdSMHD])", "%1%2")
                     if newText ~= text then
@@ -244,6 +251,8 @@ end
 function Module:OnInitialize()
     self.db = YATP.db:RegisterNamespace("PlayerAuras", defaults)
     MigrateFromBetterBuffs(self.db.profile)
+    -- Force the module disabled for all users (temporary release without optional layout override)
+    self.db.profile.enabled = false
     self:BuildOptions()
 end
 
@@ -287,62 +296,6 @@ function Module:BuildOptions()
     local function get(info) return p[info[#info]] end
     local function set(info, val) p[info[#info]] = val; self:MarkDirty() end
 
-    -- Build buff toggle list (separate panel) with optional search filtering
-    local defaultToggles = {}
-    local customToggles = {}
-    local defaultNames, customNames = {}, {}
-    for n, data in pairs(p.knownBuffs) do
-        if data._default then table.insert(defaultNames, n) else table.insert(customNames, n) end
-    end
-    table.sort(defaultNames)
-    table.sort(customNames)
-
-    local orderCounter = 1
-    for _, name in ipairs(defaultNames) do
-        defaultToggles[name] = {
-            type = "toggle",
-            name = name,
-            desc = L["Hide this buff when active."] or "Hide this buff when active.",
-            order = orderCounter,
-            get = function() return p.knownBuffs[name].hide end,
-            set = function(_, v) p.knownBuffs[name].hide = v; self:MarkDirty() end,
-        }
-        orderCounter = orderCounter + 1
-    end
-
-    local customOrder = 1
-    for _, name in ipairs(customNames) do
-        customToggles[name] = {
-            type = "group",
-            name = name,
-            inline = true,
-            order = customOrder,
-            args = {
-                toggle = {
-                    type = "toggle",
-                    name = L["Hide"] or "Hide",
-                    desc = L["Hide this buff when active."] or "Hide this buff when active.",
-                    order = 1,
-                    get = function() return p.knownBuffs[name].hide end,
-                    set = function(_, v) p.knownBuffs[name].hide = v; self:MarkDirty() end,
-                    width = "half",
-                },
-                remove = {
-                    type = "execute",
-                    name = L["Remove"] or "Remove",
-                    desc = L["Remove this custom buff from the list."] or "Remove this custom buff from the list.",
-                    order = 2,
-                    func = function()
-                        p.knownBuffs[name] = nil
-                        self:BuildOptions()
-                        self:MarkDirty()
-                    end,
-                },
-            }
-        }
-        customOrder = customOrder + 1
-    end
-
     self.options = {
         type = "group",
         name = L["PlayerAuras"] or "PlayerAuras",
@@ -351,10 +304,11 @@ function Module:BuildOptions()
                 type = "group", inline = true, order = 1,
                 name = L["General"] or "General",
                 args = {
-                    enabled = { type="toggle", name=L["Enable PlayerAuras"] or "Enable PlayerAuras", order=1, width="full",
-                        desc = (L["Enable or disable the PlayerAuras module (all features)."] or "Enable or disable the PlayerAuras module (all features).") .. "\n" .. (L["Requires /reload to fully apply enabling or disabling."] or "Requires /reload to fully apply enabling or disabling."),
-                        get=function() return p.enabled end,
-                        set=function(_,v) p.enabled=v; if v then self:OnEnable() end self:MarkDirty(); if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end end },
+                    enabled = { type="toggle", name=(L["Enable PlayerAuras"] or "Enable PlayerAuras") .. " (" .. (L["Disabled"] or "Disabled") .. ")", order=1, width="full",
+                        desc = (L["Temporarily disabled: the game's aura system changed; this module will return in a future update."] or "Temporarily disabled: the game's aura system changed; this module will return in a future update.") .. "\n\n" .. (L["Reason"] or "Reason") .. ": " .. (L["Recent aura frame/API changes require layout review."] or "Recent aura frame/API changes require layout review.") .. "\n" .. (L["Status"] or "Status") .. ": " .. (L["Custom layout suspended (client default in use)."] or "Custom layout suspended (client default in use).") .. "\n" .. (L["Next Step"] or "Next Step") .. ": " .. (L["Reintroduce layout options after stabilization."] or "Reintroduce layout options after stabilization."),
+                        get=function() return false end,
+                        set=function() end,
+                        disabled = true },
                     manageBuffs = { type="toggle", name=L["Manage Buffs"] or "Manage Buffs", order=2, width="full",
                         desc = L["If enabled, PlayerAuras repositions your buffs (visual layout)."] or "If enabled, PlayerAuras repositions your buffs (visual layout).",
                         get=get, set=set },
