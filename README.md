@@ -144,3 +144,12 @@ See `CHANGELOG.md` for a curated list of added / changed / removed items between
 
 High-level planned themes live in `docs/ROADMAP.md`.
 Early / unrefined feature thoughts are collected (not guaranteed) in `docs/IDEAS.md` so the README stays concise.
+
+## Related / Recommended Ascension-Specific Addons
+
+While YATP consolidates many small quality-of-life tweaks, some interface overhauls are intentionally kept separate. The following maintained fork is recommended for players on the Ascension server and pairs well with YATP:
+
+- MoveAnything (Ascension Fork): <https://github.com/zavahcodes/MoveAnything_Ascension>  
+  Adapted for Ascension-specific frame names / quirks and occasional server-side UI deviations. Keeps the original MoveAnything spirit while trimming legacy cruft and adding minor resilience guards.
+
+Have another actively maintained Ascension-focused fork that complements (not duplicates) YATP modules? Open an issue or PR to propose adding it here.

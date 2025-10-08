@@ -33,6 +33,7 @@ Module.defaults = {
     enableAddMessageHook = false,            -- legacy (hidden)
     enableTimePlayedHook = true,             -- hidden, always applied when suppressLoginWelcomeSpam active
     suppressOnlyFirstPlayed = true,          -- hidden: only hide first automatic /played
+    enableInterfaceFailedFallback = false,   -- hidden: targeted DEFAULT_CHAT_FRAME AddMessage hook (risky)
 }
 
 -- Target strings (exact). Using English retail style text; adjust if server differs.
@@ -334,6 +335,28 @@ local function UnhookChatFrames()
     wipe(hookedFrames)
 end
 
+-- Targeted fallback hook for direct AddMessage prints of the interface action failed line.
+-- Some server builds (or other addons) may bypass CHAT_MSG_SYSTEM and call DEFAULT_CHAT_FRAME:AddMessage directly,
+-- which our event filter cannot intercept. We safely wrap ONLY ChatFrame1 (DEFAULT_CHAT_FRAME) instead of all frames
+-- to avoid the broader crash risk that motivated hiding the legacy AddMessage hook.
+local function InstallInterfaceFailedFallback()
+    -- Disabled (crash risk). Left as no-op. Hidden flag retained for future safer implementation.
+    if Module.db and Module.db.enableInterfaceFailedFallback then
+        if YATP and YATP.IsDebug and YATP:IsDebug() then
+            Module:Debug("InterfaceFailedFallback requested but currently disabled (no-op)")
+        end
+    end
+end
+
+local function RemoveInterfaceFailedFallback()
+    local f = _G.DEFAULT_CHAT_FRAME
+    if f and f.__YATP_IFOrigAddMessage then
+        f.AddMessage = f.__YATP_IFOrigAddMessage
+        f.__YATP_IFOrigAddMessage = nil
+    end
+    Module._fallbackIFHookInstalled = nil
+end
+
 --------------------------------------------------
 -- Local helpers
 --------------------------------------------------
@@ -393,6 +416,8 @@ function Module:OnEnable()
     self:RegisterEvent("PLAYER_ENTERING_WORLD", function()
         self._suppressNextTimePlayed = true
     end)
+    -- Fallback hook now gated behind hidden flag; not auto-enabled to avoid potential crashes.
+    InstallInterfaceFailedFallback()
 end
 
 function Module:OnDisable()
@@ -405,6 +430,7 @@ function Module:OnDisable()
     -- (Summary timer removed)
     self:Debug("ChatFilters disabled")
     UnhookChatFrames()
+    RemoveInterfaceFailedFallback()
     -- Restore time played if hooked
     if orig_ChatFrame_DisplayTimePlayed and ChatFrame_DisplayTimePlayed == Module._proxyTimePlayed then
         ChatFrame_DisplayTimePlayed = orig_ChatFrame_DisplayTimePlayed
@@ -421,6 +447,12 @@ SlashCmdList["YATPCHATFILTERSOFF"] = function()
         if Module:IsEnabled() then Module:Disable() end
         print("YATP ChatFilters: force disabled.")
     end
+end
+
+-- Hidden toggle for interface failed fallback hook (diagnostic use only)
+SLASH_YATPIFHOOK1 = "/yatpiffallback"
+SlashCmdList["YATPIFHOOK"] = function()
+    print("YATP ChatFilters: fallback hook deshabilitado por riesgo de crash. No se activará.")
 end
 
 --------------------------------------------------

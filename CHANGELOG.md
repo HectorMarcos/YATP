@@ -117,9 +117,9 @@ The following early commits were consolidated into this initial snapshot:
 - `8224f9a` debug clean (preparation for unified debug approach)
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
-[Unreleased]: https://example.com/compare/v0.3.2...HEAD
-[0.3.2]: https://example.com/releases/tag/v0.3.2
-[0.3.1]: https://example.com/releases/tag/v0.3.1
-[0.3]: https://example.com/releases/tag/v0.3
-[0.2]: https://example.com/releases/tag/v0.2
-[0.1]: https://example.com/releases/tag/v0.1
+[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.2
+[0.3.1]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.1
+[0.3]: https://github.com/zavahcodes/YATP/releases/tag/v0.3
+[0.2]: https://github.com/zavahcodes/YATP/releases/tag/v0.2
+[0.1]: https://github.com/zavahcodes/YATP/releases/tag/v0.1
