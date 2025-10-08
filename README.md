@@ -51,7 +51,7 @@ Ace3, LibSharedMedia, plus original micro‑addons merged (NoBubbles, BetterBuff
 
 ## Related Ascension Addons
 
-- MoveAnything (Ascension Fork): <https://github.com/zavahcodes/MoveAnything_Ascension>
+- MoveAnything (Ascension Fork): <https://github.com/zavahcodes/MoveAnything>
 
 ## More Info
 
