@@ -225,3 +225,11 @@ L["Suppress system loot roll lines from chat."] = true
 L["Clear on Cancel"] = true
 L["Remove stored roll data when a roll is canceled."] = true
 L["Track Minimum Rarity"] = true
+-- Missing keys added after runtime warnings
+L["Requires /reload to fully apply enabling or disabling."] = true
+L["Enable or disable chat bubble texture removal and font styling."] = true
+L["PlayerAuraFilter"] = true
+L["Enable or disable this module."] = true
+L["Automatically confirms selected transmog confirmation popups."] = true
+L["Update Interval"] = true
+L["Base seconds between tint update batches (lower = more responsive, higher = cheaper)."] = true

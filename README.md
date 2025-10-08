@@ -8,8 +8,8 @@ Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Ena
 |--------|-----|---------|
 | ChatBubbles | Interface | Restyle & clean chat bubbles (migrates NoBubbles). |
 | Hotkeys | Interface | Hotkey font + range / mana tinting. |
-| PlayerAuras | Interface | Buff/debuff layout: scale, rows, growth, sorting, duration styling. |
-| PlayerAuraFilter | Interface | Simple name-based hide list for player buffs (clean slate; optional). |
+| PlayerAuras | Interface | (Temporarily disabled) Buff/debuff layout: scale, rows, growth, sorting, duration styling. |
+| PlayerAuraFilter | Interface | (Temporarily disabled) Simple name-based hide list for player buffs. |
 | XPRepBar | Interface | Unified XP + Rep bar w/ mouseover text. |
 | LootRollInfo | QoL | Per-option roll counters + tooltips. |
 | InfoBar | QoL | FPS / latency / durability micro bar. |

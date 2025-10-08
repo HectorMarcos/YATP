@@ -33,12 +33,7 @@ end
 -- Core API
 ------------------------------------------------------------
 function Module:ShouldHideAura(name, isDebuff)
-    if not self.db or not self.db.profile.enabled then return false end
-    local n = NormalizeName(name)
-    local entry = self.db.profile.knownBuffs[n]
-    if entry and entry.hide then
-        return true
-    end
+    -- Forzado: módulo temporalmente deshabilitado, nunca ocultar.
     return false
 end
 
@@ -69,6 +64,11 @@ end
 
 function Module:BuildOptions(refreshOnly)
     local p = self.db.profile
+
+    -- Forzar estado disabled siempre
+    p.enabled = false
+
+    local disabledMsg = (L["Temporarily disabled: the game's buff system changed and filtering will return in a future update."] or "Temporarily disabled: the game's buff system changed and filtering will return in a future update.") .. "\n\n" .. (L["Reason"] or "Reason") .. ": " .. (L["Recent aura frame/API changes require a safe reimplementation."] or "Recent aura frame/API changes require a safe reimplementation.") .. "\n" .. (L["Status"] or "Status") .. ": " .. (L["Any names you add are retained but no hiding is applied."] or "Any names you add are retained but no hiding is applied.") .. "\n" .. (L["Next Step"] or "Next Step") .. ": " .. (L["Module will be re-enabled once the new filtering system is finalized."] or "Module will be re-enabled once the new filtering system is finalized.")
 
     local defaultToggles = {}
     local customGroups = {}
@@ -131,10 +131,11 @@ function Module:BuildOptions(refreshOnly)
                 args = {
                     enabled = {
                         type = "toggle", order = 1, width = "full",
-                        name = L["Enable Filter"] or "Enable Filter",
-                        desc = L["Enable or disable the aura name filtering system."] or "Enable or disable the aura name filtering system.",
-                        get = function() return p.enabled end,
-                        set = function(_, v) p.enabled = v end,
+                        name = (L["Enable Filter"] or "Enable Filter") .. " (" .. (L["Disabled"] or "Disabled") .. ")",
+                        desc = disabledMsg,
+                        get = function() return false end,
+                        set = function() end,
+                        disabled = true,
                     },
                 }
             },
@@ -187,6 +188,8 @@ end
 ------------------------------------------------------------
 function Module:OnInitialize()
     self.db = YATP.db:RegisterNamespace("PlayerAuraFilter", defaults)
+    -- Fuerza disabled ignorando valor previo.
+    self.db.profile.enabled = false
     self:BuildOptions()
 end
 
