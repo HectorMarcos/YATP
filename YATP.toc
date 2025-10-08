@@ -26,6 +26,7 @@ locales\enUS.lua
 # Core
 core\core.lua
 core\config.lua
+core\scheduler.lua
 
 # Modules (direct includes, replacing Modules\Modules.xml)
 modules\xprepbar.lua

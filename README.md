@@ -13,7 +13,7 @@ Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Ena
 | LootRollInfo | QoL | Per-option roll counters + tooltips. |
 | InfoBar | QoL | FPS / latency / durability micro bar. |
 | QuickConfirm | QoL | Auto-confirm transmog + exit (no logout). |
-| ChatFilters | QoL | Suppress spam (errors, money repeats, first /played). |
+| ChatFilters | QoL | Suppress spam (error lines, login welcome, first /played). |
 | WAAdiFixes | Extras | Small compat shims (WA / AdiBags). |
 | BackgroundFPSFix | Extras | Adjustable background FPS cap. |
 

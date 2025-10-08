@@ -24,12 +24,14 @@ end
 -------------------------------------------------
 Module.defaults = {
     enabled = true,
-    scanInterval = 0.15, -- seconds between popup scans (throttled)
+    scanInterval = 0.25, -- (legacy) mantenido para compat; ya no se usa como OnUpdate scanner continuo
     autoTransmog = true,
     autoExit = true, -- renamed from autoLogout
     suppressClickSound = false, -- removed feature (kept key for backwards safety, no effect)
     -- debug flag removed (now uses global YATP Extras > Debug Mode)
     minClickGap = 0.3, -- safeguard between automatic clicks
+    retryAttempts = 4,  -- número de reintentos escalonados para confirmar un popup si botón tarda en habilitarse
+    retryStep = 0.15,   -- separación entre reintentos
 }
 
 -- Hardcoded (lowercase) substrings for detection
@@ -91,14 +93,11 @@ end
 
 function Module:OnEnable()
     if not self.db.enabled then return end
-    self:StartScanner()
     self:InstallPopupHook()
-    -- per-module debug chat command removed; uses global toggle now
     self:StartExitWatcher()
 end
 
 function Module:OnDisable()
-    self:StopScanner()
     self:StopExitWatcher()
 end
 
@@ -107,26 +106,26 @@ end
 -------------------------------------------------
 function Module:InstallPopupHook()
     if self._popupHookInstalled then return end
-    local function hookFn(which, text, ...)
+    local function hookFn(which, text)
         if not self.db or not self.db.enabled then return end
         if not text or text == "" then return end
         local lowerText = text:lower()
         if YATP:IsDebug() then
             DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff33ff99YATP:QuickConfirm|r show '%s' which=%s", (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")), tostring(which)))
         end
-        -- Direct which detection (fast path) for transmog
+        local needTransmog
         if which and TRANSMOG_WHICH[which] and self.db.autoTransmog then
-            C_Timer.After(0, function() self:ConfirmByWhich(which, text) end)
-            return
-        end
-        -- Fallback text pattern detection
-        if self.db.autoTransmog then
+            needTransmog = true
+        elseif self.db.autoTransmog then
             for _, pat in ipairs(TRANSMOG_SUBSTRINGS) do
                 if lowerText:find(pat, 1, true) then
-                    C_Timer.After(0.01, function() self:ConfirmByText(text, "transmog-hook-text") end)
+                    needTransmog = true
                     break
                 end
             end
+        end
+        if needTransmog then
+            self:SchedulePopupRetries({ mode = "transmog", which = which, text = text })
         end
     end
     hooksecurefunc("StaticPopup_Show", hookFn)
@@ -168,95 +167,42 @@ end
 -------------------------------------------------
 -- Scanner (throttled) using OnUpdate on a hidden frame
 -------------------------------------------------
-function Module:StartScanner()
-    if self.scanner then return end
-    local f = CreateFrame("Frame", "YATP_"..ModuleName.."Scanner", UIParent)
-    f:Hide() -- remain hidden; no flicker
-    f.accum = 0
-    f:SetScript("OnUpdate", function(frame, elapsed)
-        frame.accum = frame.accum + elapsed
-        if frame.accum < (self.db.scanInterval or 0.15) then return end
-        frame.accum = 0
-        self:ScanOnce()
-    end)
-    self.scanner = f
-end
-
-function Module:StopScanner()
-    if self.scanner then
-        self.scanner:SetScript("OnUpdate", nil)
-        self.scanner:Hide()
-        self.scanner = nil
-    end
-end
+-- Eliminado: scanner continuo sustituido por reintentos programados.
+function Module:StartScanner() end
+function Module:StopScanner() end
 
 -------------------------------------------------
 -- Core scan logic
 -------------------------------------------------
-function Module:ScanOnce()
-    if YATP:IsDebug() then self._scanTick = (self._scanTick or 0) + 1; if self._scanTick % 20 == 0 then self:Debug("scan running") end end
-    -- Iterate all possible StaticPopup frames (Blizzard creates up to 4)
-    for i = 1, 4 do
-        local frame = _G["StaticPopup"..i]
-        if frame and frame:IsShown() then
-            local which = frame.which
-            local textRegion = _G[frame:GetName().."Text"]
-            local text = (textRegion and textRegion:GetText()) or ""
-            local lowerText = text:lower()
+-- Eliminado: lógica de escaneo continuo
+function Module:ScanOnce() end
 
-            if YATP:IsDebug() and text ~= "" then
-                DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff33ff99YATP:QC Debug|r popup%d which=%s text='%s'", i, tostring(which), lowerText:sub(1,80)))
-            end
-
-            -- Transmog detection (prefer which ID)
-            if self.db.autoTransmog then
-                if which and TRANSMOG_WHICH[which] then
-                    self:ClickPrimary(frame, "transmog-which")
-                    return
-                end
-                if text ~= "" then
-                    for _, pat in ipairs(TRANSMOG_SUBSTRINGS) do
-                        if lowerText:find(pat, 1, true) then
-                            self:ClickPrimary(frame, "transmog-text")
-                            return
-                        end
-                    end
-                end
-            end
-
-            -- Exit detection (covers quit / exit / camp) - excludes generic logout text now
-            if self.db.autoExit then
-                local isExitCountdown = lowerText:find("seconds until exit", 1, true) -- no longer matches logout countdown
-                if (which and EXIT_POPUP_WHICH[which]) or ContainsAny(lowerText, EXIT_TEXT_CUES) or isExitCountdown then
-                    self:ClickPrimary(frame, isExitCountdown and "exit-countdown" or "exit")
-                    if isExitCountdown then
-                        self:ForceImmediateExit()
-                    end
-                    return
-                end
-            end
+-- Programar reintentos escalonados sobre popups detectados
+function Module:SchedulePopupRetries(meta)
+    local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
+    if not sched then return end
+    local baseName = "QuickConfirmPopup:"..(meta.mode or "?")..":"..(meta.which or meta.text or "?")
+    local attempts = 0
+    local maxAttempts = self.db.retryAttempts or 4
+    local step = self.db.retryStep or 0.15
+    sched:AddTask(baseName, step, function()
+        return step
+    end, function()
+        attempts = attempts + 1
+        if not self.db or not self.db.enabled then
+            sched:RemoveTask(baseName)
+            return
         end
-    end
-    -- Legacy fallback (original logic) if nothing matched yet
-    if self.db.autoTransmog then
-        for i = 1, 4 do
-            local frame = _G["StaticPopup"..i]
-            if frame and frame:IsShown() then
-                local tr = _G[frame:GetName().."Text"]
-                local txt = tr and tr:GetText() or ""
-                if txt ~= "" then
-                    local lower = txt:lower()
-                    if lower:find("are you sure you want to collect the appearance", 1, true) then
-                        if YATP:IsDebug() then
-                            DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:QC Debug|r legacy pattern matched")
-                        end
-                        self:ClickPrimary(frame, "transmog-legacy") -- fallback
-                        return
-                    end
-                end
-            end
+        local success
+        if meta.which and TRANSMOG_WHICH[meta.which] then
+            success = self:ConfirmByWhich(meta.which, meta.text)
+        elseif meta.text then
+            success = self:ConfirmByText(meta.text, "retry-text")
         end
-    end
+        if success or attempts >= maxAttempts then
+            sched:RemoveTask(baseName)
+        end
+    end, { spread = 0 })
 end
 
 -------------------------------------------------
@@ -324,21 +270,22 @@ local function FrameHasExitText(frame)
 end
 
 function Module:StartExitWatcher()
-    if self.exitWatcher or not self.db.autoExit then return end
-    local ticker = C_Timer.NewTicker(0.5, function()
+    if self._exitSched or not self.db.autoExit then return end
+    local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
+    if not sched then return end
+    local name = "QuickConfirmExitWatcher"
+    sched:AddTask(name, 0.8, function() return 0.8 end, function()
         if not self.db.enabled or not self.db.autoExit then return end
-        local found
         local f = EnumerateFrames()
-        while f do
-            if FrameHasExitText(f) then
-                found = f
-                break
-            end
+        local found
+        local scans = 0
+        while f and scans < 300 do -- límite para no recorrer demasiados frames
+            if FrameHasExitText(f) then found = f; break end
             f = EnumerateFrames(f)
+            scans = scans + 1
         end
         if found then
             self:Debug("exit countdown frame detected")
-            -- Try to click any Button child first
             local clicked
             for i=1, found:GetNumChildren() do
                 local child = select(i, found:GetChildren())
@@ -353,14 +300,15 @@ function Module:StartExitWatcher()
                 self:ForceImmediateExit()
             end
         end
-    end)
-    self.exitWatcher = ticker
+    end, { spread = 0.4 })
+    self._exitSched = name
 end
 
 function Module:StopExitWatcher()
-    if self.exitWatcher then
-        self.exitWatcher:Cancel()
-        self.exitWatcher = nil
+    if self._exitSched then
+        local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
+        if sched then sched:RemoveTask(self._exitSched) end
+        self._exitSched = nil
     end
 end
 
@@ -388,7 +336,9 @@ function Module:BuildOptions()
             autoExit = { type="toggle", order = 11, name = L["Auto-confirm exit popups"] or "Auto-confirm exit popups", get=get, set=set },
             headerOther = { type="header", name = L["Miscellaneous"] or "Miscellaneous", order = 20 },
             -- suppressClickSound removed; placeholder intentionally omitted
-            scanInterval = { type="range", order=30, name=L["Scan Interval"] or "Scan Interval", min=0.05, max=0.5, step=0.01, get=get, set=function(i,v) set(i,v) end },
+            scanInterval = { type="range", hidden=true, order=30, name=L["(Legacy) Scan Interval"] or "(Legacy) Scan Interval", min=0.05, max=0.5, step=0.01, get=get, set=function(i,v) set(i,v) end },
+            retryAttempts = { type="range", order=40, name=L["Retry Attempts"] or "Retry Attempts", desc=L["Number of scheduled retry attempts when a popup appears and the confirm button may not yet be ready."] or "Number of scheduled retry attempts when a popup appears and the confirm button may not yet be ready.", min=1, max=10, step=1, get=get, set=set },
+            retryStep = { type="range", order=41, name=L["Retry Interval"] or "Retry Interval", desc=L["Seconds between retry attempts."] or "Seconds between retry attempts.", min=0.05, max=0.5, step=0.01, get=get, set=set },
             -- per-module debug toggle removed (uses global Extras > Debug Mode)
         }
     }

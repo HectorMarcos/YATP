@@ -25,8 +25,8 @@ Module.defaults = {
     debugWindowSeconds = 8,              -- reserved for a future debug passthrough
     diagnosticLog = false,               -- (hidden) when true + debug mode: log near-miss lines to help adjust filters
     scanExtraSystemEvents = true,        -- (hidden) always true for now: hook a few related events (safety net)
-    -- Loot money suppression (simple toggle – always hide money lines when enabled)
-    suppressLootMoney = false,
+    -- (Removed) Loot money suppression era redundante (el cliente ya permite ocultarlo). Mantener clave para no romper perfiles previos.
+    suppressLootMoney = nil, -- mantener como nil para no usar
     -- Login welcome spam (grouped suppression)
     suppressLoginWelcomeSpam = false,    -- group toggle (welcome, uptime, total time played, level time played)
     -- Advanced: legacy AddMessage hook (disabled by default; can cause crashes on some clients)
@@ -45,6 +45,7 @@ local LINE_UI_ERROR_OCCURRED       = "ui error: an interface error occurred" -- 
 -- Internal state counters (simple session stats)
 local countInterfaceFailed = 0
 local countUIErrorOccurred = 0
+-- countLootMoneySuppressed mantenido para migración visual (stats antiguas)
 local countLootMoneySuppressed = 0
 local countLoginSpamSuppressed = 0
 local debugUntil = 0
@@ -127,114 +128,66 @@ end
 local function SystemMessageFilter(self, event, msg, ...)
     local db = Module.db
     if not db or not db.enabled then return false end
-    if debugUntil > 0 and GetTime() < debugUntil then
-        -- In debug passthrough window; do not suppress.
-        return false
-    end
-    local original = msg or ""
-    local stripped = StripColors(original)
+    if debugUntil > 0 and GetTime() < debugUntil then return false end
+    if type(msg) ~= "string" or msg == "" then return false end
+
+    local debugActive = db.diagnosticLog and YATP and YATP.IsDebug and YATP:IsDebug() or false
+
+    local stripped = StripColors(msg)
     local lowered = stripped:lower()
 
-    -- Exact vs substring logic; we default to substring fragments to be locale / punctuation tolerant
-    local suppressed = false
-
+    -- Interface action failed
     if db.suppressInterfaceActionFailed then
         if db.useSubstringMatching then
             if lowered:find(LINE_INTERFACE_ACTION_FAILED, 1, true) then
                 countInterfaceFailed = countInterfaceFailed + 1
-                ThrottledStatsRefresh()
-                suppressed = true
+                ThrottledStatsRefresh(); return true
             end
         elseif lowered == LINE_INTERFACE_ACTION_FAILED then
             countInterfaceFailed = countInterfaceFailed + 1
-            suppressed = true
+            return true
         end
     end
 
-    if not suppressed and db.suppressUIErrorOccurred then
-        if db.useSubstringMatching then
-            -- Token approach: ensure essential parts exist regardless of duplicated prefixes or missing spaces
-            -- Normalize by removing spaces and colons for a secondary loose compare too.
-            local compact = lowered:gsub("[%s:]", "")
-            -- Basic token presence check
-            local hasUI = lowered:find("ui", 1, true)
-            local hasFirstError = lowered:find("error", 1, true)
-            local hasInterface = lowered:find("interface", 1, true)
-            -- Accept either 'occurred' or 'occured'
+    -- UI error occurred variants
+    if db.suppressUIErrorOccurred then
+        -- quick negative filters to skip expensive checks
+        if lowered:find("error", 1, true) and lowered:find("ui", 1, true) and lowered:find("interface", 1, true) then
             local hasOccurred = lowered:find("occurred", 1, true) or lowered:find("occured", 1, true)
-            if hasUI and hasFirstError and hasInterface and hasOccurred then
+            if hasOccurred then
                 countUIErrorOccurred = countUIErrorOccurred + 1
-                ThrottledStatsRefresh()
-                suppressed = true
+                ThrottledStatsRefresh(); return true
             else
-                -- Fallback: compact pattern to catch variants like 'uierror:ui error: an interface error occured.'
+                -- compacte solo si falla la primera condición pero contiene tokens base
+                local compact = lowered:gsub("[%s:]", "")
                 if compact:find("uierroruierroraninterfaceerroroccur", 1, true) or compact:find("uierroraninterfaceerroroccur", 1, true) then
                     countUIErrorOccurred = countUIErrorOccurred + 1
-                    ThrottledStatsRefresh()
-                    suppressed = true
+                    ThrottledStatsRefresh(); return true
                 end
             end
-        else
-            -- Strict equality fallback (unlikely to match in variants but kept for completeness)
-            if lowered == LINE_UI_ERROR_OCCURRED then
-                countUIErrorOccurred = countUIErrorOccurred + 1
-                suppressed = true
-            end
         end
     end
 
-    if not suppressed and original and original ~= "" then
-        if db.suppressLootMoney then
-            local isMoney = ParseMoneyLine(lowered)
-            if isMoney then
-                countLootMoneySuppressed = countLootMoneySuppressed + 1
-                ThrottledStatsRefresh()
-                suppressed = true
-            elseif event == "CHAT_MSG_MONEY" then
-                -- Fallback: event explicitly flagged as MONEY; suppress anyway
-                countLootMoneySuppressed = countLootMoneySuppressed + 1
-                ThrottledStatsRefresh()
-                suppressed = true
-                Module:Debug("(money-fallback) Suppressed via event only: " .. lowered)
-            elseif db.diagnosticLog and YATP and YATP.IsDebug and YATP:IsDebug() and event == "CHAT_MSG_MONEY" then
-                Module:Debug("(money-diagnostic) toggle=ON but ParseMoneyLine failed: '" .. lowered .. "'")
-            end
-        elseif event == "CHAT_MSG_MONEY" and db.diagnosticLog and YATP and YATP.IsDebug and YATP:IsDebug() then
-            Module:Debug("(money-diagnostic) toggle=OFF value appeared: '" .. lowered .. "'")
-        end
-    end
-
-    if not suppressed and db.suppressLoginWelcomeSpam then
-        -- Expand variants; allow optional 'on' or 'at' or 'in', tolerate punctuation
-        local l = lowered:gsub("[%.!]+$", "")
-        if l:find("welcome to ascension", 1, true)
-            or l:find("server uptime", 1, true)
-            or l:find("total time played", 1, true)
-            or l:find("time played this level", 1, true)
-            or l:find("time played on this level", 1, true)
-            or l:find("time played in this level", 1, true)
-            or l:find("time played at this level", 1, true)
+    -- Login welcome spam
+    if db.suppressLoginWelcomeSpam then
+        if lowered:find("welcome to ascension", 1, true)
+            or lowered:find("server uptime", 1, true)
+            or lowered:find("total time played", 1, true)
+            or lowered:find("time played this level", 1, true)
+            or lowered:find("time played on this level", 1, true)
+            or lowered:find("time played in this level", 1, true)
+            or lowered:find("time played at this level", 1, true)
         then
             countLoginSpamSuppressed = countLoginSpamSuppressed + 1
-            ThrottledStatsRefresh()
-            suppressed = true
+            ThrottledStatsRefresh(); return true
         end
     end
 
-    if suppressed then
-        return true
-    end
-
-    -- Near-miss diagnostics: if debug + diagnosticLog, record lines containing partial tokens to help refine
-    if db.diagnosticLog and YATP and YATP.IsDebug and YATP:IsDebug() then
+    if debugActive then
         local looksInterface = (event == "CHAT_MSG_SYSTEM") and (lowered:find("interface action", 1, true) or lowered:find("ui error", 1, true)) or false
         local looksTime = (event == "CHAT_MSG_SYSTEM") and lowered:find("time played", 1, true) or false
-        local looksMoney = (event == "CHAT_MSG_MONEY") or false
-        if not looksMoney and event ~= "CHAT_MSG_MONEY" and db.suppressLootMoney then
-            if ParseMoneyLine(lowered) then looksMoney = true end
-        end
-        if looksInterface or looksTime or looksMoney then
-            Module:Debug(string.format("(diagnostic) event=%s raw='%s' stripped='%s' lowered='%s'", tostring(event), original, stripped, lowered))
+        if looksInterface or looksTime then
+            Module:Debug(string.format("(diagnostic) event=%s stripped='%s'", tostring(event), stripped))
         end
     end
     return false
@@ -507,14 +460,7 @@ function Module:BuildOptions()
                 get = get, set = set,
                 disabled = function() return not self.db.enabled end,
             },
-            lootHeader = { type = "header", order = 20, name = "Loot Money" },
-            suppressLootMoney = {
-                type = "toggle", order = 21,
-                name = "Enable Loot Money Filtering",
-                desc = "Hide repetitive 'You loot X Copper/Silver/Gold' lines.",
-                get = get, set = set,
-                disabled = function() return not self.db.enabled end,
-            },
+            -- Loot Money (eliminado por redundancia con configuración del propio cliente)
             -- Removed mode / threshold / interval controls for simplicity
             loginHeader = { type = "header", order = 25, name = "Login Welcome Spam" },
             suppressLoginWelcomeSpam = {
@@ -539,10 +485,7 @@ function Module:BuildOptions()
                 type = "description", order = 32,
                 name = function() return string.format("UI error occurred suppressed: %d", countUIErrorOccurred) end,
             },
-            statLoot = {
-                type = "description", order = 33,
-                name = function() return string.format("Loot money lines suppressed: %d", countLootMoneySuppressed) end,
-            },
+            -- statLoot eliminado junto con la funcionalidad
             statLogin = {
                 type = "description", order = 34,
                 name = function() return string.format("Login welcome lines suppressed: %d", countLoginSpamSuppressed) end,

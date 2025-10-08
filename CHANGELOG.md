@@ -15,6 +15,8 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ### Removed (placeholder)
 
+* ChatFilters: removed loot money filtering option (redundant – can be disabled in base client). Profiles keep legacy key ignored.
+
 ### Security (placeholder)
 
 ### Internal / Maintenance (placeholder)

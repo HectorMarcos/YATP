@@ -30,7 +30,7 @@ local DEFAULT_KNOWN_BUFFS = {
 local defaults = {
     profile = {
         enabled = true,
-        throttle = 0.1,           -- seconds between refreshes when events spam
+    throttle = 0.12,           -- (antes 0.1) ligero aumento reduce frecuencia de layout
         manageBuffs = true,
         manageDebuffs = true,
         iconScale = 1.0,
@@ -115,15 +115,16 @@ function Module:MarkDirty()
 end
 
 local auraButtonsCache = { buffs = {}, debuffs = {} }
+local auraButtonsCount = { buffs = 0, debuffs = 0 }
 
 function Module:Refresh()
     if not self.db.profile.enabled then return end
 
-    wipe(auraButtonsCache.buffs)
-    wipe(auraButtonsCache.debuffs)
+    -- reset counts (no wipe para evitar realloc)
+    auraButtonsCount.buffs = 0
+    auraButtonsCount.debuffs = 0
 
     local p = self.db.profile
-
     if p.manageBuffs then
         local i = 1
         while true do
@@ -131,18 +132,22 @@ function Module:Refresh()
             if not name then break end
             local button = _G["BuffButton"..i]
             if button then
-                local hide = false
                 local known = p.knownBuffs
-                if known[name] and known[name].hide then hide = true end
+                local hide = (known[name] and known[name].hide) or false
                 if hide then
                     button:Hide()
                 else
                     button:Show()
                     button.__paName = name
-                    table.insert(auraButtonsCache.buffs, button)
+                    auraButtonsCount.buffs = auraButtonsCount.buffs + 1
+                    auraButtonsCache.buffs[auraButtonsCount.buffs] = button
                 end
             end
             i = i + 1
+        end
+        -- nil out sobrantes previo layout (si la lista se achicó)
+        for j = auraButtonsCount.buffs + 1, #auraButtonsCache.buffs do
+            auraButtonsCache.buffs[j] = nil
         end
     end
 
@@ -154,13 +159,16 @@ function Module:Refresh()
             local button = _G["DebuffButton"..i]
             if button then
                 button.__paName = name
-                table.insert(auraButtonsCache.debuffs, button)
+                auraButtonsCount.debuffs = auraButtonsCount.debuffs + 1
+                auraButtonsCache.debuffs[auraButtonsCount.debuffs] = button
             end
             i = i + 1
         end
+        for j = auraButtonsCount.debuffs + 1, #auraButtonsCache.debuffs do
+            auraButtonsCache.debuffs[j] = nil
+        end
     end
 
-    -- sorting
     if p.sortMode == "alpha" then
         table.sort(auraButtonsCache.buffs, function(a,b) return (a.__paName or "") < (b.__paName or "") end)
         table.sort(auraButtonsCache.debuffs, function(a,b) return (a.__paName or "") < (b.__paName or "") end)
@@ -196,8 +204,12 @@ function Module:Layout(kind, list, perRow, isDebuff)
         local col = (index - 1) % perRow
         local row = math.floor((index - 1) / perRow)
 
-        local baseW = button:GetWidth() * scale
-        local baseH = button:GetHeight() * scale
+        if not button.__paBaseW then
+            button.__paBaseW = button:GetWidth()
+            button.__paBaseH = button:GetHeight()
+        end
+        local baseW = button.__paBaseW * scale
+        local baseH = button.__paBaseH * scale
 
         local xOffset = col * (baseW + spacingX)
         if growLeft then xOffset = -xOffset end
@@ -227,10 +239,13 @@ function Module:Layout(kind, list, perRow, isDebuff)
             end
             local text = button.duration:GetText()
             if text and text ~= button.__paLastDurationText then
-                local newText = text:gsub("(%d+)%s+([smhdSMHD])", "%1%2")
-                if newText ~= text then
-                    button.duration:SetText(newText)
-                    text = newText
+                -- Solo aplicar gsub si contiene espacio + unidad probable (simple heuristic)
+                if text:find(" ") then
+                    local newText = text:gsub("(%d+)%s+([smhdSMHD])", "%1%2")
+                    if newText ~= text then
+                        button.duration:SetText(newText)
+                        text = newText
+                    end
                 end
                 button.__paLastDurationText = text
             end
@@ -262,7 +277,9 @@ function Module:OnEnable()
         self.updateFrame:SetScript("OnUpdate", function(_, elapsed)
             if not dirty then return end
             lastUpdate = lastUpdate + elapsed
-            if lastUpdate >= (self.db.profile.throttle or 0.1) then
+            local thr = self.db.profile.throttle or 0.12
+            if thr < 0.06 then thr = 0.06 end -- anti micro spam
+            if lastUpdate >= thr then
                 lastUpdate = 0
                 dirty = false
                 self:Refresh()

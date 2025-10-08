@@ -37,9 +37,10 @@ local FLAG_LABELS = {
 
 -- Forward declarations
 local evtFrame
-local scanFrame -- for aggressive / scheduled sweeps
-local pendingSweeps = 0
-local sweepAccumulator = 0
+local pendingSweeps = 0       -- sweeps extra post-detección (consumidos por tarea scheduler)
+local scheduled = false       -- marca si la tarea ya registrada
+local aggressiveTaskName = "ChatBubblesAggressive"
+local postTaskName = "ChatBubblesPostSweeps"
 
 -------------------------------------------------
 -- Utility helpers
@@ -74,24 +75,29 @@ end
 -- Bubble skinning adapted
 -------------------------------------------------
 local function SkinFrame(frame)
+    if frame.__cbStyled then return end
+    local hasFont
     for i = 1, select("#", frame:GetRegions()) do
         local region = select(i, frame:GetRegions())
-        if region and region:GetObjectType() == "Texture" then
-            region:SetTexture(nil)
+        if region then
+            local otype = region:GetObjectType()
+            if otype == "Texture" then
+                region:SetTexture(nil)
+            elseif otype == "FontString" then
+                hasFont = true
+                frame.text = frame.text or region
+            end
         end
     end
-    for i = 1, select("#", frame:GetRegions()) do
-        local region = select(i, frame:GetRegions())
-        if region and region:GetObjectType() == "FontString" then
-            frame.text = region
-            break
-        end
-    end
-    if frame.text then
+    if hasFont and frame.text then
         ChatBubbles:StyleText(frame.text)
+        frame.inUse = true
+        if not frame.__cb_hooked then
+            frame:HookScript("OnHide", function() frame.inUse = false end)
+            frame.__cb_hooked = true
+        end
+        frame.__cbStyled = true
     end
-    frame.inUse = true
-    frame:HookScript("OnHide", function() frame.inUse = false end)
 end
 
 local function UpdateFrame(frame)
@@ -116,67 +122,44 @@ local function FindFrame(msg)
     end
 end
 
-local function FullSweep(selfRef)
-    -- Iterate all potential bubble frames and strip textures / restyle
-    for i = 1, WorldFrame:GetNumChildren() do
-        local frame = select(i, WorldFrame:GetChildren())
-        if frame and not frame:GetName() then
-            local hasFont
-            for j = 1, select("#", frame:GetRegions()) do
-                local region = select(j, frame:GetRegions())
-                if region then
-                    local otype = region:GetObjectType()
-                    if otype == "Texture" then
-                        region:SetTexture(nil)
-                    elseif otype == "FontString" then
-                        hasFont = true
-                        if not frame.text then frame.text = region end
-                    end
-                end
-            end
-            if hasFont then
-                frame.inUse = true
-                ChatBubbles:StyleText(frame.text)
-                if not frame.__cb_hooked then
-                    frame:HookScript("OnHide", function() frame.inUse = false end)
-                    frame.__cb_hooked = true
-                end
-            end
+local function FullSweep()
+    local children = { WorldFrame:GetChildren() }
+    for _, frame in ipairs(children) do
+        if frame and not frame:GetName() and not frame.__cbStyled then
+            SkinFrame(frame)
         end
     end
 end
 
-local function EnsureScanFrame()
-    if not scanFrame then
-        scanFrame = CreateFrame("Frame")
-        scanFrame:SetScript("OnUpdate", function(self, elapsed)
-            local db = ChatBubbles.db
-            if not (db and db.enabled) then return end
-            if pendingSweeps > 0 then
-                -- rapid sweeps consume 1 per frame or every ~0.02s to avoid heavy spike
-                sweepAccumulator = sweepAccumulator + elapsed
-                if sweepAccumulator >= 0.02 then
-                    sweepAccumulator = 0
-                    pendingSweeps = pendingSweeps - 1
-                    FullSweep(ChatBubbles)
-                end
-                return
-            end
-            if db.aggressive then
-                sweepAccumulator = sweepAccumulator + elapsed
-                if sweepAccumulator >= db.scanInterval then
-                    sweepAccumulator = 0
-                    FullSweep(ChatBubbles)
-                end
-            end
-        end)
+local function RunPostSweep()
+    if pendingSweeps > 0 then
+        pendingSweeps = pendingSweeps - 1
+        FullSweep()
     end
+end
+
+local function EnsureScheduled()
+    if scheduled then return end
+    local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
+    if not sched then return end
+    -- Aggressive sweep tarea (solo ejecuta si aggressive activo)
+    sched:AddTask(aggressiveTaskName, function()
+        return ChatBubbles.db and (ChatBubbles.db.scanInterval or 0.12) or 0.12
+    end, function()
+        local db = ChatBubbles.db
+        if db and db.enabled and db.aggressive then
+            FullSweep()
+        end
+    end, { spread = 0.1 })
+    -- Post sweeps (rápidas) intervalo fijo pequeño mientras haya pendientes
+    sched:AddTask(postTaskName, 0.07, RunPostSweep, { spread = 0.05 })
+    scheduled = true
 end
 
 local function SchedulePostSweeps(n)
     if n <= 0 then return end
-    EnsureScanFrame()
-    pendingSweeps = math.max(pendingSweeps, n)
+    pendingSweeps = math.min(5, math.max(pendingSweeps, n)) -- cap 5
+    EnsureScheduled()
 end
 
 local chatEvents = {
@@ -219,7 +202,7 @@ end
 
 function ChatBubbles:OnEnable()
     if not self.db.enabled then return end
-    EnsureScanFrame()
+    EnsureScheduled()
     evtFrame = evtFrame or CreateFrame("Frame")
     for ev in pairs(chatEvents) do evtFrame:RegisterEvent(ev) end
     evtFrame:SetScript("OnEvent", function(_, event, msg)
@@ -248,7 +231,7 @@ function ChatBubbles:OnDisable()
         evtFrame:SetScript("OnEvent", nil)
         evtFrame:SetScript("OnUpdate", nil)
     end
-    -- Do not destroy scanFrame; leave idle.
+    -- Las tareas del scheduler verificarán db.enabled y no harán trabajo.
 end
 
 -------------------------------------------------

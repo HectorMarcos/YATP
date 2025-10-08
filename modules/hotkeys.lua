@@ -15,7 +15,9 @@ local Module = YATP:NewModule(ModuleName, "AceConsole-3.0", "AceEvent-3.0")
 -- ========================================================
 -- Constantes / Config por defecto
 -- ========================================================
-local UPDATE_INTERVAL = 0.15
+-- Intervalo base anterior: 0.15. Ahora gestionado vía scheduler central.
+local UPDATE_INTERVAL = 0.25 -- objetivo: reducir frecuencia total y agrupar con otras tareas
+local BATCH_SIZE = 18         -- número de botones procesados por tick (round-robin)
 
 local FONTS = {
   FRIZQT   = { name = "Friz Quadrata", path = "Fonts\\FRIZQT__.TTF" },
@@ -130,9 +132,11 @@ end
 -- ========================================================
 -- Tint Logic (centralizado)
 -- ========================================================
-local activeButtons = {}
-local rangeTickerFrame
-local accum = 0
+local activeButtons = {}   -- set de botones registrados
+local activeList = {}      -- lista indexada para batching
+local activeCount = 0
+local rrIndex = 1          -- índice round-robin
+local scheduled = false    -- marca si la tarea del scheduler ya está añadida
 
 local function UpdateUsable(button, db)
   local icon = GetButtonIcon(button)
@@ -160,33 +164,42 @@ local function UpdateUsable(button, db)
   end
 end
 
-local function CentralOnUpdate(self, elapsed)
-  accum = accum + elapsed
-  if accum < UPDATE_INTERVAL then return end
-  accum = 0
+-- Ejecuta un lote de botones (batch) y avanza rrIndex.
+local function ProcessBatch()
   local db = Module.db
   if not (db and db.enabled) then return end
-  for button in pairs(activeButtons) do
-    if button.action and HasAction(button.action) then
-      if ActionHasRange(button.action) then
-        local inRange = IsActionInRange(button.action)
-        button.__YATP_OutOfRange = (inRange == 0)
+  if activeCount == 0 then return end
+  local processed = 0
+  while processed < BATCH_SIZE do
+    if activeCount == 0 then break end
+    if rrIndex > activeCount then rrIndex = 1 end
+    local button = activeList[rrIndex]
+    rrIndex = rrIndex + 1
+    processed = processed + 1
+    if button and activeButtons[button] then
+      if button.action and HasAction(button.action) then
+        if ActionHasRange(button.action) then
+          local inRange = IsActionInRange(button.action)
+          button.__YATP_OutOfRange = (inRange == 0)
+        else
+          button.__YATP_OutOfRange = false
+        end
+        UpdateUsable(button, db)
       else
-        button.__YATP_OutOfRange = false
+        local icon = GetButtonIcon(button)
+        if icon then icon:SetVertexColor(1,1,1) end
       end
-      UpdateUsable(button, db)
-    else
-      local icon = GetButtonIcon(button)
-      if icon then icon:SetVertexColor(1,1,1) end
     end
+    if processed >= BATCH_SIZE then break end
   end
 end
 
-local function EnsureTicker()
-  if not rangeTickerFrame then
-    rangeTickerFrame = CreateFrame("Frame")
-    rangeTickerFrame:SetScript("OnUpdate", CentralOnUpdate)
-  end
+local function EnsureScheduled()
+  if scheduled then return end
+  local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
+  if not sched then return end
+  sched:AddTask("HotkeysUpdate", UPDATE_INTERVAL, ProcessBatch, { spread = UPDATE_INTERVAL })
+  scheduled = true
 end
 
 -- ========================================================
@@ -222,11 +235,21 @@ function Module:SetupButton(button)
   end
 
   self:StyleHotkey(button)
-  activeButtons[button] = true
-  UpdateUsable(button, self.db)
+  if not activeButtons[button] then
+    activeButtons[button] = true
+    activeCount = activeCount + 1
+    activeList[activeCount] = button
+  end
+  UpdateUsable(button, self.db) -- actualización inmediata inicial
+  EnsureScheduled()
 end
 
 function Module:ForceAll()
+  -- reconstruir listas (útil si barras cambiaron)
+  wipe(activeButtons)
+  wipe(activeList)
+  activeCount = 0
+  rrIndex = 1
   for _, group in ipairs(BUTTON_GROUPS) do
     local prefix, count = group[1], group[2]
     for i=1, count do
@@ -234,6 +257,7 @@ function Module:ForceAll()
       if btn then self:SetupButton(btn) end
     end
   end
+  EnsureScheduled()
 end
 
 -- Reapply click registration for all active buttons when bindings/flags change
@@ -296,7 +320,7 @@ end
 
 function Module:OnEnable()
   if not self.db.enabled then return end
-  EnsureTicker()
+  EnsureScheduled()
   hooksecurefunc("ActionButton_Update", HookActionUpdate)
   hooksecurefunc("ActionButton_UpdateHotkeys", HookHotkeyUpdate)
   hooksecurefunc("ActionButton_UpdateUsable", HookUsableUpdate)
@@ -307,10 +331,12 @@ end
 
 function Module:OnDisable()
   -- Limpieza ligera: no desmontamos hooksecurefunc (no se puede), sólo paramos frame
-  if rangeTickerFrame then rangeTickerFrame:SetScript("OnUpdate", nil) end
-  -- Not strictly necessary to wipe, but keeps memory tidy
+  -- Detener sólo el estado interno (el scheduler mantiene la tarea, pero inactiva al ver enabled=false)
   wipe(activeButtons)
+  wipe(activeList)
   wipe(buttonBindings)
+  activeCount = 0
+  rrIndex = 1
 end
 
 -- ========================================================
