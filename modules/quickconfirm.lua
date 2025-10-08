@@ -2,7 +2,7 @@
 -- YATP - QuickConfirm (Quality of Life)
 -- Automatically confirms selected StaticPopup dialogs:
 --  * Transmog appearance collection (appearance learn)
---  * Logout / Exit dialogs
+--  * Exit game dialogs (QUIT / CONFIRM_EXIT) – does NOT auto-confirm logout (CAMP)
 --========================================================--
 local ADDON = "YATP"
 local ModuleName = "QuickConfirm"
@@ -44,9 +44,11 @@ local TRANSMOG_SUBSTRINGS = {
     "collect the appearance", -- fallback shorter
 }
 
--- Exit popups rely on StaticPopup dialogs like CONFIRM_EXIT / QUIT (sometimes CAMP on some cores).
+-- Exit popups rely on StaticPopup dialogs like CONFIRM_EXIT / QUIT.
+-- Requested change: only auto‑confirm full game exit, NOT logout (CAMP), so CAMP removed.
 local EXIT_POPUP_WHICH = {
-    QUIT = true, CONFIRM_EXIT = true, CAMP = true,
+    QUIT = true,
+    CONFIRM_EXIT = true,
 }
 -- Direct which value seen in debug for transmog confirmation
 local TRANSMOG_WHICH = {
@@ -55,9 +57,10 @@ local TRANSMOG_WHICH = {
 
 -- Additional lowercase textual cues (extended with Spanish variants)
 local EXIT_TEXT_CUES = {
-    "exit", "quit", "camp", "leave world", -- English
-    -- Spanish verbs kept for cross‑locale detection
-    "salir", "abandonar",
+    -- Restricted to explicit exit/quit only (no logout / camp wording)
+    "exit", "quit",
+    -- NOTE: If you need Spanish exit support ("salir"), re-add it here, but it may
+    -- collide with logout contexts on some cores.
 }
 
 -- Utility: lowercase contains any of patterns
@@ -223,7 +226,7 @@ function Module:ScanOnce()
 
             -- Exit detection (covers quit / exit / camp) - excludes generic logout text now
             if self.db.autoExit then
-                local isExitCountdown = lowerText:find("seconds until exit", 1, true) or lowerText:find("seconds until logout", 1, true)
+                local isExitCountdown = lowerText:find("seconds until exit", 1, true) -- no longer matches logout countdown
                 if (which and EXIT_POPUP_WHICH[which]) or ContainsAny(lowerText, EXIT_TEXT_CUES) or isExitCountdown then
                     self:ClickPrimary(frame, isExitCountdown and "exit-countdown" or "exit")
                     if isExitCountdown then
@@ -309,7 +312,8 @@ local function FrameHasExitText(frame)
             local txt = r:GetText()
             if txt then
                 local l = txt:lower()
-                if l:find("seconds until exit", 1, true) or l:find("seconds until logout",1,true)
+                if l:find("seconds until exit", 1, true)
+                   -- Removed: "seconds until logout" to avoid auto-confirming logout.
                    or l:find("segundos hasta salir",1,true) or l:find("segundos hasta la salida",1,true) then
                     return true
                 end

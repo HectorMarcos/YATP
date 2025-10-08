@@ -19,6 +19,20 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ### Internal / Maintenance (placeholder)
 
+## [0.3.3] - 2025-10-08
+
+### Changed
+
+- QuickConfirm: scope reduced to only auto-confirm full client exit (QUIT / CONFIRM_EXIT). It no longer auto-confirms logout / CAMP dialogs.
+
+### Removed
+
+- QuickConfirm: detection of CAMP (logout) which id, textual cue "camp", "leave world", and logout countdown phrases ("seconds until logout").
+
+### Internal / Maintenance
+
+- Adjusted exit text cue list to minimal set ("exit", "quit") to prevent accidental logout confirmation in multi-locale setups.
+
 ## [0.3.2] - 2025-10-08
 
 ### Added
@@ -117,7 +131,8 @@ The following early commits were consolidated into this initial snapshot:
 - `8224f9a` debug clean (preparation for unified debug approach)
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
-[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.3
 [0.3.2]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.2
 [0.3.1]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.1
 [0.3]: https://github.com/zavahcodes/YATP/releases/tag/v0.3
