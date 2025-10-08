@@ -418,16 +418,37 @@ function XPRepBar:UpdateXP()
     local rest = bar.rest
     local max = UnitXPMax("player")
     local curr = UnitXP("player")
-    local rested = GetXPExhaustion() or 0
+    -- NOTE: GetXPExhaustion() returns nil when no rested bonus is available.
+    -- We intentionally do NOT coerce it to 0 here so downstream checks can
+    -- distinguish between nil (no rested) and 0 (edge case / server variant).
+    local rested = GetXPExhaustion()
     if max == 0 then return end
 
     bar:SetMinMaxValues(0, max)
     bar:SetValue(curr)
 
     local width = bar:GetWidth()
-    -- Use Blizzard-like XP/rested colors while updating values
-    -- Color is static; do not recolor here to avoid bleed
+    -- Rested overlay handling:
+    -- Classic behavior: a lighter segment indicates bonus XP up to either
+    -- (curr + rested) clamped to next level. Previous implementation never
+    -- updated width, causing stale or misleading rested visuals.
     rest:SetHeight(bar:GetHeight())
+    if rested and rested > 0 then
+        local remainingToLevel = max - curr
+        if remainingToLevel < 0 then remainingToLevel = 0 end
+        local shownRested = math.min(rested, remainingToLevel)
+        local restWidth = (shownRested / max) * width
+        -- Guard against tiny floating point artifacts
+        if restWidth < 0.25 then
+            restWidth = 0 -- visually hide insignificant sliver
+        end
+        rest:SetWidth(restWidth)
+        rest:Show()
+    else
+        -- Explicitly collapse & hide when no rested bonus is present.
+        rest:SetWidth(0)
+        rest:Hide()
+    end
 
     if not self.db.mouseOver then
         self:SetXPText(curr, max, rested)
@@ -501,13 +522,13 @@ end
 
 function XPRepBar:UpdateTextVisibility(hovered)
     if not self.db.mouseOver then
-        local curr, max = UnitXP("player"), UnitXPMax("player")
-        local rested = GetXPExhaustion() or 0
-        self:SetXPText(curr, max, rested)
+    local curr, max = UnitXP("player"), UnitXPMax("player")
+    local rested = GetXPExhaustion()
+    self:SetXPText(curr, max, rested)
     else
         if hovered then
             local curr, max = UnitXP("player"), UnitXPMax("player")
-            local rested = GetXPExhaustion() or 0
+            local rested = GetXPExhaustion()
             self:SetXPText(curr, max, rested)
         else
             self.frame.text:SetText("")
