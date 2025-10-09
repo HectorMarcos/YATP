@@ -5,7 +5,7 @@ local L   = LibStub("AceLocale-3.0"):GetLocale("YATP", true) or setmetatable({},
 local LSM = LibStub("LibSharedMedia-3.0", true)
 local YATP = LibStub("AceAddon-3.0"):GetAddon("YATP", true)
 if not YATP then
-    print("YATP not found, aborting InfoBar module")
+    DEFAULT_CHAT_FRAME:AddMessage("|cffff0000YATP not found, aborting InfoBar module|r")
     return
 end
 

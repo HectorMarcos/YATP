@@ -10,10 +10,10 @@ Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Ena
 | Hotkeys | Interface | Hotkey font + range / mana tinting. |
 | PlayerAuras | Interface | (Temporarily disabled) Buff/debuff layout: scale, rows, growth, sorting, duration styling. |
 | PlayerAuraFilter | Interface | (Temporarily disabled) Simple name-based hide list for player buffs. |
-| XPRepBar | Interface | Unified XP + Rep bar w/ mouseover text. |
+| XPRepBar | Interface | Unified XP + Rep bar w/ mouseover text, animated spark indicator & multi-client level detection. |
 | LootRollInfo | QoL | Per-option roll counters + tooltips. |
 | InfoBar | QoL | FPS / latency / durability micro bar. |
-| QuickConfirm | QoL | Auto-confirm transmog confirmations only. |
+| QuickConfirm | QoL | Auto-confirm transmog & bind-on-pickup loot popups. |
 | ChatFilters | QoL | Suppress spam (error lines, login welcome, first /played). |
 | WAAdiFixes | Extras | Small compat shims (WA / AdiBags). |
 | BackgroundFPSFix | Extras | Adjustable background FPS cap. |
@@ -57,7 +57,13 @@ Ace3, LibSharedMedia, plus original micro‑addons merged (NoBubbles, BetterBuff
 
 ## Related Ascension Addons
 
-- MoveAnything (Ascension Fork): <https://github.com/zavahcodes/MoveAnything>
+*Modified/adapted/improved addons specifically for BronzeBeard server:*
+
+- **AdiBags**: <https://github.com/zavahcodes/AdiBags> - Smart bag sorting and filtering
+- **AdiBags Ascension**: <https://github.com/zavahcodes/AdiBags_Ascension> - Ascension-specific AdiBags modules
+- **pfQuest**: <https://github.com/zavahcodes/pfQuest> - Enhanced quest helper and database
+- **EasyFrames**: <https://github.com/zavahcodes/EasyFrames> - Unit frame customization and styling
+- **MoveAnything**: <https://github.com/zavahcodes/MoveAnything> - Frame positioning tool
 
 ## More Info
 

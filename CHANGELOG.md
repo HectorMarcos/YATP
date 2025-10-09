@@ -9,6 +9,31 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 _No changes yet._
 
+## [0.4.2] - 2025-10-09
+
+### Added
+
+- QuickConfirm: bind-on-pickup (BOP) loot auto-confirmation feature with comprehensive detection via `LOOT_BIND` which value and text pattern fallback ("will bind it to you", "bind it to you", "looting").
+- QuickConfirm: extended retry scheduling system to handle both transmog and BOP loot confirmations with mode-specific logic.
+- XPRepBar: animated spark indicator showing current XP progress position with configurable show/hide toggle.
+- XPRepBar: enhanced max level detection with `YATP_GetEffectiveMaxLevel()` function supporting multiple client builds and expansion levels.
+- Localization: complete English and Spanish translations for new BOP loot functionality.
+
+### Changed
+
+- QuickConfirm: updated module description to include both transmog and bind-on-pickup loot functionality.
+- XPRepBar: improved rested XP overlay positioning - now correctly starts at current XP position instead of bar beginning.
+- Error handling: standardized error messages across modules with proper formatting and red color coding.
+
+### Fixed
+
+- XPRepBar: better handling of various client builds and expansion levels with improved error handling for edge cases.
+- Code quality: replaced generic `print()` statements with properly formatted `DEFAULT_CHAT_FRAME:AddMessage()` calls across multiple modules.
+
+### Completed Features
+
+- Removed completed "QuickConfirm: Auto-accept world loot (BOP)" idea from IDEAS.md as it has been successfully implemented and tested.
+
 ## [0.4.1] - 2025-10-08
 
 ### Added
@@ -174,7 +199,9 @@ The following early commits were consolidated into this initial snapshot:
 - `8224f9a` debug clean (preparation for unified debug approach)
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
-[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/zavahcodes/YATP/releases/tag/v0.4.2
+[0.4.1]: https://github.com/zavahcodes/YATP/releases/tag/v0.4.1
 [0.3.3]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.3
 [0.3.2]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.2
 [0.3.1]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.1
