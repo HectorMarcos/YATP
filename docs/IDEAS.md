@@ -28,14 +28,6 @@ Proposal: Automatically show equipped item comparison tooltips on hover for equi
 Notes: Hook GameTooltip `OnTooltipSetItem` and call `GameTooltip_ShowCompareItem()` if not already shown; ensure it respects in-combat restrictions and doesn't conflict with other tooltip addons. Add throttle to avoid re-calling on same hyperlink.  
 Score (recalc): I=2 E=1 R=1 -> Priority=2
 
-### QuickConfirm: Auto-accept world loot (BOP)
- 
-Status: seed  
-Problem: StaticPopup "Looting [item] will bind it to you." interrupts fast gathering when picking many bind-on-pickup world items.  
-Proposal: Add a QuickConfirm option to auto-accept world-loot BOP StaticPopups. Detect popups that contain an item link and a bind message, then auto-click Yes. Expose whitelist/blacklist and a "disable in combat" toggle.  
-Notes: Prefer item-link / BOP flag detection (GetItemInfo / BIND_ON_PICKUP) over exact English text to handle localization. Ensure only loot popups are auto-confirmed and provide a hook so other addons can override.  
-Score (draft): I=2 E=1 R=1 -> Priority=2
-
 ### Hunter Pet Whistle Suppression
  
 Status: seed  

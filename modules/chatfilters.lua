@@ -398,14 +398,14 @@ SlashCmdList["YATPCHATFILTERSOFF"] = function()
     if YATP and YATP.db and YATP.db.profile and YATP.db.profile.modules and YATP.db.profile.modules.ChatFilters then
         YATP.db.profile.modules.ChatFilters.enabled = false
         if Module:IsEnabled() then Module:Disable() end
-        print("YATP ChatFilters: force disabled.")
+        YATP:Debug("ChatFilters: force disabled.")
     end
 end
 
 -- Hidden toggle for interface failed fallback hook (diagnostic use only)
 SLASH_YATPIFHOOK1 = "/yatpiffallback"
 SlashCmdList["YATPIFHOOK"] = function()
-    print("YATP ChatFilters: fallback hook deshabilitado por riesgo de crash. No se activará.")
+    YATP:Debug("ChatFilters: fallback hook deshabilitado por riesgo de crash. No se activará.")
 end
 
 --------------------------------------------------

@@ -2,6 +2,7 @@
 -- YATP - QuickConfirm (Quality of Life)
 -- Automatically confirms selected StaticPopup dialogs:
 --  * Transmog appearance collection (appearance learn)
+--  * Bind-on-pickup loot confirmation
 --  * (Exit auto-confirm feature removed)
 --========================================================--
 local ADDON = "YATP"
@@ -26,6 +27,7 @@ Module.defaults = {
     enabled = true,
     scanInterval = 0.25, -- (legacy) mantenido para compat; ya no se usa como OnUpdate scanner continuo
     autoTransmog = true,
+    autoBopLoot = true, -- auto-confirm bind-on-pickup world loot popups
     -- autoExit removed
     suppressClickSound = false, -- removed feature (kept key for backwards safety, no effect)
     -- debug flag removed (now uses global YATP Extras > Debug Mode)
@@ -46,13 +48,25 @@ local TRANSMOG_SUBSTRINGS = {
     "collect the appearance", -- fallback shorter
 }
 
+-- BOP loot popup detection patterns (using literal text search like transmog)
+local BOP_LOOT_SUBSTRINGS = {
+    "will bind it to you", -- main pattern - should match "Looting [item] will bind it to you."
+    "bind it to you", -- fallback shorter pattern
+    "looting", -- additional fallback
+}
+
+-- BOP loot which values
+local BOP_LOOT_WHICH = {
+    LOOT_BIND = true, -- Confirmed: this is the actual which value for BOP loot confirmations
+}
+
 -- Exit popups rely on StaticPopup dialogs like CONFIRM_EXIT / QUIT.
 -- Requested change: only auto‑confirm full game exit, NOT logout (CAMP), so CAMP removed.
 local EXIT_POPUP_WHICH = {
     QUIT = true,
     CONFIRM_EXIT = true,
 }
--- Direct which value seen in debug for transmog confirmation
+-- Direct which value for transmog confirmation
 local TRANSMOG_WHICH = {
     CONFIRM_COLLECT_APPEARANCE = true,
 }
@@ -104,9 +118,11 @@ function Module:InstallPopupHook()
         if not self.db or not self.db.enabled then return end
         local safeText = type(text) == "string" and text or ""
         local lowerText = safeText:lower()
+        
         if YATP:IsDebug() then
             DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff33ff99YATP:QuickConfirm|r show which=%s text='%s'", tostring(which), (safeText:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))))
         end
+        
         local needTransmog = false
         if self.db.autoTransmog then
             if which and TRANSMOG_WHICH[which] then
@@ -123,8 +139,29 @@ function Module:InstallPopupHook()
                 end
             end
         end
+        
+        local needBopLoot = false
+        if self.db.autoBopLoot then
+            if which and BOP_LOOT_WHICH[which] then
+                needBopLoot = true
+            else
+                -- intentar detección por fragmentos de texto si se recibió alguno (fallback)
+                if safeText ~= "" then
+                    for i, pat in ipairs(BOP_LOOT_SUBSTRINGS) do
+                        if lowerText:find(pat, 1, true) then -- using literal search like transmog
+                            needBopLoot = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        
         if needTransmog then
             self:SchedulePopupRetries({ mode = "transmog", which = which, text = safeText })
+        end
+        if needBopLoot then
+            self:SchedulePopupRetries({ mode = "boploot", which = which, text = safeText })
         end
     end
     hooksecurefunc("StaticPopup_Show", hookFn)
@@ -185,14 +222,22 @@ function Module:SchedulePopupRetries(meta)
     local maxAttempts = self.db.retryAttempts or 4
     local step = self.db.retryStep or 0.15
     if YATP:IsDebug() then
-        self:Debug(string.format("schedule transmog retries name=%s max=%d step=%.2f", baseName, maxAttempts, step))
+        self:Debug(string.format("schedule %s retries name=%s max=%d step=%.2f", meta.mode or "unknown", baseName, maxAttempts, step))
     end
     sched:AddTask(baseName, step, function()
         attempts = attempts + 1
-        if not self.db or not self.db.enabled or not self.db.autoTransmog then
+        local modeEnabled = false
+        if meta.mode == "transmog" then
+            modeEnabled = self.db and self.db.enabled and self.db.autoTransmog
+        elseif meta.mode == "boploot" then
+            modeEnabled = self.db and self.db.enabled and self.db.autoBopLoot
+        end
+        
+        if not modeEnabled then
             sched:RemoveTask(baseName)
             return
         end
+        
         local targetFrame
         for i=1,4 do
             local frame = _G["StaticPopup"..i]
@@ -201,24 +246,40 @@ function Module:SchedulePopupRetries(meta)
                 local tr = _G[frame:GetName().."Text"]
                 local txt = (tr and tr:GetText()) or ""
                 local lower = txt:lower()
+                
                 if (meta.which and which == meta.which) then
                     targetFrame = frame; break
                 else
-                    for _, pat in ipairs(TRANSMOG_SUBSTRINGS) do
-                        if lower:find(pat, 1, true) then targetFrame = frame; break end
+                    -- Check text patterns based on mode
+                    if meta.mode == "transmog" then
+                        for _, pat in ipairs(TRANSMOG_SUBSTRINGS) do
+                            if lower:find(pat, 1, true) then targetFrame = frame; break end
+                        end
+                    elseif meta.mode == "boploot" then
+                        -- First check if we have a specific which value
+                        if which and BOP_LOOT_WHICH[which] then
+                            targetFrame = frame; break
+                        else
+                            -- Then check text patterns
+                            for _, pat in ipairs(BOP_LOOT_SUBSTRINGS) do
+                                if lower:find(pat, 1, true) then targetFrame = frame; break end
+                            end
+                        end
                     end
                     if targetFrame then break end
                 end
             end
         end
+        
         if targetFrame then
-            self:ClickPrimary(targetFrame, "transmog-auto")
+            self:ClickPrimary(targetFrame, (meta.mode or "unknown").."-auto")
             sched:RemoveTask(baseName)
             return
         end
+        
         if attempts >= maxAttempts then
             if YATP:IsDebug() then
-                self:Debug("transmog retries exhausted")
+                self:Debug((meta.mode or "unknown").." retries exhausted")
             end
             sched:RemoveTask(baseName)
         end
@@ -293,9 +354,13 @@ function Module:BuildOptions()
                     if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end
                 end,
             },
-            desc = { type="description", order=2, fontSize="medium", name = L["Automatically confirms selected transmog confirmation popups."] or "Automatically confirms selected transmog confirmation popups." },
+            desc = { type="description", order=2, fontSize="medium", name = L["Automatically confirms selected transmog confirmation popups and bind-on-pickup loot popups."] or "Automatically confirms selected transmog confirmation popups and bind-on-pickup loot popups." },
             headerTransmog = { type="header", name = L["Transmog"] or "Transmog", order = 5 },
             autoTransmog = { type="toggle", order = 6, name = L["Auto-confirm transmog appearance popups"] or "Auto-confirm transmog appearance popups", get=get, set=set },
+            headerLoot = { type="header", name = L["Loot"] or "Loot", order = 7 },
+            autoBopLoot = { type="toggle", order = 8, name = L["Auto-confirm bind-on-pickup loot popups"] or "Auto-confirm bind-on-pickup loot popups", 
+                desc = L["Automatically confirm popups that appear when looting bind-on-pickup items from world objects."] or "Automatically confirm popups that appear when looting bind-on-pickup items from world objects.", 
+                get=get, set=set },
             -- exit section removed
             headerOther = { type="header", name = L["Miscellaneous"] or "Miscellaneous", order = 20 },
             -- suppressClickSound removed; placeholder intentionally omitted

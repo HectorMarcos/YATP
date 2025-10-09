@@ -6,7 +6,7 @@ local L   = LibStub("AceLocale-3.0"):GetLocale("YATP", true) or setmetatable({},
 local LSM = LibStub("LibSharedMedia-3.0", true)
 local YATP = LibStub("AceAddon-3.0"):GetAddon("YATP", true)
 if not YATP then
-    print("YATP not found, aborting XPRepBar module")
+    DEFAULT_CHAT_FRAME:AddMessage("|cffff0000YATP not found, aborting XPRepBar module|r")
     return
 end
 
@@ -40,7 +40,19 @@ XPRepBar.defaults = {
     x = 0,
     y = -250,
     showTicks = true,
+    showSpark = true,
+    sparkSize = 18,
 }
+
+-- Helper: determine effective max player level for this client/build
+local function YATP_GetEffectiveMaxLevel()
+    if type(MAX_PLAYER_LEVEL) == "number" then return MAX_PLAYER_LEVEL end
+    if type(MAX_PLAYER_LEVEL_TABLE) == "table" then
+        local exp = type(GetExpansionLevel) == "function" and GetExpansionLevel() or nil
+        if exp and MAX_PLAYER_LEVEL_TABLE[exp] then return MAX_PLAYER_LEVEL_TABLE[exp] end
+    end
+    return 80 -- sensible fallback for WotLK-era clients
+end
 
 -------------------------------------------------
 -- OnInitialize
@@ -83,7 +95,10 @@ function XPRepBar:OnEnable()
     self:RegisterEvent("UPDATE_EXHAUSTION", "UpdateXP")
     self:RegisterEvent("PLAYER_LEVEL_UP", "UpdateXP")
     self:RegisterEvent("UPDATE_FACTION", "UpdateReputation")
-    self:RegisterEvent("PLAYER_ENTERING_WORLD", "UpdateReputation")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        self:UpdateXP()
+        self:UpdateReputation()
+    end)
 end
 
 function XPRepBar:OnDisable()
@@ -121,6 +136,14 @@ function XPRepBar:CreateBar()
         rest:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
         rest:SetVertexColor(0.35, 0.78, 1, 0.75)
         f.bar.rest = rest
+
+    -- Spark indicator for current XP progress
+    local spark = bar:CreateTexture(nil, "OVERLAY")
+    spark:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
+    spark:SetBlendMode("ADD")
+    spark:SetSize(self.defaults.sparkSize, math.floor(self.defaults.height * 1.6))
+    spark:Hide()
+    f.bar.spark = spark
 
         local bg = bar:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints(bar)
@@ -377,6 +400,14 @@ function XPRepBar:ApplySettings()
             end
         end
     end
+
+    -- Spark sizing respects current bar height; show/hide per setting
+    if self.frame and self.frame.bar and self.frame.bar.spark then
+        local spark = self.frame.bar.spark
+        -- Use default spark size consistently (option removed by request)
+        spark:SetSize(self.defaults.sparkSize or 18, math.floor((self.db.height or 15) * 1.6))
+        if self.db.showSpark then spark:Show() else spark:Hide() end
+    end
 end
 
 -------------------------------------------------
@@ -386,7 +417,11 @@ function XPRepBar:UpdateXP()
     if not self.frame then return end
     -- Hide XP bar and move reputation into its place when player is max level
     local level = UnitLevel("player") or 0
-    if level >= 60 then
+    local maxLevel = YATP_GetEffectiveMaxLevel()
+    -- Some clients return 0 max XP at cap or when XP is disabled
+    local maxXPNow = UnitXPMax("player") or 0
+    local isAtCap = (level >= maxLevel) or (maxXPNow == 0)
+    if isAtCap then
         -- hide XP bar
         self.frame:Hide()
         -- move reputation bar to XP frame position if exists
@@ -427,7 +462,12 @@ function XPRepBar:UpdateXP()
     bar:SetMinMaxValues(0, max)
     bar:SetValue(curr)
 
-    local width = bar:GetWidth()
+    local width = bar:GetWidth() or 0
+    if width <= 0 then
+        -- If called very early and size not resolved yet, retry shortly
+        C_Timer.After(0, function() if XPRepBar and XPRepBar.UpdateXP then XPRepBar:UpdateXP() end end)
+        return
+    end
     -- Rested overlay handling:
     -- Classic behavior: a lighter segment indicates bonus XP up to either
     -- (curr + rested) clamped to next level. Previous implementation never
@@ -442,6 +482,14 @@ function XPRepBar:UpdateXP()
         if restWidth < 0.25 then
             restWidth = 0 -- visually hide insignificant sliver
         end
+        -- Position the rested overlay starting at current XP position
+        local startX = (curr / max) * width
+        if startX + restWidth > width then
+            restWidth = math.max(0, width - startX)
+        end
+        rest:ClearAllPoints()
+        rest:SetPoint("TOPLEFT", bar, "TOPLEFT", startX, 0)
+        rest:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", startX, 0)
         rest:SetWidth(restWidth)
         rest:Show()
     else
@@ -454,6 +502,19 @@ function XPRepBar:UpdateXP()
         self:SetXPText(curr, max, rested)
     else
         self.frame.text:SetText("")
+    end
+
+    -- Position spark at current XP
+    local spark = self.frame.bar.spark
+    if spark then
+        if self.db.showSpark and width and width > 0 then
+            local offset = (curr / max) * width
+            spark:ClearAllPoints()
+            spark:SetPoint("CENTER", self.frame.bar, "LEFT", offset, 0)
+            spark:Show()
+        else
+            spark:Hide()
+        end
     end
 end
 
@@ -663,6 +724,10 @@ function XPRepBar:BuildOptions()
                     ticks = { type="toggle", name=L["Show Ticks"], order=2, width="full",
                         get=function() return self.db.showTicks end,
                         set=function(_, v) self.db.showTicks = v; self:ApplySettings() end },
+                    showSpark = { type="toggle", name = L["Show Spark"] or "Show Spark", order = 3, width = "full",
+                        get=function() return self.db.showSpark end,
+                        set=function(_, v) self.db.showSpark = v; self:ApplySettings(); self:UpdateXP() end },
+                    -- Spark size option intentionally removed; using default size
                 },
             },
         }
