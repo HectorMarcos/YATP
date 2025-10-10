@@ -575,6 +575,13 @@ function Module:SetupThreatSystem()
     self:RegisterEvent("PLAYER_REGEN_ENABLED", "OnThreatCombatEnd")
     self:RegisterEvent("PLAYER_REGEN_DISABLED", "OnThreatCombatStart")
     
+    -- Register group events to enable/disable threat system automatically
+    self:RegisterEvent("GROUP_FORMED", "OnGroupChanged")
+    self:RegisterEvent("GROUP_LEFT", "OnGroupChanged")
+    self:RegisterEvent("GROUP_JOINED", "OnGroupChanged")
+    self:RegisterEvent("PARTY_MEMBERS_CHANGED", "OnGroupChanged")
+    self:RegisterEvent("RAID_ROSTER_UPDATE", "OnGroupChanged")
+    
     -- Create a timer to periodically update threat (fallback)
     if not self.threatUpdateTimer then
         self.threatUpdateTimer = C_Timer.NewTicker(1, function()
@@ -610,6 +617,13 @@ function Module:CleanupThreatSystem()
     self:UnregisterEvent("UNIT_TARGET")
     self:UnregisterEvent("PLAYER_REGEN_ENABLED")
     self:UnregisterEvent("PLAYER_REGEN_DISABLED")
+    
+    -- Unregister group events
+    self:UnregisterEvent("GROUP_FORMED")
+    self:UnregisterEvent("GROUP_LEFT")
+    self:UnregisterEvent("GROUP_JOINED")
+    self:UnregisterEvent("PARTY_MEMBERS_CHANGED")
+    self:UnregisterEvent("RAID_ROSTER_UPDATE")
 end
 
 function Module:OnThreatUpdate(event, unit)
@@ -646,6 +660,19 @@ function Module:OnThreatCombatEnd()
     self:UpdateAllThreatIndicators()
 end
 
+function Module:OnGroupChanged()
+    if not self.db.profile.threatSystem.enabled then return end
+    
+    -- When group status changes, update all threat indicators
+    -- This will automatically enable/disable threat colors based on group status
+    self:UpdateAllThreatIndicators()
+    
+    -- If player is now solo, clear any existing threat colors
+    if not IsInGroup() and not IsInRaid() then
+        self:ClearAllThreatColors()
+    end
+end
+
 function Module:OnThreatNameplateAdded(event, unit, nameplate)
     if not self.db.profile.threatSystem.enabled then return end
     
@@ -678,6 +705,12 @@ end
 function Module:UpdateNameplateThreat(nameplate, unit)
     -- Early exit if threat system is not enabled
     if not self.db.profile.threatSystem or not self.db.profile.threatSystem.enabled then
+        return
+    end
+    
+    -- Only enable threat system when in a group (party or raid)
+    -- When solo, threat is not meaningful since player always has 100% threat
+    if not IsInGroup() and not IsInRaid() then
         return
     end
     
@@ -718,6 +751,12 @@ end
 function Module:GetThreatLevel(unit)
     if not unit or not UnitExists(unit) then 
         return "none" 
+    end
+    
+    -- Only calculate threat when in a group (party or raid)
+    -- When solo, threat calculations are not meaningful
+    if not IsInGroup() and not IsInRaid() then
+        return "none"
     end
     
     -- Check if unit is actually attackable
@@ -882,6 +921,20 @@ end
 function Module:UpdateThreatSettings()
     -- Update all threat indicators when settings change
     self:UpdateAllThreatIndicators()
+end
+
+function Module:ClearAllThreatColors()
+    -- Remove threat colors from all nameplates when going solo
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame then
+            self:ResetNameplateColors(nameplate)
+        end
+    end
+    
+    -- Clear threat data
+    if self.threatData then
+        self.threatData = {}
+    end
 end
 
 -------------------------------------------------
@@ -1061,36 +1114,12 @@ function Module:BuildTabStructure()
             args = self:BuildGeneralTab()
         }
         
-        tabs.friendly = {
-            type = "group",
-            name = L["Friendly"] or "Friendly",
-            desc = L["Settings for friendly unit nameplates"] or "Settings for friendly unit nameplates",
-            order = 3,
-            args = self:BuildFriendlyTab()
-        }
-        
-        tabs.enemy = {
-            type = "group",
-            name = L["Enemy"] or "Enemy",
-            desc = L["Settings for enemy unit nameplates"] or "Settings for enemy unit nameplates",
-            order = 4,
-            args = self:BuildEnemyTab()
-        }
-        
         tabs.enemyTarget = {
             type = "group",
             name = L["Enemy Target"] or "Enemy Target",
             desc = L["Settings for targeted enemy nameplates"] or "Settings for targeted enemy nameplates",
-            order = 5,
+            order = 3,
             args = self:BuildEnemyTargetTab()
-        }
-        
-        tabs.personal = {
-            type = "group",
-            name = L["Personal"] or "Personal",
-            desc = L["Settings for your own nameplate"] or "Settings for your own nameplate",
-            order = 6,
-            args = self:BuildPersonalTab()
         }
     else
         tabs.info = {
@@ -1257,37 +1286,13 @@ function Module:BuildGeneralTab()
         
         spacer1 = { type = "description", name = "\n", order = 5 },
         
-        -- Style settings
-        styleHeader = { type = "header", name = L["Style"] or "Style", order = 10 },
-        
-        useClassicStyle = {
-            type = "toggle",
-            name = L["Classic Style"] or "Classic Style",
-            desc = L["Use classic style textures for nameplates"] or "Use classic style textures for nameplates",
-            get = function() return self:GetNamePlatesOption("general", "useClassicStyle") end,
-            set = function(_, value) self:SetNamePlatesOption("general", "useClassicStyle", nil, value) end,
-            order = 11,
-        },
-        
-        targetScale = {
-            type = "range",
-            name = L["Target Scale"] or "Target Scale",
-            desc = L["Sets the scale of the NamePlate when it is the target"] or "Sets the scale of the NamePlate when it is the target",
-            min = 0.8, max = 1.4, step = 0.1,
-            get = function() return self:GetNamePlatesOption("general", "clickable", "targetScale") or 1.1 end,
-            set = function(_, value) self:SetNamePlatesOption("general", "clickable", "targetScale", value) end,
-            order = 12,
-        },
-        
-        spacer2 = { type = "description", name = "\n", order = 15 },
-        
         -- Global Health Bar Texture Override
-        globalTextureHeader = { type = "header", name = L["Global Health Bar Texture"] or "Global Health Bar Texture", order = 16 },
+        globalTextureHeader = { type = "header", name = L["Global Health Bar Texture"] or "Global Health Bar Texture", order = 10 },
         
         globalTextureDesc = {
             type = "description",
             name = L["Override the health bar texture for ALL nameplates (friendly, enemy, and personal). This ensures consistent texture across all nameplate types, including targets."] or "Override the health bar texture for ALL nameplates (friendly, enemy, and personal). This ensures consistent texture across all nameplate types, including targets.",
-            order = 17,
+            order = 11,
         },
         
         globalTextureEnabled = {
@@ -1301,7 +1306,7 @@ function Module:BuildGeneralTab()
                     self:ApplyGlobalHealthBarTexture()
                 end
             end,
-            order = 18,
+            order = 12,
         },
         
         globalTexture = {
@@ -1321,18 +1326,18 @@ function Module:BuildGeneralTab()
                 end
             end,
             disabled = function() return not self.db.profile.globalHealthBarTexture.enabled end,
-            order = 19,
+            order = 13,
         },
         
-        spacer3 = { type = "description", name = "\n", order = 25 },
+        spacer3 = { type = "description", name = "\n", order = 15 },
         
         -- Threat System (YATP Custom Feature)
-        threatHeader = { type = "header", name = L["Threat System (YATP Custom)"] or "Threat System (YATP Custom)", order = 30 },
+        threatHeader = { type = "header", name = L["Threat System (YATP Custom)"] or "Threat System (YATP Custom)", order = 20 },
         
         threatEnabled = {
             type = "toggle",
             name = L["Enable Threat System"] or "Enable Threat System",
-            desc = L["Color nameplates based on your threat level with that enemy"] or "Color nameplates based on your threat level with that enemy",
+            desc = "Color nameplates based on your threat level with that enemy. Only works when in a party or raid - automatically disabled when solo since threat is not meaningful.",
             get = function() return self.db.profile.threatSystem.enabled end,
             set = function(_, value) 
                 self.db.profile.threatSystem.enabled = value
@@ -1342,7 +1347,7 @@ function Module:BuildGeneralTab()
                     self:CleanupThreatSystem()
                 end
             end,
-            order = 31,
+            order = 21,
         },
         
         threatColors = {
@@ -1411,210 +1416,6 @@ function Module:BuildGeneralTab()
                 },
             },
         },
-        
-        spacer4 = { type = "description", name = "\n", order = 34 },
-        
-        -- Clickable area settings
-        clickableHeader = { type = "header", name = L["Clickable Area"] or "Clickable Area", order = 35 },
-        
-        clickableDesc = {
-            type = "description",
-            name = L["These settings control the invisible clickable area of nameplates. This does not affect the visual appearance of health bars."] or "These settings control the invisible clickable area of nameplates. This does not affect the visual appearance of health bars.",
-            order = 36,
-        },
-        
-        clickableWidth = {
-            type = "range",
-            name = L["Clickable Width"] or "Clickable Width",
-            desc = L["Controls the clickable area width of the NamePlate"] or "Controls the clickable area width of the NamePlate",
-            min = 50, max = 200, step = 1,
-            get = function() 
-                return self:GetNamePlatesOption("general", "clickable", "width") or 
-                       (C_CVar and C_CVar.GetDefaultNumber and C_CVar.GetDefaultNumber("nameplateWidth")) or 110
-            end,
-            set = function(_, value) 
-                self:SetNamePlatesOption("general", "clickable", "width", value)
-                if C_NamePlateManager and C_NamePlateManager.SetNamePlateSize then
-                    local height = self:GetNamePlatesOption("general", "clickable", "height") or 45
-                    C_NamePlateManager.SetNamePlateSize(value, height)
-                end
-            end,
-            order = 37,
-        },
-        
-        clickableHeight = {
-            type = "range",
-            name = L["Clickable Height"] or "Clickable Height",
-            desc = L["Controls the clickable area height of the NamePlate"] or "Controls the clickable area height of the NamePlate",
-            min = 20, max = 80, step = 1,
-            get = function() 
-                return self:GetNamePlatesOption("general", "clickable", "height") or 
-                       (C_CVar and C_CVar.GetDefaultNumber and C_CVar.GetDefaultNumber("nameplateHeight")) or 45
-            end,
-            set = function(_, value) 
-                self:SetNamePlatesOption("general", "clickable", "height", value)
-                if C_NamePlateManager and C_NamePlateManager.SetNamePlateSize then
-                    local width = self:GetNamePlatesOption("general", "clickable", "width") or 110
-                    C_NamePlateManager.SetNamePlateSize(width, value)
-                end
-            end,
-            order = 38,
-        },
-        
-        showClickableBox = {
-            type = "toggle",
-            name = L["Show Clickable Box"] or "Show Clickable Box",
-            desc = L["Draw a white box over the clickable area on all NamePlates"] or "Draw a white box over the clickable area on all NamePlates",
-            get = function() 
-                return C_CVar and C_CVar.GetBool and C_CVar.GetBool("DrawNameplateClickBox") 
-            end,
-            set = function(_, value) 
-                if C_CVar and C_CVar.Set then
-                    C_CVar.Set("DrawNameplateClickBox", value)
-                end
-                local addon = self:GetNamePlatesAddon()
-                if addon and addon.UpdateAll then
-                    addon:UpdateAll()
-                end
-            end,
-            order = 39,
-        },
-    }
-end
-
--------------------------------------------------
--- Build Friendly Tab
--------------------------------------------------
-function Module:BuildFriendlyTab()
-    return {
-        desc = {
-            type = "description",
-            name = L["Configure nameplate settings for friendly units (party members, guild members, etc.)."] or "Configure nameplate settings for friendly units (party members, guild members, etc.).",
-            order = 1,
-        },
-        
-        spacer1 = { type = "description", name = "\n", order = 5 },
-        
-        -- Display options
-        displayHeader = { type = "header", name = L["Display Options"] or "Display Options", order = 10 },
-        
-        nameOnly = {
-            type = "toggle",
-            name = L["Name Only"] or "Name Only",
-            desc = L["Only show the name on friendly nameplates (no health bar)"] or "Only show the name on friendly nameplates (no health bar)",
-            get = function() return self:GetNamePlatesOption("friendly", "health", "nameOnly") end,
-            set = function(_, value) self:SetNamePlatesOption("friendly", "health", "nameOnly", value) end,
-            order = 11,
-        },
-        
-        spacer2 = { type = "description", name = "\n", order = 15 },
-        
-        -- Health bar settings
-        healthHeader = { type = "header", name = L["Health Bar"] or "Health Bar", order = 20 },
-        
-        healthWidth = {
-            type = "range",
-            name = L["Width"] or "Width",
-            desc = L["Sets the width of friendly nameplate health bars"] or "Sets the width of friendly nameplate health bars",
-            min = 40, max = 200, step = 1,
-            get = function() return self:GetNamePlatesOption("friendly", "health", "width") or 110 end,
-            set = function(_, value) self:SetNamePlatesOption("friendly", "health", "width", value) end,
-            disabled = function() return self:GetNamePlatesOption("friendly", "health", "nameOnly") end,
-            order = 21,
-        },
-        
-        healthHeight = {
-            type = "range",
-            name = L["Height"] or "Height",
-            desc = L["Sets the height of friendly nameplate health bars"] or "Sets the height of friendly nameplate health bars",
-            min = 4, max = 60, step = 1,
-            get = function() return self:GetNamePlatesOption("friendly", "health", "height") or 4 end,
-            set = function(_, value) self:SetNamePlatesOption("friendly", "health", "height", value) end,
-            disabled = function() return self:GetNamePlatesOption("friendly", "health", "nameOnly") end,
-            order = 22,
-        },
-        
-        showHealthText = {
-            type = "toggle",
-            name = L["Show Health Text"] or "Show Health Text",
-            desc = L["Show health text on friendly nameplates"] or "Show health text on friendly nameplates",
-            get = function() return self:GetNamePlatesOption("friendly", "health", "showTextFormat") end,
-            set = function(_, value) self:SetNamePlatesOption("friendly", "health", "showTextFormat", value) end,
-            disabled = function() return self:GetNamePlatesOption("friendly", "health", "nameOnly") end,
-            order = 23,
-        },
-    }
-end
-
--------------------------------------------------
--- Build Enemy Tab
--------------------------------------------------
-function Module:BuildEnemyTab()
-    return {
-        desc = {
-            type = "description",
-            name = L["Configure nameplate settings for enemy units and hostile NPCs."] or "Configure nameplate settings for enemy units and hostile NPCs.",
-            order = 1,
-        },
-        
-        spacer1 = { type = "description", name = "\n", order = 5 },
-        
-        -- Health bar settings
-        healthHeader = { type = "header", name = L["Health Bar"] or "Health Bar", order = 10 },
-        
-        healthWidth = {
-            type = "range",
-            name = L["Width"] or "Width",
-            desc = L["Sets the width of enemy nameplate health bars"] or "Sets the width of enemy nameplate health bars",
-            min = 40, max = 200, step = 1,
-            get = function() return self:GetNamePlatesOption("enemy", "health", "width") or 110 end,
-            set = function(_, value) self:SetNamePlatesOption("enemy", "health", "width", value) end,
-            order = 11,
-        },
-        
-        healthHeight = {
-            type = "range",
-            name = L["Height"] or "Height",
-            desc = L["Sets the height of enemy nameplate health bars"] or "Sets the height of enemy nameplate health bars",
-            min = 4, max = 60, step = 1,
-            get = function() return self:GetNamePlatesOption("enemy", "health", "height") or 4 end,
-            set = function(_, value) self:SetNamePlatesOption("enemy", "health", "height", value) end,
-            order = 12,
-        },
-        
-        showHealthText = {
-            type = "toggle",
-            name = L["Show Health Text"] or "Show Health Text",
-            desc = L["Show health text on enemy nameplates"] or "Show health text on enemy nameplates",
-            get = function() return self:GetNamePlatesOption("enemy", "health", "showTextFormat") end,
-            set = function(_, value) self:SetNamePlatesOption("enemy", "health", "showTextFormat", value) end,
-            order = 13,
-        },
-        
-        spacer2 = { type = "description", name = "\n", order = 15 },
-        
-        -- Cast bar settings
-        castBarHeader = { type = "header", name = L["Cast Bar"] or "Cast Bar", order = 20 },
-        
-        castBarEnabled = {
-            type = "toggle",
-            name = L["Enable Cast Bars"] or "Enable Cast Bars",
-            desc = L["Show cast bars on enemy nameplates"] or "Show cast bars on enemy nameplates",
-            get = function() return self:GetNamePlatesOption("enemy", "castBar", "enabled") end,
-            set = function(_, value) self:SetNamePlatesOption("enemy", "castBar", "enabled", value) end,
-            order = 21,
-        },
-        
-        castBarHeight = {
-            type = "range",
-            name = L["Cast Bar Height"] or "Cast Bar Height",
-            desc = L["Height of enemy cast bars"] or "Height of enemy cast bars",
-            min = 4, max = 32, step = 1,
-            get = function() return self:GetNamePlatesOption("enemy", "castBar", "height") or 10 end,
-            set = function(_, value) self:SetNamePlatesOption("enemy", "castBar", "height", value) end,
-            disabled = function() return not self:GetNamePlatesOption("enemy", "castBar", "enabled") end,
-            order = 22,
-        },
     }
 end
 
@@ -1625,36 +1426,14 @@ function Module:BuildEnemyTargetTab()
     return {
         desc = {
             type = "description",
-            name = L["Configure nameplate settings for enemy units that you have targeted. This includes the official Target Scale option and custom Target Border enhancements."] or "Configure nameplate settings for enemy units that you have targeted. This includes the official Target Scale option and custom Target Border enhancements.",
+            name = "Configure custom Target Border enhancements for enemy units that you have targeted.",
             order = 1,
         },
         
         spacer1 = { type = "description", name = "\n", order = 5 },
         
-        -- Target scaling (the only real target-specific option from original addon)
-        targetingHeader = { type = "header", name = L["Target Scaling"] or "Target Scaling", order = 10 },
-        
-        targetScale = {
-            type = "range",
-            name = L["Target Scale"] or "Target Scale",
-            desc = L["Sets the scale of the NamePlate when it is the target. This affects ALL targeted nameplates (friendly and enemy)."] or "Sets the scale of the NamePlate when it is the target. This affects ALL targeted nameplates (friendly and enemy).",
-            min = 0.8, max = 1.4, step = 0.1,
-            get = function() return self:GetNamePlatesOption("general", "clickable", "targetScale") or 1.1 end,
-            set = function(_, value) self:SetNamePlatesOption("general", "clickable", "targetScale", value) end,
-            order = 11,
-        },
-        
-        targetScaleInfo = {
-            type = "description",
-            name = "|cffFFD700" .. (L["Information"] or "Information") .. ":|r " .. (L["This is the official setting for targeted nameplates from the NamePlates addon. It makes the nameplate larger when you target an enemy."] or "This is the official setting for targeted nameplates from the NamePlates addon. It makes the nameplate larger when you target an enemy."),
-            fontSize = "small",
-            order = 12,
-        },
-        
-        spacer2 = { type = "description", name = "\n", order = 15 },
-        
         -- Target Border System (YATP Custom Feature)
-        targetGlowHeader = { type = "header", name = L["Target Border (YATP Custom)"] or "Target Border (YATP Custom)", order = 20 },
+        targetGlowHeader = { type = "header", name = L["Target Border (YATP Custom)"] or "Target Border (YATP Custom)", order = 10 },
         
         targetGlowEnabled = {
             type = "toggle",
@@ -1665,7 +1444,7 @@ function Module:BuildEnemyTargetTab()
                 self.db.profile.targetGlow.enabled = value
                 self:UpdateAllTargetGlows()
             end,
-            order = 21,
+            order = 11,
         },
         
         targetGlowColor = {
@@ -1682,7 +1461,7 @@ function Module:BuildEnemyTargetTab()
                 self:UpdateAllTargetGlows()
             end,
             disabled = function() return not self.db.profile.targetGlow.enabled end,
-            order = 22,
+            order = 12,
         },
         
         targetGlowSize = {
@@ -1696,7 +1475,7 @@ function Module:BuildEnemyTargetTab()
                 self:UpdateAllTargetGlows()
             end,
             disabled = function() return not self.db.profile.targetGlow.enabled end,
-            order = 23,
+            order = 13,
         },
         
         spacer3 = { type = "description", name = "\n", order = 25 },
@@ -1714,53 +1493,6 @@ function Module:BuildEnemyTargetTab()
                    "• " .. (L["Quest objective icons"] or "Quest objective icons") .. "\n\n" ..
                    (L["All these settings apply to enemy nameplates, including when they are targeted."] or "All these settings apply to enemy nameplates, including when they are targeted."),
             order = 31,
-        },
-    }
-end
-
--------------------------------------------------
--- Build Personal Tab
--------------------------------------------------
-function Module:BuildPersonalTab()
-    return {
-        desc = {
-            type = "description",
-            name = L["Configure your own personal nameplate that appears above your character."] or "Configure your own personal nameplate that appears above your character.",
-            order = 1,
-        },
-        
-        spacer1 = { type = "description", name = "\n", order = 5 },
-        
-        -- Health bar settings
-        healthHeader = { type = "header", name = L["Health Bar"] or "Health Bar", order = 10 },
-        
-        healthWidth = {
-            type = "range",
-            name = L["Width"] or "Width",
-            desc = L["Sets the width of your personal nameplate health bar"] or "Sets the width of your personal nameplate health bar",
-            min = 40, max = 200, step = 1,
-            get = function() return self:GetNamePlatesOption("personal", "health", "width") or 80 end,
-            set = function(_, value) self:SetNamePlatesOption("personal", "health", "width", value) end,
-            order = 11,
-        },
-        
-        healthHeight = {
-            type = "range",
-            name = L["Height"] or "Height",
-            desc = L["Sets the height of your personal nameplate health bar"] or "Sets the height of your personal nameplate health bar",
-            min = 4, max = 60, step = 1,
-            get = function() return self:GetNamePlatesOption("personal", "health", "height") or 8 end,
-            set = function(_, value) self:SetNamePlatesOption("personal", "health", "height", value) end,
-            order = 12,
-        },
-        
-        showHealthText = {
-            type = "toggle",
-            name = L["Show Health Text"] or "Show Health Text",
-            desc = L["Show health text on your personal nameplate"] or "Show health text on your personal nameplate",
-            get = function() return self:GetNamePlatesOption("personal", "health", "showTextFormat") end,
-            set = function(_, value) self:SetNamePlatesOption("personal", "health", "showTextFormat", value) end,
-            order = 13,
         },
     }
 end
