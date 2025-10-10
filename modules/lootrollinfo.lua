@@ -204,7 +204,7 @@ function Module:HookButtons(rollID)
             if self.db.showCounts and not btn.LRIText then
               btn.LRIText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
               local font, size, flags = btn.LRIText:GetFont()
-              btn.LRIText:SetFont(font, size + (self.db.fontSizeDelta or 4), flags or "OUTLINE")
+              btn.LRIText:SetFont(font, size + (self.db.fontSizeDelta or 4), flags or "THICKOUTLINE")
               -- mimic working prototype: numbers in top-right corner with a slight negative offset
               btn.LRIText:ClearAllPoints()
               btn.LRIText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -3, -2)
@@ -273,7 +273,7 @@ function Module:UpdateButtonText(rollID, key, btn)
   if not btn.LRIText then
     btn.LRIText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     local font, size, flags = btn.LRIText:GetFont()
-    btn.LRIText:SetFont(font, size + (self.db.fontSizeDelta or 4), flags or "OUTLINE")
+    btn.LRIText:SetFont(font, size + (self.db.fontSizeDelta or 4), flags or "THICKOUTLINE")
     btn.LRIText:ClearAllPoints()
     btn.LRIText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -3, -2)
   end

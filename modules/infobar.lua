@@ -31,6 +31,9 @@ Module.defaults = {
     showDurability = true,
     lowDurThreshold = 25,
     colorizeLowDurability = true,
+    showAmmo = true,
+    lowAmmoThreshold = 500,
+    colorizeAmmo = true,
     updateInterval = 1,
 }
 
@@ -158,6 +161,17 @@ end
 -------------------------------------------------
 local INVENTORY_SLOTS = {1,2,3,5,6,7,8,9,10,11,12,13,14,15,16,17,18}
 
+function Module:IsPlayerHunter()
+    local _, playerClass = UnitClass("player")
+    return playerClass == "HUNTER"
+end
+
+function Module:GetAmmoCount()
+    if not self:IsPlayerHunter() then return 0 end
+    local count = GetInventoryItemCount("player", 0) -- Ammo slot is slot 0
+    return count or 0
+end
+
 function Module:GetAverageDurability()
     local total, current = 0, 0
     for _, slot in ipairs(INVENTORY_SLOTS) do
@@ -253,6 +267,14 @@ function Module:RefreshText()
             table.insert(parts, string.format("Dur: %.0f%%", dur))
         end
     end
+    if self.db.showAmmo and self:IsPlayerHunter() then
+        local ammo = self:GetAmmoCount()
+        if self.db.colorizeAmmo and ammo <= self.db.lowAmmoThreshold then
+            table.insert(parts, string.format("|cffff0000Ammo: %d|r", ammo))
+        else
+            table.insert(parts, string.format("Ammo: %d", ammo))
+        end
+    end
 
     local text = table.concat(parts, "  |  ")
     if text ~= self._lastText then
@@ -339,6 +361,9 @@ function Module:BuildOptions()
                     showDurability = { type="toggle", name=L["Show Durability"] or "Show Durability", order=3, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
                     lowDurThreshold = { type="range", name=L["Low Durability Threshold"] or "Low Durability Threshold", min=5, max=75, step=1, order=4, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
                     colorizeLowDurability = { type="toggle", name=L["Only color durability below threshold"] or "Only color durability below threshold", order=5, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
+                    showAmmo = { type="toggle", name=L["Show Ammo (Hunter only)"] or "Show Ammo (Hunter only)", order=6, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
+                    lowAmmoThreshold = { type="range", name=L["Low Ammo Threshold"] or "Low Ammo Threshold", min=10, max=1000, step=10, order=7, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
+                    colorizeAmmo = { type="toggle", name=L["Color ammo below threshold"] or "Color ammo below threshold", order=8, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
                 }
             },
             appearance = {
@@ -383,7 +408,7 @@ end
 function Module:OnSettingChanged(key)
     if key == "font" or key == "fontSize" or key == "fontOutline" or key == "fontColor" or key == "background" or key == "locked" then
         self:ApplySettings()
-    elseif key == "showFPS" or key == "showPing" or key == "showDurability" or key == "lowDurThreshold" or key == "colorizeLowDurability" then
+    elseif key == "showFPS" or key == "showPing" or key == "showDurability" or key == "lowDurThreshold" or key == "colorizeLowDurability" or key == "showAmmo" or key == "lowAmmoThreshold" or key == "colorizeAmmo" then
         self:RefreshText()
     elseif key == "updateInterval" then
         self:StartUpdater()
