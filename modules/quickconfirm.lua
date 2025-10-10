@@ -16,8 +16,7 @@ local Module = YATP:NewModule(ModuleName, "AceConsole-3.0")
 
 -- Simple debug print helper
 function Module:Debug(msg)
-    if not YATP or not YATP.IsDebug or not YATP:IsDebug() then return end
-    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:QC|r "..tostring(msg))
+    -- Debug messages disabled
 end
 
 -------------------------------------------------

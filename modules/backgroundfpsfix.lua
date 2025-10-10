@@ -60,7 +60,6 @@ function Module:Apply()
     SetCVar("maxfpsbk", desired)
   end
   self._applied = true
-  if YATP:IsDebug() then YATP:Debug("BackgroundFPSFix applied (prev="..tostring(self._previous).." -> "..desired..")") end
 end
 
 function Module:Restore()

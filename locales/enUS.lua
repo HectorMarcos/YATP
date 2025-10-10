@@ -251,3 +251,186 @@ L["Enable or disable this module."] = true
 L["Automatically confirms selected transmog confirmation popups."] = true
 L["Update Interval"] = true
 L["Base seconds between tint update batches (lower = more responsive, higher = cheaper)."] = true
+
+-- NamePlates Module
+L["NamePlates"] = "Ascension NamePlates"
+L["Enable NamePlates Integration"] = true
+L["Enable integration with Ascension NamePlates addon through YATP"] = true
+L["Configure Ascension NamePlates addon integration"] = true
+L["Addon Status"] = true
+L["Status"] = true
+L["Loaded"] = true
+L["Available (not loaded)"] = true
+L["Not Available"] = true
+L["Title"] = true
+L["Notes"] = true
+L["Actions"] = true
+L["Load NamePlates Addon"] = true
+L["Attempt to load the Ascension NamePlates addon"] = true
+L["Open Original Configuration"] = true
+L["Open the original configuration panel for Ascension NamePlates"] = true
+L["Settings"] = true
+L["Auto-open Config"] = true
+L["Automatically open NamePlates configuration when clicking the YATP integration"] = true
+L["Quick Access"] = true
+L["The Ascension NamePlates addon provides comprehensive nameplate customization options including health bars, fonts, colors, cast bars, and more."] = true
+L["Available Categories"] = true
+L["Overall settings and clickable area"] = true
+L["Friendly"] = true
+L["Settings for friendly unit nameplates"] = true
+L["Enemy"] = true
+L["Settings for enemy unit nameplates"] = true
+L["Personal"] = true
+L["Settings for your own nameplate"] = true
+
+-- Embedded NamePlates Configuration
+L["Embedded Configuration"] = true
+L["Load the NamePlates addon to access embedded configuration options here."] = true
+L["General Settings"] = true
+L["Classic Style"] = true
+L["Use classic style textures for nameplates"] = true
+L["Target Scale"] = true
+L["Sets the scale of the NamePlate when it is the target"] = true
+L["Clickable Area"] = true
+L["Clickable Width"] = true
+L["Controls the clickable area width of the NamePlate"] = true
+L["Clickable Height"] = true
+L["Controls the clickable area height of the NamePlate"] = true
+L["Show Clickable Box"] = true
+L["Draw a white box over the clickable area on all NamePlates"] = true
+L["Friendly Units"] = true
+L["Name Only (Friendly)"] = true
+L["Only show the name on friendly nameplates (no health bar)"] = true
+L["Health Bar Width (Friendly)"] = true
+L["Sets the width of friendly nameplate health bars"] = true
+L["Health Bar Height (Friendly)"] = true
+L["Sets the height of friendly nameplate health bars"] = true
+L["Show Health Text (Friendly)"] = true
+L["Show health text on friendly nameplates"] = true
+L["Enemy Units"] = true
+L["Health Bar Width (Enemy)"] = true
+L["Sets the width of enemy nameplate health bars"] = true
+L["Health Bar Height (Enemy)"] = true
+L["Sets the height of enemy nameplate health bars"] = true
+L["Show Health Text (Enemy)"] = true
+L["Show health text on enemy nameplates"] = true
+L["Enemy Cast Bars"] = true
+L["Show cast bars on enemy nameplates"] = true
+L["Cast Bar Height"] = true
+L["Height of enemy cast bars"] = true
+L["Personal Nameplate"] = true
+L["Health Bar Width (Personal)"] = true
+L["Sets the width of your personal nameplate health bar"] = true
+L["Health Bar Height (Personal)"] = true
+L["Sets the height of your personal nameplate health bar"] = true
+L["Show Health Text (Personal)"] = true
+L["Show health text on your personal nameplate"] = true
+L["Advanced"] = true
+L["Open Complete Configuration"] = true
+L["Open the original addon configuration for access to all advanced options"] = true
+L["The options above cover the most commonly used settings. For advanced features like fonts, colors, quest icons, and level indicators, use the complete configuration panel."] = true
+
+-- NamePlates Tab System
+L["Addon status and basic controls"] = true
+L["General nameplate settings"] = true
+L["Information about NamePlates configuration"] = true
+L["Configuration Tabs"] = true
+L["Once the Ascension NamePlates addon is loaded, additional configuration tabs will appear here:"] = true
+L["Load the addon using the Status tab to unlock these configuration options."] = true
+L["Information"] = true
+L["The NamePlates addon is loaded and configured. Use the tabs above to access different configuration categories."] = true
+L["Load the NamePlates addon to unlock configuration tabs with embedded settings for General, Friendly, Enemy, and Personal nameplates."] = true
+L["Configure general nameplate appearance and behavior settings."] = true
+L["Style"] = true
+
+-- Global Health Bar Texture
+L["Global Health Bar Texture"] = true
+L["Override the health bar texture for ALL nameplates (friendly, enemy, and personal). This ensures consistent texture across all nameplate types, including targets."] = true
+L["Enable Global Health Bar Texture"] = true
+L["Apply the same health bar texture to all nameplate types"] = true
+L["Health Bar Texture"] = true
+L["Texture to use for all health bars"] = true
+
+-- Mouseover Glow Configuration
+L["These settings control the invisible clickable area of nameplates. This does not affect the visual appearance of health bars."] = true
+L["Configure nameplate settings for friendly units (party members, guild members, etc.)."] = true
+L["Display Options"] = true
+L["Name Only"] = true
+L["Configure nameplate settings for enemy units and hostile NPCs."] = true
+L["Enable Cast Bars"] = true
+L["Configure your own personal nameplate that appears above your character."] = true
+
+-- Enemy Target Tab
+L["Enemy Target"] = true
+L["Settings for targeted enemy nameplates"] = true
+L["Configure nameplate settings for enemy units that you have targeted. This includes the official Target Scale option and custom Target Border enhancements."] = true
+L["Target Scaling"] = true
+L["Sets the scale of the NamePlate when it is the target. This affects ALL targeted nameplates (friendly and enemy)."] = true
+L["Information"] = true
+L["This is the official setting for targeted nameplates from the NamePlates addon. It makes the nameplate larger when you target an enemy."] = true
+
+-- Target Border System
+L["Target Border (YATP Custom)"] = true
+L["Enable Target Border"] = true
+L["Add a colored border around the nameplate of your current target for better visibility"] = true
+L["Border Color"] = true
+L["Color of the target border effect"] = true
+L["Border Thickness"] = true
+L["Thickness of the border in pixels. Higher values create a thicker border"] = true
+L["Static (No Animation)"] = true
+L["Pulse (Fade In/Out)"] = true
+L["Breathe (Scale In/Out)"] = true
+
+-- Threat System
+L["Threat System (YATP Custom)"] = true
+L["Enable Threat System"] = true
+L["Color nameplates based on your threat level with that enemy"] = true
+L["Threat Display Method"] = true
+L["How threat levels are displayed on nameplates"] = true
+L["Name Color"] = true
+L["Health Bar Color"] = true
+L["Border Color"] = true
+L["Threat Colors"] = true
+L["Configure colors for different threat levels"] = true
+L["No Threat"] = true
+L["Color when you have no threat"] = true
+L["Low Threat"] = true
+L["Color when you have low threat"] = true
+L["Medium Threat"] = true
+L["Color when you have medium threat"] = true
+L["High Threat"] = true
+L["Color when you have high threat"] = true
+L["Tanking"] = true
+L["Color when you have aggro"] = true
+
+L["Additional Enemy Options"] = true
+L["For more enemy nameplate customization options, visit the"] = true
+L["Enemy"] = true
+L["tab. There you can configure:"] = true
+L["Health bar appearance and size"] = true
+L["Name display and fonts"] = true
+L["Cast bar settings"] = true
+L["Level indicators"] = true
+L["Quest objective icons"] = true
+L["All these settings apply to enemy nameplates, including when they are targeted."] = true
+
+-- Missing localizations for nameplate tabs
+L["Health Bar"] = true
+L["Show Health Text"] = true
+L["Cast Bar"] = true
+
+-- Health Text Positioning
+L["Health Text Positioning"] = true
+L["Customize the position of the health text displayed on nameplates. The default position is centered with a 1 pixel offset upward."] = true
+L["Enable Custom Health Text Position"] = true
+L["Enable custom positioning for health text on all nameplates"] = true
+L["Horizontal Offset (X)"] = true
+L["Horizontal offset from center. Negative values move left, positive values move right. Default: 0"] = true
+L["Vertical Offset (Y)"] = true
+L["Vertical offset from center. Negative values move down, positive values move up. Default: 1"] = true
+L["Reset to Default"] = true
+L["Reset health text position to default values (X: 0, Y: 1)"] = true
+
+-- Error messages
+L["Cannot enable NamePlates Integration:"] = true
+L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] = true

@@ -28,7 +28,6 @@ local L   = LibStub("AceLocale-3.0"):GetLocale("YATP", true) or setmetatable({},
 local LSM = LibStub("LibSharedMedia-3.0", true)
 local YATP = LibStub("AceAddon-3.0"):GetAddon("YATP", true)
 if not YATP then
-    DEFAULT_CHAT_FRAME:AddMessage("|cffff0000YATP not found, aborting Template.lua module|r")
     return
 end
 
@@ -39,8 +38,7 @@ local Module = YATP:NewModule("Template", "AceEvent-3.0", "AceConsole-3.0")
 -- Debug helper (activate by enabling the 'debug' toggle if you add one)
 -------------------------------------------------
 function Module:Debug(msg)
-    if not YATP or not YATP.IsDebug or not YATP:IsDebug() then return end
-    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:Template|r "..tostring(msg))
+    -- Debug messages disabled
 end
 
 -------------------------------------------------
@@ -173,8 +171,6 @@ end
 function Module:OpenConfig()
     if YATP.OpenConfig then
         YATP:OpenConfig("Template")
-    else
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff0000YATP config no disponible.|r")
     end
 end
 

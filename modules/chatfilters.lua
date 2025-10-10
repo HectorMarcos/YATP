@@ -83,9 +83,7 @@ local hookRequested = false
 -- Utility: Conditional debug output respecting global debug mode
 --------------------------------------------------
 function Module:Debug(msg)
-    if YATP and YATP.IsDebug and YATP:IsDebug() then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:ChatFilters|r " .. tostring(msg))
-    end
+    -- Debug messages disabled
 end
 
 --------------------------------------------------
@@ -358,7 +356,6 @@ function Module:OnEnable()
         ChatFrame_AddMessageEventFilter("CHAT_MSG_CHANNEL", SystemMessageFilter)
         ChatFrame_AddMessageEventFilter("CHAT_MSG_SAY", SystemMessageFilter)
     end
-    self:Debug("ChatFilters enabled")
     -- Legacy AddMessage hook left possible via SavedVariables flag (not exposed)
     if self.db.enableAddMessageHook then
         if _G.ChatFrame1 then HookChatFrames() else RequestHookLater() end
@@ -529,9 +526,6 @@ function Module:SetupTimePlayedHook()
         end
     end
     ChatFrame_DisplayTimePlayed = Module._proxyTimePlayed
-    if YATP and YATP.IsDebug and YATP:IsDebug() then
-        Module:Debug("TimePlayed suppression active (proxy installed)")
-    end
 end
 
 return Module

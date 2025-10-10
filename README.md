@@ -17,6 +17,10 @@ Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Ena
 | ChatFilters | QoL | Suppress spam (error lines, login welcome, first /played). |
 | WAAdiFixes | Extras | Small compat shims (WA / AdiBags). |
 | BackgroundFPSFix | Extras | Adjustable background FPS cap. |
+| Target Border | Ascension NamePlates | Colored border around current target nameplate. Configurable color & thickness. |
+| Threat System | Ascension NamePlates | Color nameplates by threat level (party/raid only). Configurable colors for low/medium/high/tanking. |
+| Health Text Position | Ascension NamePlates | Fine-tune health text position with X/Y offsets (-50 to +50, -20 to +20 pixels). |
+| Global Health Texture | Ascension NamePlates | Override health bar texture for ALL nameplate types (friendly/enemy/personal). |
 
 ## Install
 

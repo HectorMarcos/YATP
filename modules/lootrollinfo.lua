@@ -38,11 +38,7 @@ local ACTION_COLORS = {
 }
 
 local function dprint(self, ...)
-  local core = YATP
-  if not core or not core.IsDebug or not core:IsDebug() then return end
-  local ok, formatted = pcall(string.format, ...)
-  local msg = ok and formatted or "format-error"
-  DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99LRInfo|r "..msg)
+  -- Debug messages disabled
 end
 
 --========================================================--

@@ -42,3 +42,4 @@ modules\waadifix.lua
 modules\backgroundfpsfix.lua
 modules\lootrollinfo.lua
 modules\chatfilters.lua
+modules\nameplates.lua

@@ -173,3 +173,91 @@ if not L["Behavior"] then L["Behavior"] = "Behavior" end
 if not L["Trigger on Key Down"] then L["Trigger on Key Down"] = "Trigger on Key Down" end
 if not L["Keyboard Only"] then L["Keyboard Only"] = "Keyboard Only" end
 if not L["Apply 'key down' only if the button has a keyboard binding; mouse clicks stay default (on release)."] then L["Apply 'key down' only if the button has a keyboard binding; mouse clicks stay default (on release)."] = "Apply 'key down' only if the button has a keyboard binding; mouse clicks stay default (on release)." end
+
+-- NamePlates Module (fallback English)
+if not L["NamePlates"] then L["NamePlates"] = "Ascension NamePlates" end
+if not L["Enable NamePlates Integration"] then L["Enable NamePlates Integration"] = "Enable NamePlates Integration" end
+if not L["Enable integration with Ascension NamePlates addon through YATP"] then L["Enable integration with Ascension NamePlates addon through YATP"] = "Enable integration with Ascension NamePlates addon through YATP" end
+if not L["Addon Status"] then L["Addon Status"] = "Addon Status" end
+if not L["Status"] then L["Status"] = "Status" end
+if not L["Loaded"] then L["Loaded"] = "Loaded" end
+if not L["Available (not loaded)"] then L["Available (not loaded)"] = "Available (not loaded)" end
+if not L["Not Available"] then L["Not Available"] = "Not Available" end
+if not L["Title"] then L["Title"] = "Title" end
+if not L["Notes"] then L["Notes"] = "Notes" end
+if not L["Actions"] then L["Actions"] = "Actions" end
+if not L["Load NamePlates Addon"] then L["Load NamePlates Addon"] = "Load NamePlates Addon" end
+if not L["Attempt to load the Ascension NamePlates addon"] then L["Attempt to load the Ascension NamePlates addon"] = "Attempt to load the Ascension NamePlates addon" end
+if not L["Open Original Configuration"] then L["Open Original Configuration"] = "Open Original Configuration" end
+if not L["Open the original configuration panel for Ascension NamePlates"] then L["Open the original configuration panel for Ascension NamePlates"] = "Open the original configuration panel for Ascension NamePlates" end
+if not L["Information"] then L["Information"] = "Information" end
+if not L["The NamePlates addon is loaded and configured. Use the tabs above to access different configuration categories."] then L["The NamePlates addon is loaded and configured. Use the tabs above to access different configuration categories."] = "The NamePlates addon is loaded and configured. Use the tabs above to access different configuration categories." end
+if not L["Load the NamePlates addon to unlock configuration tabs with embedded settings for General, Friendly, Enemy, and Personal nameplates."] then L["Load the NamePlates addon to unlock configuration tabs with embedded settings for General, Friendly, Enemy, and Personal nameplates."] = "Load the NamePlates addon to unlock configuration tabs with embedded settings for General, Friendly, Enemy, and Personal nameplates." end
+if not L["Addon status and basic controls"] then L["Addon status and basic controls"] = "Addon status and basic controls" end
+if not L["General nameplate settings"] then L["General nameplate settings"] = "General nameplate settings" end
+if not L["Settings for targeted enemy nameplates"] then L["Settings for targeted enemy nameplates"] = "Settings for targeted enemy nameplates" end
+
+-- Global Health Bar Texture
+if not L["Global Health Bar Texture"] then L["Global Health Bar Texture"] = "Global Health Bar Texture" end
+if not L["Override the health bar texture for ALL nameplates (friendly, enemy, and personal). This ensures consistent texture across all nameplate types, including targets."] then L["Override the health bar texture for ALL nameplates (friendly, enemy, and personal). This ensures consistent texture across all nameplate types, including targets."] = "Override the health bar texture for ALL nameplates (friendly, enemy, and personal). This ensures consistent texture across all nameplate types, including targets." end
+if not L["Enable Global Health Bar Texture"] then L["Enable Global Health Bar Texture"] = "Enable Global Health Bar Texture" end
+if not L["Apply the same health bar texture to all nameplate types"] then L["Apply the same health bar texture to all nameplate types"] = "Apply the same health bar texture to all nameplate types" end
+if not L["Health Bar Texture"] then L["Health Bar Texture"] = "Health Bar Texture" end
+if not L["Texture to use for all health bars"] then L["Texture to use for all health bars"] = "Texture to use for all health bars" end
+
+-- Target Border System
+if not L["Target Border (YATP Custom)"] then L["Target Border (YATP Custom)"] = "Target Border (YATP Custom)" end
+if not L["Enable Target Border"] then L["Enable Target Border"] = "Enable Target Border" end
+if not L["Add a colored border around the nameplate of your current target for better visibility"] then L["Add a colored border around the nameplate of your current target for better visibility"] = "Add a colored border around the nameplate of your current target for better visibility" end
+if not L["Border Color"] then L["Border Color"] = "Border Color" end
+if not L["Color of the target border effect"] then L["Color of the target border effect"] = "Color of the target border effect" end
+if not L["Border Thickness"] then L["Border Thickness"] = "Border Thickness" end
+if not L["Thickness of the border in pixels. Higher values create a thicker border"] then L["Thickness of the border in pixels. Higher values create a thicker border"] = "Thickness of the border in pixels. Higher values create a thicker border" end
+
+-- Threat System
+if not L["Threat System (YATP Custom)"] then L["Threat System (YATP Custom)"] = "Threat System (YATP Custom)" end
+if not L["Enable Threat System"] then L["Enable Threat System"] = "Enable Threat System" end
+if not L["Color nameplates based on your threat level with that enemy"] then L["Color nameplates based on your threat level with that enemy"] = "Color nameplates based on your threat level with that enemy" end
+if not L["Threat Colors"] then L["Threat Colors"] = "Threat Colors" end
+if not L["Configure colors for different threat levels"] then L["Configure colors for different threat levels"] = "Configure colors for different threat levels" end
+if not L["Low Threat"] then L["Low Threat"] = "Low Threat" end
+if not L["Color when you have low threat"] then L["Color when you have low threat"] = "Color when you have low threat" end
+if not L["Medium Threat"] then L["Medium Threat"] = "Medium Threat" end
+if not L["Color when you have medium threat"] then L["Color when you have medium threat"] = "Color when you have medium threat" end
+if not L["High Threat"] then L["High Threat"] = "High Threat" end
+if not L["Color when you have high threat"] then L["Color when you have high threat"] = "Color when you have high threat" end
+if not L["Tanking"] then L["Tanking"] = "Tanking" end
+if not L["Color when you have aggro"] then L["Color when you have aggro"] = "Color when you have aggro" end
+
+if not L["Additional Enemy Options"] then L["Additional Enemy Options"] = "Additional Enemy Options" end
+if not L["For more enemy nameplate customization options, visit the"] then L["For more enemy nameplate customization options, visit the"] = "For more enemy nameplate customization options, visit the" end
+if not L["Enemy"] then L["Enemy"] = "Enemy" end
+if not L["tab. There you can configure:"] then L["tab. There you can configure:"] = "tab. There you can configure:" end
+if not L["Health bar appearance and size"] then L["Health bar appearance and size"] = "Health bar appearance and size" end
+if not L["Name display and fonts"] then L["Name display and fonts"] = "Name display and fonts" end
+if not L["Cast bar settings"] then L["Cast bar settings"] = "Cast bar settings" end
+if not L["Level indicators"] then L["Level indicators"] = "Level indicators" end
+if not L["Quest objective icons"] then L["Quest objective icons"] = "Quest objective icons" end
+if not L["All these settings apply to enemy nameplates, including when they are targeted."] then L["All these settings apply to enemy nameplates, including when they are targeted."] = "All these settings apply to enemy nameplates, including when they are targeted." end
+
+-- Health Text Positioning
+if not L["Health Text Positioning"] then L["Health Text Positioning"] = "Health Text Positioning" end
+if not L["Customize the position of the health text displayed on nameplates. The default position is centered with a 1 pixel offset upward."] then L["Customize the position of the health text displayed on nameplates. The default position is centered with a 1 pixel offset upward."] = "Customize the position of the health text displayed on nameplates. The default position is centered with a 1 pixel offset upward." end
+if not L["Enable Custom Health Text Position"] then L["Enable Custom Health Text Position"] = "Enable Custom Health Text Position" end
+if not L["Enable custom positioning for health text on all nameplates"] then L["Enable custom positioning for health text on all nameplates"] = "Enable custom positioning for health text on all nameplates" end
+if not L["Horizontal Offset (X)"] then L["Horizontal Offset (X)"] = "Horizontal Offset (X)" end
+if not L["Horizontal offset from center. Negative values move left, positive values move right. Default: 0"] then L["Horizontal offset from center. Negative values move left, positive values move right. Default: 0"] = "Horizontal offset from center. Negative values move left, positive values move right. Default: 0" end
+if not L["Vertical Offset (Y)"] then L["Vertical Offset (Y)"] = "Vertical Offset (Y)" end
+if not L["Vertical offset from center. Negative values move down, positive values move up. Default: 1"] then L["Vertical offset from center. Negative values move down, positive values move up. Default: 1"] = "Vertical offset from center. Negative values move down, positive values move up. Default: 1" end
+if not L["Reset to Default"] then L["Reset to Default"] = "Reset to Default" end
+if not L["Reset health text position to default values (X: 0, Y: 1)"] then L["Reset health text position to default values (X: 0, Y: 1)"] = "Reset health text position to default values (X: 0, Y: 1)" end
+
+-- Additional missing keys
+if not L["General"] then L["General"] = "General" end
+if not L["Enemy Target"] then L["Enemy Target"] = "Enemy Target" end
+if not L["Configure general nameplate appearance and behavior settings."] then L["Configure general nameplate appearance and behavior settings."] = "Configure general nameplate appearance and behavior settings." end
+if not L["Configure custom Target Border enhancements for enemy units that you have targeted."] then L["Configure custom Target Border enhancements for enemy units that you have targeted."] = "Configure custom Target Border enhancements for enemy units that you have targeted." end
+
+-- Error messages
+if not L["Cannot enable NamePlates Integration:"] then L["Cannot enable NamePlates Integration:"] = "Cannot enable NamePlates Integration:" end
+if not L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] then L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] = "Ascension NamePlates addon is not loaded. Please load it first using the button below." end
