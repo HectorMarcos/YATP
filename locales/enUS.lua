@@ -185,6 +185,10 @@ L["Fire actions on key press (may reduce perceived input lag)."] = true
 L["Pressdown"] = true
 L["Configure when action buttons trigger (on key press vs key release)."] = true
 L["Click Behavior"] = true
+L["Enable Pressdown"] = true
+L["Makes actions trigger on key press instead of key release."] = true
+L["Makes key-bound actions trigger immediately when you press a key down, instead of waiting for key release. This can reduce input lag and make the game feel more responsive."] = true
+L["|cffFFD700Note:|r Requires /reload to fully apply enabling or disabling this feature."] = true
 -- Legacy QuickConfirm exit-related keys removed (scope now only transmog)
 -- Extras / Fixes
 L["Extras"] = true
