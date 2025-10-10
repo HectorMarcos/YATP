@@ -7,9 +7,39 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
 
-## [0.4.2] - 2025-10-09
+- NamePlates: comprehensive integration module for Ascension NamePlates addon providing status monitoring, loading controls, and direct configuration access through YATP's Interface Hub.
+- NamePlates: independent category with tab-based structure replicating the original addon's organization (Status, General, Friendly, Enemy, Personal tabs).
+- NamePlates: Enemy Target tab with specialized options for targeted enemy nameplates including enhanced visibility, custom highlighting, borders, and health display formats.
+- NamePlates: embedded configuration panel with the most commonly used settings directly accessible within YATP interface without needing to open the original addon configuration.
+- NamePlates: real-time option synchronization with the original addon allowing seamless configuration changes that immediately affect the nameplates.
+- NamePlates: adaptive interface that shows configuration tabs only when the addon is loaded and available.
+- NamePlates: YATP-specific enhancements for enemy targets including highlight effects, enhanced borders, and flexible health text formatting.
+
+_No other changes yet._
+
+## [1.0.3] - 2024-XX-XX
+
+### Fixed
+- **Enemy Target Tab**: Removed non-functional custom options that don't exist in the Ascension NamePlates addon
+- **Real Options Only**: Enemy Target tab now only includes Target Scale, the only real target-specific option from the original addon
+- **Documentation**: Updated to accurately reflect available options vs custom implementations
+
+### Changed
+- **Enemy Target Tab**: Simplified to focus on working Target Scale option and information about other available settings
+- **Localization**: Updated Enemy Target tab text to reflect actual functionality
+- **Code Cleanup**: Removed placeholder functions for non-existent features (UpdateTargetHighlight, UpdateTargetBorder, etc.)
+
+### Added
+- **Better Information**: Enemy Target tab now provides clear guidance on where to find other nameplate customization options
+- **Technical Notes**: Added explanation of what target-specific options are actually available in the base addon
+
+### Documentation
+- **ENEMY_TARGET_REAL_OPTIONS.md**: Comprehensive documentation of actual vs non-existent options
+- **Honest Interface**: Tab now provides functional options rather than placeholders that don't work
+
+## [1.0.2] - 2024-XX-XX
 
 ### Added
 
