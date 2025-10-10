@@ -150,6 +150,8 @@ L["Automatically confirms selected transmog confirmation popups and bind-on-pick
 L["Automatically confirms selected confirmation popups (transmog)."] = true
 L["Transmog"] = true
 L["Auto-confirm transmog appearance popups"] = true
+L["AdiBags Refresh Delay"] = true
+L["Delay (in seconds) before refreshing AdiBags after confirming a transmog. AdiBags must be installed and enabled for this to work."] = true
 L["Loot"] = true
 L["Auto-confirm bind-on-pickup loot popups"] = true
 L["Automatically confirm popups that appear when looting bind-on-pickup items from world objects."] = true

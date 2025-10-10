@@ -132,6 +132,8 @@ L["Automatically confirms selected transmog confirmation popups and bind-on-pick
 L["Automatically confirms selected confirmation popups (transmog)."] = "Confirma automáticamente ciertos cuadros de confirmación (transmog)."
 L["Transmog"] = "Transmog"
 L["Auto-confirm transmog appearance popups"] = "Auto-confirmar ventanas de apariencia de transmog"
+L["AdiBags Refresh Delay"] = "Retraso de actualización de AdiBags"
+L["Delay (in seconds) before refreshing AdiBags after confirming a transmog. AdiBags must be installed and enabled for this to work."] = "Retraso (en segundos) antes de actualizar AdiBags después de confirmar un transmog. AdiBags debe estar instalado y habilitado para que esto funcione."
 L["Loot"] = "Botín"
 L["Auto-confirm bind-on-pickup loot popups"] = "Auto-confirmar ventanas de objetos que se vinculan al obtenerlos"
 L["Automatically confirm popups that appear when looting bind-on-pickup items from world objects."] = "Confirma automáticamente las ventanas que aparecen al obtener objetos que se vinculan de objetos del mundo."

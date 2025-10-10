@@ -7,6 +7,10 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+### Added
+
+- **QuickConfirm**: Integrated automatic AdiBags refresh after transmog appearance confirmations for seamless bag organization when collecting appearances.
+
 ### Improved
 
 - **Hotkeys**: Completely redesigned range checking system with per-button independent timers for more accurate and responsive out-of-range detection.
@@ -15,16 +19,20 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 - **Hotkeys**: Optimized color caching system to minimize unnecessary `SetVertexColor` calls, improving performance.
 - **Hotkeys**: Simplified configuration interface by removing unused range display modes, keeping only the full button tinting mode.
 - **Hotkeys**: Range check interval now fixed at 0.2 seconds per button for consistent responsiveness matching game engine tooltip updates.
+- **QuickConfirm**: Optimized retry attempts (3) and retry intervals (0.2s) for better performance and reliability.
+- **QuickConfirm**: Cleaned up code by removing debug messages and translating all comments to English.
 
 ### Changed
 
 - **Hotkeys**: Removed user-adjustable update interval slider in favor of optimal fixed timing.
 - **Hotkeys**: Removed scheduler dependency for range checks, each button now manages its own timer independently.
+- **QuickConfirm**: Hidden advanced configuration options (retry attempts, retry interval, AdiBags refresh delay) from UI while maintaining configurable defaults internally.
 
 ### Fixed
 
 - **Hotkeys**: Fixed range indicator lag that occurred with many active buttons due to batching delays.
 - **Hotkeys**: Resolved delayed range updates when changing targets or switching action bars.
+- **QuickConfirm**: Fixed AdiBags refresh to use proper `SendMessage('AdiBags_FiltersChanged')` API for reliable bag updates.
 
 ## [0.5.0] - 2025-10-10
 

@@ -14,25 +14,21 @@ if not YATP then return end
 
 local Module = YATP:NewModule(ModuleName, "AceConsole-3.0")
 
--- Simple debug print helper
-function Module:Debug(msg)
-    -- Debug messages disabled
-end
-
 -------------------------------------------------
 -- Defaults
 -------------------------------------------------
 Module.defaults = {
     enabled = true,
-    scanInterval = 0.25, -- (legacy) mantenido para compat; ya no se usa como OnUpdate scanner continuo
+    scanInterval = 0.25, -- (legacy) kept for compatibility; no longer used as continuous OnUpdate scanner
     autoTransmog = true,
     autoBopLoot = true, -- auto-confirm bind-on-pickup world loot popups
     -- autoExit removed
     suppressClickSound = false, -- removed feature (kept key for backwards safety, no effect)
     -- debug flag removed (now uses global YATP Extras > Debug Mode)
     minClickGap = 0.3, -- safeguard between automatic clicks
-    retryAttempts = 4,  -- número de reintentos escalonados para confirmar un popup si botón tarda en habilitarse
-    retryStep = 0.15,   -- separación entre reintentos
+    retryAttempts = 3,  -- number of scheduled retry attempts to confirm a popup if button is not yet ready
+    retryStep = 0.2,   -- time between retry attempts
+    adiBagsRefreshDelay = 0.3, -- delay before refreshing AdiBags after transmog (seconds)
 }
 
 -- Hardcoded (lowercase) substrings for detection
@@ -94,7 +90,6 @@ function Module:OnInitialize()
         YATP.db.profile.modules[ModuleName] = CopyTable(self.defaults)
     end
     self.db = YATP.db.profile.modules[ModuleName]
-    -- Removed: autoExit/autoLogout migration (feature deleted)
 
     if YATP.AddModuleOptions then
         YATP:AddModuleOptions(ModuleName, self:BuildOptions(), "QualityOfLife")
@@ -118,16 +113,12 @@ function Module:InstallPopupHook()
         local safeText = type(text) == "string" and text or ""
         local lowerText = safeText:lower()
         
-        if YATP:IsDebug() then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff33ff99YATP:QuickConfirm|r show which=%s text='%s'", tostring(which), (safeText:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))))
-        end
-        
         local needTransmog = false
         if self.db.autoTransmog then
             if which and TRANSMOG_WHICH[which] then
                 needTransmog = true
             else
-                -- intentar detección por fragmentos de texto si se recibió alguno
+                -- Try text fragment detection if any text was received
                 if safeText ~= "" then
                     for _, pat in ipairs(TRANSMOG_SUBSTRINGS) do
                         if lowerText:find(pat, 1, true) then
@@ -144,7 +135,7 @@ function Module:InstallPopupHook()
             if which and BOP_LOOT_WHICH[which] then
                 needBopLoot = true
             else
-                -- intentar detección por fragmentos de texto si se recibió alguno (fallback)
+                -- Try text fragment detection if any text was received (fallback)
                 if safeText ~= "" then
                     for i, pat in ipairs(BOP_LOOT_SUBSTRINGS) do
                         if lowerText:find(pat, 1, true) then -- using literal search like transmog
@@ -176,9 +167,6 @@ function Module:ConfirmByWhich(which, originalText)
             return true
         end
     end
-    if YATP:IsDebug() then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:QuickConfirm|r could not find frame for which="..tostring(which))
-    end
 end
 
 -- Attempt confirmation by matching displayed text exactly
@@ -194,35 +182,30 @@ function Module:ConfirmByText(text, reason)
             end
         end
     end
-    if YATP:IsDebug() then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:QuickConfirm|r text match failed")
-    end
 end
 
 -------------------------------------------------
 -- Scanner (throttled) using OnUpdate on a hidden frame
 -------------------------------------------------
--- Eliminado: scanner continuo sustituido por reintentos programados.
+-- Removed: continuous scanner replaced by scheduled retries.
 function Module:StartScanner() end
 function Module:StopScanner() end
 
 -------------------------------------------------
 -- Core scan logic
 -------------------------------------------------
--- Eliminado: lógica de escaneo continuo
+-- Removed: continuous scanning logic
 function Module:ScanOnce() end
 
--- Programar reintentos escalonados sobre popups detectados
+-- Schedule staggered retries for detected popups
 function Module:SchedulePopupRetries(meta)
     local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
     if not sched then return end
     local baseName = "QuickConfirmPopup:"..(meta.mode or "?")..":"..(meta.which or "-")
     local attempts = 0
-    local maxAttempts = self.db.retryAttempts or 4
-    local step = self.db.retryStep or 0.15
-    if YATP:IsDebug() then
-        self:Debug(string.format("schedule %s retries name=%s max=%d step=%.2f", meta.mode or "unknown", baseName, maxAttempts, step))
-    end
+    local maxAttempts = self.db.retryAttempts or 3
+    local step = self.db.retryStep or 0.2
+    
     sched:AddTask(baseName, step, function()
         attempts = attempts + 1
         local modeEnabled = false
@@ -277,9 +260,6 @@ function Module:SchedulePopupRetries(meta)
         end
         
         if attempts >= maxAttempts then
-            if YATP:IsDebug() then
-                self:Debug((meta.mode or "unknown").." retries exhausted")
-            end
             sched:RemoveTask(baseName)
         end
     end, { spread = 0 })
@@ -312,9 +292,6 @@ function Module:ClickPrimary(popup, reason)
     local name = popup:GetName()
     local button = _G[name.."Button1"] or _G[name.."Button2"] -- try Button2 if Button1 absent/disabled
     if not (button and button:IsShown() and button:IsEnabled()) then
-        if YATP:IsDebug() then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:QuickConfirm|r button not ready ("..(reason or "?")..")")
-        end
         return
     end
 
@@ -323,7 +300,33 @@ function Module:ClickPrimary(popup, reason)
     self.lastClick = now
 
     local ok = pcall(function() button:Click() end)
-    self:Debug(string.format("%s auto-confirm (%s)", ok and "performed" or "failed", reason or "?"))
+    
+    -- Refresh AdiBags after confirming transmog
+    if ok and reason and reason:find("transmog") then
+        self:ScheduleAdiBagsRefresh()
+    end
+end
+
+-------------------------------------------------
+-- AdiBags Refresh Integration
+-------------------------------------------------
+function Module:ScheduleAdiBagsRefresh()
+    local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
+    if not sched then return end
+    
+    local delay = self.db.adiBagsRefreshDelay or 0.3
+    
+    sched:AddTask("QuickConfirm:AdiBagsRefresh", delay, function()
+        -- Verify that AdiBags is loaded
+        local AdiBags = LibStub("AceAddon-3.0"):GetAddon("AdiBags", true)
+        if AdiBags and AdiBags.SendMessage then
+            pcall(function()
+                -- SendMessage triggers AdiBags filtering/update system
+                AdiBags:SendMessage('AdiBags_FiltersChanged')
+            end)
+        end
+        sched:RemoveTask("QuickConfirm:AdiBagsRefresh")
+    end, { spread = 0 })
 end
 
 -------------------------------------------------
@@ -361,11 +364,11 @@ function Module:BuildOptions()
                 desc = L["Automatically confirm popups that appear when looting bind-on-pickup items from world objects."] or "Automatically confirm popups that appear when looting bind-on-pickup items from world objects.", 
                 get=get, set=set },
             -- exit section removed
-            headerOther = { type="header", name = L["Miscellaneous"] or "Miscellaneous", order = 20 },
-            -- suppressClickSound removed; placeholder intentionally omitted
+            -- Advanced options hidden (internal default values only)
             scanInterval = { type="range", hidden=true, order=30, name=L["(Legacy) Scan Interval"] or "(Legacy) Scan Interval", min=0.05, max=0.5, step=0.01, get=get, set=function(i,v) set(i,v) end },
-            retryAttempts = { type="range", order=40, name=L["Retry Attempts"] or "Retry Attempts", desc=L["Number of scheduled retry attempts when a popup appears and the confirm button may not yet be ready."] or "Number of scheduled retry attempts when a popup appears and the confirm button may not yet be ready.", min=1, max=10, step=1, get=get, set=set },
-            retryStep = { type="range", order=41, name=L["Retry Interval"] or "Retry Interval", desc=L["Seconds between retry attempts."] or "Seconds between retry attempts.", min=0.05, max=0.5, step=0.01, get=get, set=set },
+            retryAttempts = { type="range", hidden=true, order=40, name=L["Retry Attempts"] or "Retry Attempts", desc=L["Number of scheduled retry attempts when a popup appears and the confirm button may not yet be ready."] or "Number of scheduled retry attempts when a popup appears and the confirm button may not yet be ready.", min=1, max=10, step=1, get=get, set=set },
+            retryStep = { type="range", hidden=true, order=41, name=L["Retry Interval"] or "Retry Interval", desc=L["Seconds between retry attempts."] or "Seconds between retry attempts.", min=0.05, max=0.5, step=0.01, get=get, set=set },
+            adiBagsRefreshDelay = { type="range", hidden=true, order=42, name=L["AdiBags Refresh Delay"] or "AdiBags Refresh Delay", desc=L["Delay (in seconds) before refreshing AdiBags after confirming a transmog. AdiBags must be installed and enabled for this to work."] or "Delay (in seconds) before refreshing AdiBags after confirming a transmog. AdiBags must be installed and enabled for this to work.", min=0.1, max=1.0, step=0.05, get=get, set=set },
             -- per-module debug toggle removed (uses global Extras > Debug Mode)
         }
     }
