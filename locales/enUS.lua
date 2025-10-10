@@ -342,6 +342,25 @@ L["The NamePlates addon is loaded and configured. Use the tabs above to access d
 L["Load the NamePlates addon to unlock configuration tabs with embedded settings for General, Friendly, Enemy, and Personal nameplates."] = true
 L["Configure general nameplate appearance and behavior settings."] = true
 L["Style"] = true
+
+-- Global Health Bar Texture
+L["Global Health Bar Texture"] = true
+L["Override the health bar texture for ALL nameplates (friendly, enemy, and personal). This ensures consistent texture across all nameplate types, including targets."] = true
+L["Enable Global Health Bar Texture"] = true
+L["Apply the same health bar texture to all nameplate types"] = true
+L["Health Bar Texture"] = true
+L["Texture to use for all health bars"] = true
+
+-- Mouseover Glow Configuration
+L["Mouseover Glow"] = true
+L["Configure the glow effect that appears when you mouse over nameplates. You can disable it entirely or prevent it from appearing on your current target."] = true
+L["Enable Mouseover Glow"] = true
+L["Enable or disable the glow effect when mousing over nameplates"] = true
+L["Disable on Current Target"] = true
+L["Prevent mouseover glow from appearing on your current target (recommended when using Target Glow)"] = true
+L["Glow Intensity"] = true
+L["Controls the intensity/opacity of the mouseover glow effect"] = true
+
 L["These settings control the invisible clickable area of nameplates. This does not affect the visual appearance of health bars."] = true
 L["Configure nameplate settings for friendly units (party members, guild members, etc.)."] = true
 L["Display Options"] = true
@@ -353,11 +372,26 @@ L["Configure your own personal nameplate that appears above your character."] = 
 -- Enemy Target Tab
 L["Enemy Target"] = true
 L["Settings for targeted enemy nameplates"] = true
-L["Configure nameplate settings for enemy units that you have targeted. The primary option here is Target Scale, which is the only target-specific setting available in the NamePlates addon."] = true
+L["Configure nameplate settings for enemy units that you have targeted. This includes the official Target Scale option and custom Target Glow enhancements."] = true
 L["Target Scaling"] = true
 L["Sets the scale of the NamePlate when it is the target. This affects ALL targeted nameplates (friendly and enemy)."] = true
 L["Information"] = true
-L["This is the primary setting for targeted nameplates. It makes the nameplate larger when you target an enemy, helping you identify your current target more easily."] = true
+L["This is the official setting for targeted nameplates from the NamePlates addon. It makes the nameplate larger when you target an enemy."] = true
+
+-- Target Glow System
+L["Target Glow (YATP Custom)"] = true
+L["Enable Target Glow"] = true
+L["Add a glowing effect around the nameplate of your current target for better visibility"] = true
+L["Glow Color"] = true
+L["Color of the target glow effect"] = true
+L["Glow Size"] = true
+L["Size multiplier for the glow effect. Higher values create a larger glow around the nameplate"] = true
+L["Glow Animation"] = true
+L["Animation style for the target glow effect"] = true
+L["Static (No Animation)"] = true
+L["Pulse (Fade In/Out)"] = true
+L["Breathe (Scale In/Out)"] = true
+
 L["Additional Enemy Options"] = true
 L["For more enemy nameplate customization options, visit the"] = true
 L["Enemy"] = true
@@ -368,6 +402,8 @@ L["Cast bar settings"] = true
 L["Level indicators"] = true
 L["Quest objective icons"] = true
 L["All these settings apply to enemy nameplates, including when they are targeted."] = true
-L["Technical Note"] = true
-L["Note about Target-Specific Options"] = true
-L["The Ascension NamePlates addon only provides one target-specific setting: Target Scale. Other visual enhancements for targets would require custom implementation beyond the scope of the base addon."] = true
+
+-- Missing localizations for nameplate tabs
+L["Health Bar"] = true
+L["Show Health Text"] = true
+L["Cast Bar"] = true
