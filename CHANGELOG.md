@@ -7,6 +7,10 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [0.5.0] - 2025-10-10
+
 ### Added
 
 - NamePlates: comprehensive integration module for Ascension NamePlates addon providing status monitoring, loading controls, and direct configuration access through YATP's Interface Hub.
@@ -16,8 +20,6 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 - NamePlates: real-time option synchronization with the original addon allowing seamless configuration changes that immediately affect the nameplates.
 - NamePlates: adaptive interface that shows configuration tabs only when the addon is loaded and available.
 - NamePlates: YATP-specific enhancements for enemy targets including highlight effects, enhanced borders, and flexible health text formatting.
-
-_No other changes yet._
 
 ## [1.0.3] - 2024-XX-XX
 
