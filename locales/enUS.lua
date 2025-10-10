@@ -360,6 +360,8 @@ L["Disable on Current Target"] = true
 L["Prevent mouseover glow from appearing on your current target (recommended when using Target Glow)"] = true
 L["Glow Intensity"] = true
 L["Controls the intensity/opacity of the mouseover glow effect"] = true
+L["Hide Mouseover Border"] = true
+L["Hide the border that appears when mousing over nameplates"] = true
 
 L["These settings control the invisible clickable area of nameplates. This does not affect the visual appearance of health bars."] = true
 L["Configure nameplate settings for friendly units (party members, guild members, etc.)."] = true

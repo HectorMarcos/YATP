@@ -39,6 +39,7 @@ Module.defaults = {
         enabled = true, -- Enable mouseover glow globally
         disableOnTarget = true, -- Disable mouseover glow on current target
         intensity = 0.8, -- Glow intensity (0.1 to 1.0)
+        hideBorder = false, -- Hide mouseover border
     },
     
     -- Enemy Target specific options (legacy - will be cleaned up)
@@ -400,6 +401,15 @@ function Module:UpdateNamePlateSelectionHighlight(unitFrame)
     else
         -- Disable entirely
         unitFrame.selectionHighlight:Hide()
+    end
+    
+    -- Control border visibility
+    if unitFrame.healthBar and unitFrame.healthBar.border then
+        if self.db.profile.mouseoverGlow.hideBorder and isMouseover then
+            unitFrame.healthBar.border:SetAlpha(0)
+        else
+            unitFrame.healthBar.border:SetAlpha(1)
+        end
     end
 end
 
@@ -895,6 +905,18 @@ function Module:BuildGeneralTab()
             end,
             disabled = function() return not self.db.profile.mouseoverGlow.enabled end,
             order = 30,
+        },
+        
+        mouseoverHideBorder = {
+            type = "toggle",
+            name = L["Hide Mouseover Border"] or "Hide Mouseover Border",
+            desc = L["Hide the border that appears when mousing over nameplates"] or "Hide the border that appears when mousing over nameplates",
+            get = function() return self.db.profile.mouseoverGlow.hideBorder end,
+            set = function(_, value) 
+                self.db.profile.mouseoverGlow.hideBorder = value
+                self:UpdateMouseoverGlowSettings()
+            end,
+            order = 31,
         },
         
         spacer4 = { type = "description", name = "\n", order = 35 },
