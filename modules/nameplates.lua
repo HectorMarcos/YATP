@@ -25,6 +25,13 @@ Module.defaults = {
         texture = "Blizzard2", -- Default texture name from SharedMedia
     },
     
+    -- Health Text Positioning
+    healthTextPosition = {
+        enabled = false, -- Enable custom health text positioning
+        offsetX = 0,     -- Horizontal offset from center
+        offsetY = 1,     -- Vertical offset from center (default: 1)
+    },
+    
     -- Mouseover Glow Configuration
     mouseoverGlow = {
         enabled = false, -- Disable mouseover glow globally
@@ -113,6 +120,9 @@ function Module:OnEnable()
     
     -- Apply global health bar texture if enabled
     self:ApplyGlobalHealthBarTexture()
+    
+    -- Setup health text positioning if enabled
+    self:SetupHealthTextPositioning()
 end
 
 -------------------------------------------------
@@ -122,6 +132,7 @@ function Module:OnDisable()
     -- Clean up active functionality but keep module registered
     self:CleanupTargetGlow()
     self:CleanupThreatSystem()
+    self:CleanupHealthTextPositioning()
     
     -- Restore original C_NamePlateManager.UpdateAll if we hooked it
     if self.originalUpdateAll and C_NamePlateManager then
@@ -144,37 +155,6 @@ function Module:OnAddonLoaded(event, addonName)
         C_Timer.After(1.0, function()
             self:SetupThreatSystem()
         end)
-    end
-end
-
-function Module:OnDisable()
-    -- Clean up active functionality but keep module registered
-    self:CleanupTargetGlow()
-    self:CleanupThreatSystem()
-    
-    -- Restore original C_NamePlateManager.UpdateAll if we hooked it
-    if self.originalUpdateAll and C_NamePlateManager then
-        C_NamePlateManager.UpdateAll = self.originalUpdateAll
-        self.originalUpdateAll = nil
-    end
-    
-    -- Stop glow disable timer
-    if self.glowDisableTimer then
-        self.glowDisableTimer:Cancel()
-        self.glowDisableTimer = nil
-    end
-    
-    -- Unregister events but don't unregister from options
-    self:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
-    self:UnregisterEvent("PLAYER_TARGET_CHANGED")
-    
-    -- Hide any active UI elements without destroying settings
-    if self.targetGlowFrames then
-        for nameplate, borderData in pairs(self.targetGlowFrames) do
-            if borderData.borderFrame then
-                borderData.borderFrame:Hide()
-            end
-        end
     end
 end
 
@@ -1033,6 +1013,93 @@ function Module:ApplyGlobalHealthBarTexture()
     self:SetNamePlatesOption("personal", "health", "statusBar", textureName)
 end
 
+-------------------------------------------------
+-- Health Text Positioning System
+-------------------------------------------------
+function Module:SetupHealthTextPositioning()
+    if not self.db.profile.healthTextPosition.enabled then
+        return
+    end
+    
+    -- Register events to apply positioning to nameplates
+    self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnHealthTextNameplateAdded")
+    
+    -- Apply positioning to existing nameplates
+    self:ApplyHealthTextPositionToAll()
+    
+    -- Create a timer to periodically check and apply positioning
+    if not self.healthTextPositionTimer then
+        self.healthTextPositionTimer = C_Timer.NewTicker(1, function()
+            if self.db.profile.healthTextPosition.enabled then
+                self:ApplyHealthTextPositionToAll()
+            end
+        end)
+    end
+end
+
+function Module:CleanupHealthTextPositioning()
+    -- Stop positioning timer
+    if self.healthTextPositionTimer then
+        self.healthTextPositionTimer:Cancel()
+        self.healthTextPositionTimer = nil
+    end
+    
+    -- Reset all nameplate health text positions to default
+    self:ResetHealthTextPositionOnAll()
+end
+
+function Module:OnHealthTextNameplateAdded(event, unit, nameplate)
+    if not self.db.profile.healthTextPosition.enabled then
+        return
+    end
+    
+    self:ApplyHealthTextPosition(nameplate)
+end
+
+function Module:ApplyHealthTextPosition(nameplate)
+    if not nameplate or not nameplate.UnitFrame then
+        return
+    end
+    
+    local unitFrame = nameplate.UnitFrame
+    if not unitFrame.healthBar or not unitFrame.healthBar.Elements or not unitFrame.healthBar.Elements.statusText then
+        return
+    end
+    
+    local statusText = unitFrame.healthBar.Elements.statusText
+    local offsetX = self.db.profile.healthTextPosition.offsetX or 0
+    local offsetY = self.db.profile.healthTextPosition.offsetY or 1
+    
+    -- Clear existing points and set new position
+    statusText:ClearAllPoints()
+    statusText:SetPoint("CENTER", unitFrame.healthBar.Elements, "CENTER", offsetX, offsetY)
+end
+
+function Module:ApplyHealthTextPositionToAll()
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        self:ApplyHealthTextPosition(nameplate)
+    end
+end
+
+function Module:ResetHealthTextPositionOnAll()
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate and nameplate.UnitFrame and nameplate.UnitFrame.healthBar and 
+           nameplate.UnitFrame.healthBar.Elements and nameplate.UnitFrame.healthBar.Elements.statusText then
+            local statusText = nameplate.UnitFrame.healthBar.Elements.statusText
+            statusText:ClearAllPoints()
+            statusText:SetPoint("CENTER", nameplate.UnitFrame.healthBar.Elements, "CENTER", 0, 1)
+        end
+    end
+end
+
+function Module:UpdateHealthTextPosition()
+    if self.db.profile.healthTextPosition.enabled then
+        self:ApplyHealthTextPositionToAll()
+    else
+        self:ResetHealthTextPositionOnAll()
+    end
+end
+
 function Module:IsNamePlatesConfigured()
     return self:GetNamePlatesProfile() ~= nil
 end
@@ -1162,6 +1229,16 @@ function Module:BuildStatusTab()
             get = function() return self.db and self.db.profile and self.db.profile.enabled end,
             set = function(_, value)
                 if self.db and self.db.profile then
+                    -- Check if trying to enable
+                    if value then
+                        -- Verify that Ascension NamePlates is loaded
+                        if not IsAddOnLoaded("Ascension_NamePlates") then
+                            YATP:Print("|cffff0000" .. (L["Cannot enable NamePlates Integration:"] or "Cannot enable NamePlates Integration:") .. "|r " .. (L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] or "Ascension NamePlates addon is not loaded. Please load it first using the button below."))
+                            self.db.profile.enabled = false
+                            return
+                        end
+                    end
+                    
                     self.db.profile.enabled = value
                     if value then
                         -- Re-enable functionality without calling AceAddon Enable
@@ -1170,10 +1247,12 @@ function Module:BuildStatusTab()
                         self:SetupThreatSystem()
                         self:DisableAllNameplateGlows()
                         self:ApplyGlobalHealthBarTexture()
+                        self:SetupHealthTextPositioning()
                     else
                         -- Disable functionality without calling AceAddon Disable
                         self:CleanupTargetGlow()
                         self:CleanupThreatSystem()
+                        self:CleanupHealthTextPositioning()
                         if self.glowDisableTimer then
                             self.glowDisableTimer:Cancel()
                             self.glowDisableTimer = nil
@@ -1329,10 +1408,78 @@ function Module:BuildGeneralTab()
             order = 13,
         },
         
-        spacer3 = { type = "description", name = "\n", order = 15 },
+        spacer2 = { type = "description", name = "\n", order = 15 },
+        
+        -- Health Text Positioning
+        healthTextHeader = { type = "header", name = L["Health Text Positioning"] or "Health Text Positioning", order = 16 },
+        
+        healthTextDesc = {
+            type = "description",
+            name = L["Customize the position of the health text displayed on nameplates. The default position is centered with a 1 pixel offset upward."] or "Customize the position of the health text displayed on nameplates. The default position is centered with a 1 pixel offset upward.",
+            order = 17,
+        },
+        
+        healthTextEnabled = {
+            type = "toggle",
+            name = L["Enable Custom Health Text Position"] or "Enable Custom Health Text Position",
+            desc = L["Enable custom positioning for health text on all nameplates"] or "Enable custom positioning for health text on all nameplates",
+            get = function() return self.db.profile.healthTextPosition.enabled end,
+            set = function(_, value) 
+                self.db.profile.healthTextPosition.enabled = value
+                if value then
+                    self:SetupHealthTextPositioning()
+                else
+                    self:CleanupHealthTextPositioning()
+                end
+            end,
+            order = 18,
+        },
+        
+        healthTextOffsetX = {
+            type = "range",
+            name = L["Horizontal Offset (X)"] or "Horizontal Offset (X)",
+            desc = L["Horizontal offset from center. Negative values move left, positive values move right. Default: 0"] or "Horizontal offset from center. Negative values move left, positive values move right. Default: 0",
+            min = -50, max = 50, step = 1,
+            get = function() return self.db.profile.healthTextPosition.offsetX end,
+            set = function(_, value) 
+                self.db.profile.healthTextPosition.offsetX = value
+                self:UpdateHealthTextPosition()
+            end,
+            disabled = function() return not self.db.profile.healthTextPosition.enabled end,
+            order = 19,
+        },
+        
+        healthTextOffsetY = {
+            type = "range",
+            name = L["Vertical Offset (Y)"] or "Vertical Offset (Y)",
+            desc = L["Vertical offset from center. Negative values move down, positive values move up. Default: 1"] or "Vertical offset from center. Negative values move down, positive values move up. Default: 1",
+            min = -20, max = 20, step = 1,
+            get = function() return self.db.profile.healthTextPosition.offsetY end,
+            set = function(_, value) 
+                self.db.profile.healthTextPosition.offsetY = value
+                self:UpdateHealthTextPosition()
+            end,
+            disabled = function() return not self.db.profile.healthTextPosition.enabled end,
+            order = 20,
+        },
+        
+        healthTextReset = {
+            type = "execute",
+            name = L["Reset to Default"] or "Reset to Default",
+            desc = L["Reset health text position to default values (X: 0, Y: 1)"] or "Reset health text position to default values (X: 0, Y: 1)",
+            func = function()
+                self.db.profile.healthTextPosition.offsetX = 0
+                self.db.profile.healthTextPosition.offsetY = 1
+                self:UpdateHealthTextPosition()
+            end,
+            disabled = function() return not self.db.profile.healthTextPosition.enabled end,
+            order = 21,
+        },
+        
+        spacer3 = { type = "description", name = "\n", order = 25 },
         
         -- Threat System (YATP Custom Feature)
-        threatHeader = { type = "header", name = L["Threat System (YATP Custom)"] or "Threat System (YATP Custom)", order = 20 },
+        threatHeader = { type = "header", name = L["Threat System (YATP Custom)"] or "Threat System (YATP Custom)", order = 30 },
         
         threatEnabled = {
             type = "toggle",
@@ -1347,7 +1494,7 @@ function Module:BuildGeneralTab()
                     self:CleanupThreatSystem()
                 end
             end,
-            order = 21,
+            order = 31,
         },
         
         threatColors = {
@@ -1356,7 +1503,7 @@ function Module:BuildGeneralTab()
             desc = L["Configure colors for different threat levels"] or "Configure colors for different threat levels",
             inline = true,
             disabled = function() return not self.db.profile.threatSystem.enabled end,
-            order = 33,
+            order = 32,
             args = {
                 low = {
                     type = "color",

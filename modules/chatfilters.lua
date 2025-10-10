@@ -83,9 +83,7 @@ local hookRequested = false
 -- Utility: Conditional debug output respecting global debug mode
 --------------------------------------------------
 function Module:Debug(msg)
-    if YATP and YATP.IsDebug and YATP:IsDebug() then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:ChatFilters|r " .. tostring(msg))
-    end
+    -- Debug messages disabled
 end
 
 --------------------------------------------------

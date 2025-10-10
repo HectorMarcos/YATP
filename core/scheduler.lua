@@ -35,11 +35,8 @@ local function EnsureFrame()
         for name, t in pairs(tasks) do
             if t.enabled ~= false and t.nextRun <= now then
                 local started = debugprofilestop and debugprofilestop() or 0
-                local ok, err = pcall(t.func, t.context)
+                pcall(t.func, t.context)
                 local ended = debugprofilestop and debugprofilestop() or 0
-                if not ok and YATP.IsDebug and YATP:IsDebug() then
-                    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:Scheduler|r task '"..name.."' error: "..tostring(err))
-                end
                 -- stats
                 t.lastRun = now
                 t.runCount = (t.runCount or 0) + 1
@@ -165,7 +162,6 @@ end
 SLASH_YATPSCHED1 = "/yatpsched"
 SlashCmdList["YATPSCHED"] = function()
     if not YATP:IsDebug() then
-        print("YATP Scheduler: activa Debug Mode en Extras para ver info.")
         return
     end
     local s = YATP:GetScheduler()

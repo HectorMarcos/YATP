@@ -119,10 +119,6 @@ function YATP:OnInitialize()
 
     -- Comando por chat
     self:RegisterChatCommand("yatp", "ChatCommand")
-
-    if self.db.profile.debug then
-        self:Print("YATP inicializado correctamente.")
-    end
 end
 
 -------------------------------------------------
@@ -134,9 +130,6 @@ function YATP:EnsureCategory() return nil end
 -- OnEnable
 -------------------------------------------------
 function YATP:OnEnable()
-    if self.db and self.db.profile.debug then
-        self:Print("YATP cargado. Usa /yatp para configurar.")
-    end
 end
 
 -------------------------------------------------
@@ -144,34 +137,18 @@ end
 -------------------------------------------------
 function YATP:RegisterModule(name, module)
     if not name or not module then
-    if self.db and self.db.profile.debug then
-        self:Print("Error: invalid module reference.")
-    end
         return
     end
 
     if self.modules[name] then
-    if self.db and self.db.profile.debug then
-        self:Print("Module '" .. name .. "' is already registered.")
-    end
         return
     end
 
     self.modules[name] = module
-    if self.db and self.db.profile.debug then
-        self:Print("Registering module: " .. name)
-    end
 
     if type(module.OnModuleInitialize) == "function" then
-    -- Initialize the module's own state / DB migrations
-        local success, err = pcall(function() module:OnModuleInitialize() end)
-        if self.db and self.db.profile.debug then
-            if not success then
-                self:Print("Error initializing module " .. name .. ": " .. tostring(err))
-            else
-                self:Print("Module " .. name .. " initialized successfully.")
-            end
-        end
+        -- Initialize the module's own state / DB migrations
+        pcall(function() module:OnModuleInitialize() end)
     end
 end
 
@@ -207,21 +184,12 @@ function YATP:AddModuleOptions(name, optionsTable, panel)
     if panel == "QualityOfLife" then
         AceConfigRegistry:NotifyChange("YATP-QualityOfLife")
         self.interfaceHubModules[name] = { panel = "qol" }
-        if self.db and self.db.profile.debug then
-            self:Print(string.format("Module '%s' added to Quality of Life hub", name))
-        end
     elseif panel == "Extras" then
         AceConfigRegistry:NotifyChange("YATP-Extras")
         self.interfaceHubModules[name] = { panel = "extras" }
-        if self.db and self.db.profile.debug then
-            self:Print(string.format("Module '%s' added to Extras hub", name))
-        end
     else
         AceConfigRegistry:NotifyChange("YATP-InterfaceHub")
         self.interfaceHubModules[name] = { panel = "interface" }
-        if self.db and self.db.profile.debug then
-            self:Print(string.format("Module '%s' added to Interface Hub", name))
-        end
     end
 end
 
@@ -331,9 +299,7 @@ end
 
 -- Backwards compat: modules calling YATP:Debug(msg)
 function YATP:Debug(msg)
-    if self:IsDebug() then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:Debug|r "..tostring(msg))
-    end
+    -- Debug messages disabled
 end
 
 -------------------------------------------------

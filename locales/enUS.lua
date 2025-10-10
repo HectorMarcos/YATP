@@ -253,7 +253,7 @@ L["Update Interval"] = true
 L["Base seconds between tint update batches (lower = more responsive, higher = cheaper)."] = true
 
 -- NamePlates Module
-L["NamePlates"] = true
+L["NamePlates"] = "Ascension NamePlates"
 L["Enable NamePlates Integration"] = true
 L["Enable integration with Ascension NamePlates addon through YATP"] = true
 L["Configure Ascension NamePlates addon integration"] = true
@@ -418,3 +418,19 @@ L["All these settings apply to enemy nameplates, including when they are targete
 L["Health Bar"] = true
 L["Show Health Text"] = true
 L["Cast Bar"] = true
+
+-- Health Text Positioning
+L["Health Text Positioning"] = true
+L["Customize the position of the health text displayed on nameplates. The default position is centered with a 1 pixel offset upward."] = true
+L["Enable Custom Health Text Position"] = true
+L["Enable custom positioning for health text on all nameplates"] = true
+L["Horizontal Offset (X)"] = true
+L["Horizontal offset from center. Negative values move left, positive values move right. Default: 0"] = true
+L["Vertical Offset (Y)"] = true
+L["Vertical offset from center. Negative values move down, positive values move up. Default: 1"] = true
+L["Reset to Default"] = true
+L["Reset health text position to default values (X: 0, Y: 1)"] = true
+
+-- Error messages
+L["Cannot enable NamePlates Integration:"] = true
+L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] = true

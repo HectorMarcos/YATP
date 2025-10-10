@@ -262,12 +262,10 @@ function Module:OnInitialize()
   self:RegisterChatCommand("yatphotkint", function(input)
     local v = tonumber(input)
     if not v then
-      DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:Hotkeys|r Usa /yatphotkint <segundos>. Actual: "..tostring(self.db.interval))
       return
     end
     if v < MIN_INTERVAL then v = MIN_INTERVAL elseif v > MAX_INTERVAL then v = MAX_INTERVAL end
     self.db.interval = v
-    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:Hotkeys|r Intervalo ajustado a "..string.format("%.2f", v))
   end)
 end
 
