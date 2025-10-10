@@ -36,10 +36,10 @@ Module.defaults = {
     
     -- Mouseover Glow Configuration
     mouseoverGlow = {
-        enabled = true, -- Enable mouseover glow globally
+        enabled = false, -- Disable mouseover glow globally
         disableOnTarget = true, -- Disable mouseover glow on current target
         intensity = 0.8, -- Glow intensity (0.1 to 1.0)
-        hideBorder = false, -- Hide mouseover border
+        hideBorder = true, -- Hide mouseover border
     },
     
     -- Enemy Target specific options (legacy - will be cleaned up)
@@ -49,12 +49,11 @@ Module.defaults = {
     alwaysShowTargetHealth = false,
     targetHealthFormat = "inherit",
     
-    -- Target Glow System
+    -- Target Border System
     targetGlow = {
         enabled = true,
         color = {1, 1, 0, 0.6}, -- Yellow with 60% opacity
-        size = 1.2, -- 20% larger than nameplate
-        animation = "pulse", -- "static", "pulse", "breathe"
+        size = 2, -- Border thickness in pixels
     },
 }
 
@@ -97,6 +96,7 @@ function Module:OnEnable()
     self:CheckNamePlatesAddon()
     self:SetupTargetGlow()
     self:SetupMouseoverGlow()
+    self:DisableAllNameplateGlows()
     
     -- Apply global health bar texture if enabled
     self:ApplyGlobalHealthBarTexture()
@@ -107,37 +107,42 @@ end
 -------------------------------------------------
 function Module:OnDisable()
     self:CleanupTargetGlow()
+    
+    -- Stop glow disable timer
+    if self.glowDisableTimer then
+        self.glowDisableTimer:Cancel()
+        self.glowDisableTimer = nil
+    end
+    
+    -- Unregister glow disable events
+    self:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
+    self:UnregisterEvent("PLAYER_TARGET_CHANGED")
+    
     self:Debug("NamePlates module disabled")
 end
 
 -------------------------------------------------
--- Target Glow System
+-- Target Border System
 -------------------------------------------------
 function Module:SetupTargetGlow()
     if not self.db.profile.enabled then return end
     
-    -- Initialize target glow data
+    -- Initialize target border data
     self.targetGlowFrames = {}
     self.currentTargetFrame = nil
     
-    -- Register events for target glow
+    -- Register events for target border
     self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnTargetChanged")
     self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateAdded") 
     self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateRemoved")
     
-    self:Debug("Target glow system initialized")
+    self:Debug("Target border system initialized")
 end
 
 function Module:CleanupTargetGlow()
-    -- Stop animation frame
-    if self.animationFrame then
-        self.animationFrame:Hide()
-        self.animationFrame:SetScript("OnUpdate", nil)
-    end
-    
-    -- Remove all existing glows
+    -- Remove all existing borders
     if self.targetGlowFrames then
-        for nameplate, glowData in pairs(self.targetGlowFrames) do
+        for nameplate, borderData in pairs(self.targetGlowFrames) do
             self:RemoveTargetGlow(nameplate)
         end
         self.targetGlowFrames = {}
@@ -150,7 +155,7 @@ function Module:CleanupTargetGlow()
     self:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
     self:UnregisterEvent("NAME_PLATE_UNIT_REMOVED")
     
-    self:Debug("Target glow system cleaned up")
+    self:Debug("Target border system cleaned up")
 end
 
 function Module:OnTargetChanged()
@@ -177,7 +182,7 @@ function Module:OnTargetChanged()
         end
     end
     
-    self:Debug("Target changed - glow updated")
+    self:Debug("Target changed - border updated")
 end
 
 function Module:OnNamePlateAdded(unit, nameplate)
@@ -205,7 +210,7 @@ end
 function Module:AddTargetGlow(nameplate)
     if not nameplate or not nameplate.UnitFrame then return end
     
-    -- Don't add glow if already exists
+    -- Don't add border if already exists
     if self.targetGlowFrames and self.targetGlowFrames[nameplate] then
         return
     end
@@ -213,61 +218,58 @@ function Module:AddTargetGlow(nameplate)
     local healthBar = nameplate.UnitFrame.healthBar
     if not healthBar then return end
     
-    -- Create glow texture
-    local glow = nameplate:CreateTexture(nil, "BACKGROUND")
-    glow:SetTexture("Interface\\SpellActivationOverlay\\IconAlert")
+    -- Create border frame
+    local borderFrame = CreateFrame("Frame", nil, nameplate)
+    borderFrame:SetFrameLevel(healthBar:GetFrameLevel() + 1)
     
-    -- Position and size the glow
-    local glowSize = self.db.profile.targetGlow.size or 1.2
-    local width, height = healthBar:GetSize()
-    glow:SetSize(width * glowSize, height * glowSize)
-    glow:SetPoint("CENTER", healthBar, "CENTER")
+    -- Create border textures (4 sides)
+    local borderThickness = self.db.profile.targetGlow.size or 2
+    local borderColor = self.db.profile.targetGlow.color or {1, 1, 0, 0.8}
     
-    -- Set glow appearance
-    glow:SetBlendMode("ADD")
-    local color = self.db.profile.targetGlow.color or {1, 1, 0, 0.6}
-    glow:SetVertexColor(color[1], color[2], color[3], color[4])
+    -- Top border
+    local topBorder = borderFrame:CreateTexture(nil, "OVERLAY")
+    topBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+    topBorder:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderThickness, borderThickness)
+    topBorder:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderThickness, borderThickness)
+    topBorder:SetHeight(borderThickness)
     
-    -- Create animation if enabled (simplified for WoW 3.3.0 compatibility)
-    local animGroup = nil
-    local animation = self.db.profile.targetGlow.animation or "static"
-    if animation ~= "static" then
-        -- For WoW 3.3.0, we'll use a simpler approach with frame updates
-        -- Store animation info for manual handling
-        if not self.targetGlowFrames then
-            self.targetGlowFrames = {}
-        end
-        self.targetGlowFrames[nameplate] = {
-            glow = glow,
-            animType = animation,
-            animTime = 0,
-            baseAlpha = color[4],
-            baseSize = glowSize
-        }
-        
-        -- Start animation timer if not already running
-        if not self.animationTimer then
-            -- Use a simple frame-based timer for WoW 3.3.0 compatibility
-            if not self.animationFrame then
-                self.animationFrame = CreateFrame("Frame")
-                self.animationFrame:SetScript("OnUpdate", function(frame, elapsed)
-                    self:UpdateGlowAnimations()
-                end)
-            end
-            self.animationFrame:Show()
-        end
-    else
-        -- Store glow data without animation
-        if not self.targetGlowFrames then
-            self.targetGlowFrames = {}
-        end
-        self.targetGlowFrames[nameplate] = {
-            glow = glow,
-            animType = "static"
-        }
+    -- Bottom border
+    local bottomBorder = borderFrame:CreateTexture(nil, "OVERLAY")
+    bottomBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+    bottomBorder:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderThickness, -borderThickness)
+    bottomBorder:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderThickness, -borderThickness)
+    bottomBorder:SetHeight(borderThickness)
+    
+    -- Left border
+    local leftBorder = borderFrame:CreateTexture(nil, "OVERLAY")
+    leftBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+    leftBorder:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderThickness, borderThickness)
+    leftBorder:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderThickness, -borderThickness)
+    leftBorder:SetWidth(borderThickness)
+    
+    -- Right border
+    local rightBorder = borderFrame:CreateTexture(nil, "OVERLAY")
+    rightBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+    rightBorder:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderThickness, borderThickness)
+    rightBorder:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderThickness, -borderThickness)
+    rightBorder:SetWidth(borderThickness)
+    
+    -- Store border data (always static)
+    if not self.targetGlowFrames then
+        self.targetGlowFrames = {}
     end
     
-    self:Debug("Target glow added to nameplate")
+    self.targetGlowFrames[nameplate] = {
+        borderFrame = borderFrame,
+        borders = {
+            top = topBorder,
+            bottom = bottomBorder,
+            left = leftBorder,
+            right = rightBorder
+        }
+    }
+    
+    self:Debug("Target border added to nameplate")
 end
 
 function Module:RemoveTargetGlow(nameplate)
@@ -275,76 +277,34 @@ function Module:RemoveTargetGlow(nameplate)
         return
     end
     
-    local glowData = self.targetGlowFrames[nameplate]
+    local borderData = self.targetGlowFrames[nameplate]
     
-    -- Stop animation
-    if glowData.animGroup then
-        glowData.animGroup:Stop()
-    end
-    
-    -- Remove glow texture safely
-    if glowData.glow then
-        glowData.glow:Hide()
-        -- Don't set parent to nil, just hide it
-        -- The texture will be garbage collected when nameplate is destroyed
+    -- Remove border frame and all its textures
+    if borderData.borderFrame then
+        borderData.borderFrame:Hide()
+        -- The textures will be cleaned up with the frame
     end
     
     -- Remove from tracking
     self.targetGlowFrames[nameplate] = nil
     
-    -- Stop animation timer if no more glows
-    if self.animationFrame and not next(self.targetGlowFrames) then
-        self.animationFrame:Hide()
-    end
-    
-    self:Debug("Target glow removed from nameplate")
-end
-
-function Module:UpdateGlowAnimations()
-    if not self.targetGlowFrames then return end
-    
-    for nameplate, glowData in pairs(self.targetGlowFrames) do
-        if glowData.animType and glowData.animType ~= "static" and glowData.glow then
-            glowData.animTime = (glowData.animTime or 0) + 0.05
-            
-            if glowData.animType == "pulse" then
-                -- Pulse animation: fade alpha in and out
-                local cycle = math.sin(glowData.animTime * 2) * 0.3 + 0.7 -- 0.4 to 1.0
-                local newAlpha = glowData.baseAlpha * cycle
-                glowData.glow:SetVertexColor(
-                    self.db.profile.targetGlow.color[1],
-                    self.db.profile.targetGlow.color[2], 
-                    self.db.profile.targetGlow.color[3],
-                    newAlpha
-                )
-            elseif glowData.animType == "breathe" then
-                -- Breathe animation: scale size in and out
-                local cycle = math.sin(glowData.animTime * 1.5) * 0.1 + 1.0 -- 0.9 to 1.1
-                local newSize = glowData.baseSize * cycle
-                local healthBar = nameplate.UnitFrame and nameplate.UnitFrame.healthBar
-                if healthBar then
-                    local width, height = healthBar:GetSize()
-                    glowData.glow:SetSize(width * newSize, height * newSize)
-                end
-            end
-        end
-    end
+    self:Debug("Target border removed from nameplate")
 end
 
 function Module:UpdateAllTargetGlows()
-    -- Remove all existing glows
+    -- Remove all existing borders
     if self.targetGlowFrames then
-        for nameplate, glowData in pairs(self.targetGlowFrames) do
+        for nameplate, borderData in pairs(self.targetGlowFrames) do
             self:RemoveTargetGlow(nameplate)
         end
     end
     
-    -- Re-add glow to current target if enabled
+    -- Re-add border to current target if enabled
     if self.db.profile.targetGlow.enabled and UnitExists("target") then
         self:OnTargetChanged()
     end
     
-    self:Debug("All target glows updated")
+    self:Debug("All target borders updated")
 end
 
 -------------------------------------------------
@@ -422,6 +382,75 @@ function Module:UpdateMouseoverGlowSettings()
     -- Update all nameplate selection highlights immediately
     self:OnMouseoverUpdate()
     self:Debug("Mouseover glow settings updated")
+end
+
+-------------------------------------------------
+-- Disable All Nameplate Glows
+-------------------------------------------------
+
+function Module:DisableAllNameplateGlows()
+    -- Register events to continuously disable glows on all nameplates
+    self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateGlowDisable")
+    self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnNamePlateGlowDisable")
+    
+    -- Disable glows on existing nameplates
+    self:DisableGlowsOnAllNameplates()
+    
+    -- Create a timer to periodically disable glows (in case they get re-enabled)
+    if not self.glowDisableTimer then
+        self.glowDisableTimer = C_Timer.NewTicker(2, function()
+            self:DisableGlowsOnAllNameplates()
+        end)
+    end
+    
+    self:Debug("All nameplate glows disabled with periodic refresh")
+end
+
+function Module:OnNamePlateGlowDisable()
+    -- Disable glows whenever nameplates are added or target changes
+    self:DisableGlowsOnAllNameplates()
+end
+
+function Module:DisableGlowsOnAllNameplates()
+    -- Iterate through all active nameplates and disable glow effects
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame then
+            self:DisableNameplateGlow(nameplate.UnitFrame)
+        end
+    end
+end
+
+function Module:DisableNameplateGlow(unitFrame)
+    if not unitFrame then return end
+    
+    -- Disable selection highlight (mouseover glow)
+    if unitFrame.selectionHighlight then
+        unitFrame.selectionHighlight:SetAlpha(0)
+        unitFrame.selectionHighlight:Hide()
+    end
+    
+    -- Disable aggro highlight
+    if unitFrame.aggroHighlight then
+        unitFrame.aggroHighlight:SetAlpha(0)
+        unitFrame.aggroHighlight:Hide()
+    end
+    
+    -- Disable any other glow effects that might exist
+    if unitFrame.healthBar then
+        local healthBar = unitFrame.healthBar
+        
+        -- Check for any glow textures attached to health bar
+        if healthBar.glow then
+            healthBar.glow:SetAlpha(0)
+            healthBar.glow:Hide()
+        end
+        
+        -- Check for threat glow
+        if healthBar.threatGlow then
+            healthBar.threatGlow:SetAlpha(0)
+            healthBar.threatGlow:Hide()
+        end
+    end
 end
 
 -------------------------------------------------
@@ -859,66 +888,6 @@ function Module:BuildGeneralTab()
         
         spacer3 = { type = "description", name = "\n", order = 25 },
         
-        -- Mouseover Glow Configuration
-        mouseoverHeader = { type = "header", name = L["Mouseover Glow"] or "Mouseover Glow", order = 26 },
-        
-        mouseoverDesc = {
-            type = "description",
-            name = L["Configure the glow effect that appears when you mouse over nameplates. You can disable it entirely or prevent it from appearing on your current target."] or "Configure the glow effect that appears when you mouse over nameplates. You can disable it entirely or prevent it from appearing on your current target.",
-            order = 27,
-        },
-        
-        mouseoverEnabled = {
-            type = "toggle",
-            name = L["Enable Mouseover Glow"] or "Enable Mouseover Glow",
-            desc = L["Enable or disable the glow effect when mousing over nameplates"] or "Enable or disable the glow effect when mousing over nameplates",
-            get = function() return self.db.profile.mouseoverGlow.enabled end,
-            set = function(_, value) 
-                self.db.profile.mouseoverGlow.enabled = value
-                self:UpdateMouseoverGlowSettings()
-            end,
-            order = 28,
-        },
-        
-        mouseoverDisableOnTarget = {
-            type = "toggle",
-            name = L["Disable on Current Target"] or "Disable on Current Target",
-            desc = L["Prevent mouseover glow from appearing on your current target (recommended when using Target Glow)"] or "Prevent mouseover glow from appearing on your current target (recommended when using Target Glow)",
-            get = function() return self.db.profile.mouseoverGlow.disableOnTarget end,
-            set = function(_, value) 
-                self.db.profile.mouseoverGlow.disableOnTarget = value
-                self:UpdateMouseoverGlowSettings()
-            end,
-            disabled = function() return not self.db.profile.mouseoverGlow.enabled end,
-            order = 29,
-        },
-        
-        mouseoverIntensity = {
-            type = "range",
-            name = L["Glow Intensity"] or "Glow Intensity",
-            desc = L["Controls the intensity/opacity of the mouseover glow effect"] or "Controls the intensity/opacity of the mouseover glow effect",
-            min = 0.1, max = 1.0, step = 0.1,
-            get = function() return self.db.profile.mouseoverGlow.intensity end,
-            set = function(_, value) 
-                self.db.profile.mouseoverGlow.intensity = value
-                self:UpdateMouseoverGlowSettings()
-            end,
-            disabled = function() return not self.db.profile.mouseoverGlow.enabled end,
-            order = 30,
-        },
-        
-        mouseoverHideBorder = {
-            type = "toggle",
-            name = L["Hide Mouseover Border"] or "Hide Mouseover Border",
-            desc = L["Hide the border that appears when mousing over nameplates"] or "Hide the border that appears when mousing over nameplates",
-            get = function() return self.db.profile.mouseoverGlow.hideBorder end,
-            set = function(_, value) 
-                self.db.profile.mouseoverGlow.hideBorder = value
-                self:UpdateMouseoverGlowSettings()
-            end,
-            order = 31,
-        },
-        
         spacer4 = { type = "description", name = "\n", order = 35 },
         
         -- Clickable area settings
@@ -1132,7 +1101,7 @@ function Module:BuildEnemyTargetTab()
     return {
         desc = {
             type = "description",
-            name = L["Configure nameplate settings for enemy units that you have targeted. This includes the official Target Scale option and custom Target Glow enhancements."] or "Configure nameplate settings for enemy units that you have targeted. This includes the official Target Scale option and custom Target Glow enhancements.",
+            name = L["Configure nameplate settings for enemy units that you have targeted. This includes the official Target Scale option and custom Target Border enhancements."] or "Configure nameplate settings for enemy units that you have targeted. This includes the official Target Scale option and custom Target Border enhancements.",
             order = 1,
         },
         
@@ -1160,13 +1129,13 @@ function Module:BuildEnemyTargetTab()
         
         spacer2 = { type = "description", name = "\n", order = 15 },
         
-        -- Target Glow System (YATP Custom Feature)
-        targetGlowHeader = { type = "header", name = L["Target Glow (YATP Custom)"] or "Target Glow (YATP Custom)", order = 20 },
+        -- Target Border System (YATP Custom Feature)
+        targetGlowHeader = { type = "header", name = L["Target Border (YATP Custom)"] or "Target Border (YATP Custom)", order = 20 },
         
         targetGlowEnabled = {
             type = "toggle",
-            name = L["Enable Target Glow"] or "Enable Target Glow",
-            desc = L["Add a glowing effect around the nameplate of your current target for better visibility"] or "Add a glowing effect around the nameplate of your current target for better visibility",
+            name = L["Enable Target Border"] or "Enable Target Border",
+            desc = L["Add a colored border around the nameplate of your current target for better visibility"] or "Add a colored border around the nameplate of your current target for better visibility",
             get = function() return self.db.profile.targetGlow.enabled end,
             set = function(_, value) 
                 self.db.profile.targetGlow.enabled = value
@@ -1177,8 +1146,8 @@ function Module:BuildEnemyTargetTab()
         
         targetGlowColor = {
             type = "color",
-            name = L["Glow Color"] or "Glow Color",
-            desc = L["Color of the target glow effect"] or "Color of the target glow effect",
+            name = L["Border Color"] or "Border Color",
+            desc = L["Color of the target border effect"] or "Color of the target border effect",
             hasAlpha = true,
             get = function() 
                 local color = self.db.profile.targetGlow.color
@@ -1194,34 +1163,16 @@ function Module:BuildEnemyTargetTab()
         
         targetGlowSize = {
             type = "range",
-            name = L["Glow Size"] or "Glow Size",
-            desc = L["Size multiplier for the glow effect. Higher values create a larger glow around the nameplate"] or "Size multiplier for the glow effect. Higher values create a larger glow around the nameplate",
-            min = 1.0, max = 2.0, step = 0.1,
-            get = function() return self.db.profile.targetGlow.size end,
+            name = L["Border Thickness"] or "Border Thickness",
+            desc = L["Thickness of the border in pixels. Higher values create a thicker border"] or "Thickness of the border in pixels. Higher values create a thicker border",
+            min = 1, max = 5, step = 1,
+            get = function() return self.db.profile.targetGlow.size or 2 end,
             set = function(_, value) 
                 self.db.profile.targetGlow.size = value
                 self:UpdateAllTargetGlows()
             end,
             disabled = function() return not self.db.profile.targetGlow.enabled end,
             order = 23,
-        },
-        
-        targetGlowAnimation = {
-            type = "select",
-            name = L["Glow Animation"] or "Glow Animation",
-            desc = L["Animation style for the target glow effect"] or "Animation style for the target glow effect",
-            values = {
-                ["static"] = L["Static (No Animation)"] or "Static (No Animation)",
-                ["pulse"] = L["Pulse (Fade In/Out)"] or "Pulse (Fade In/Out)",
-                ["breathe"] = L["Breathe (Scale In/Out)"] or "Breathe (Scale In/Out)",
-            },
-            get = function() return self.db.profile.targetGlow.animation end,
-            set = function(_, value) 
-                self.db.profile.targetGlow.animation = value
-                self:UpdateAllTargetGlows()
-            end,
-            disabled = function() return not self.db.profile.targetGlow.enabled end,
-            order = 24,
         },
         
         spacer3 = { type = "description", name = "\n", order = 25 },
