@@ -7,19 +7,10 @@
 local L = LibStub("AceLocale-3.0"):GetLocale("YATP", true) or setmetatable({}, { __index=function(_,k) return k end })
 local YATP = LibStub("AceAddon-3.0"):GetAddon("YATP", true)
 if not YATP then
-    DEFAULT_CHAT_FRAME:AddMessage("|cffff0000YATP not found, aborting nameplates.lua module|r")
     return
 end
 
 local Module = YATP:NewModule("NamePlates", "AceEvent-3.0", "AceConsole-3.0")
-
--------------------------------------------------
--- Debug helper
--------------------------------------------------
-function Module:Debug(msg)
-    if not YATP or not YATP.IsDebug or not YATP:IsDebug() then return end
-    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99YATP:NamePlates|r "..tostring(msg))
-end
 
 -------------------------------------------------
 -- Defaults
@@ -55,6 +46,19 @@ Module.defaults = {
         color = {1, 1, 0, 0.6}, -- Yellow with 60% opacity
         size = 2, -- Border thickness in pixels
     },
+    
+    -- Threat System
+    threatSystem = {
+        enabled = true,
+        method = "healthcolor", -- Only use health bar color
+        colors = {
+            none = {0.5, 0.5, 0.5, 1.0},     -- Gray - no threat
+            low = {1.0, 1.0, 0.0, 1.0},      -- Yellow - low threat
+            medium = {1.0, 0.5, 0.0, 1.0},   -- Orange - medium threat  
+            high = {1.0, 0.0, 0.0, 1.0},     -- Red - high threat
+            tanking = {0.5, 0.0, 1.0, 1.0},  -- Purple - you have aggro
+        }
+    },
 }
 
 -------------------------------------------------
@@ -62,13 +66,15 @@ Module.defaults = {
 -------------------------------------------------
 function Module:OnInitialize()
     self.db = YATP.db:RegisterNamespace("NamePlates", { profile = Module.defaults })
-    self:Debug("NamePlates module initialized")
 end
 
 -------------------------------------------------
 -- OnEnable
 -------------------------------------------------
 function Module:OnEnable()
+    -- Register for addon loading events to detect when Ascension NamePlates loads
+    self:RegisterEvent("ADDON_LOADED", "OnAddonLoaded")
+    
     -- Always register the module options so the toggle is available
     -- Register this module as its own category (not under Interface Hub)
     local AceConfig = LibStub("AceConfig-3.0")
@@ -86,25 +92,24 @@ function Module:OnEnable()
         -- Register as a separate category under YATP main panel
         AceConfig:RegisterOptionsTable("YATP-NamePlates", namePlatesOptions)
         AceConfigDialog:AddToBlizOptions("YATP-NamePlates", L["NamePlates"] or "NamePlates", "YATP")
-        
-        self:Debug("NamePlates options registered successfully")
     else
-        self:Debug("Failed to register NamePlates options - AceConfig libraries not found")
+        -- AceConfig not available - silent fallback
     end
-    
-    self:Debug("NamePlates module registered in options")
     
     -- Only initialize functionality if enabled
     if not self.db.profile.enabled then
-        self:Debug("NamePlates module disabled - functionality not loaded")
         return
     end
     
-    self:Debug("NamePlates module enabled and functionality loaded")
-    self:CheckNamePlatesAddon()
     self:SetupTargetGlow()
     self:SetupMouseoverGlow()
     self:DisableAllNameplateGlows()
+    
+    -- Setup everything after a longer delay to ensure all addons are loaded
+    C_Timer.After(2.0, function()
+        self:CheckNamePlatesAddon()
+        self:SetupThreatSystem()
+    end)
     
     -- Apply global health bar texture if enabled
     self:ApplyGlobalHealthBarTexture()
@@ -116,6 +121,42 @@ end
 function Module:OnDisable()
     -- Clean up active functionality but keep module registered
     self:CleanupTargetGlow()
+    self:CleanupThreatSystem()
+    
+    -- Restore original C_NamePlateManager.UpdateAll if we hooked it
+    if self.originalUpdateAll and C_NamePlateManager then
+        C_NamePlateManager.UpdateAll = self.originalUpdateAll
+        self.originalUpdateAll = nil
+    end
+    
+    -- Stop glow disable timer
+    if self.glowDisableTimer then
+        self.glowDisableTimer:Cancel()
+        self.glowDisableTimer = nil
+    end
+    
+    -- Unregister events but don't unregister from options
+end
+
+function Module:OnAddonLoaded(event, addonName)
+    if addonName == "Ascension_NamePlates" then
+        -- Give it a small delay to ensure it's fully initialized
+        C_Timer.After(1.0, function()
+            self:SetupThreatSystem()
+        end)
+    end
+end
+
+function Module:OnDisable()
+    -- Clean up active functionality but keep module registered
+    self:CleanupTargetGlow()
+    self:CleanupThreatSystem()
+    
+    -- Restore original C_NamePlateManager.UpdateAll if we hooked it
+    if self.originalUpdateAll and C_NamePlateManager then
+        C_NamePlateManager.UpdateAll = self.originalUpdateAll
+        self.originalUpdateAll = nil
+    end
     
     -- Stop glow disable timer
     if self.glowDisableTimer then
@@ -135,15 +176,19 @@ function Module:OnDisable()
             end
         end
     end
-    
-    self:Debug("NamePlates module disabled")
 end
 
 -------------------------------------------------
 -- Target Border System
 -------------------------------------------------
 function Module:SetupTargetGlow()
-    if not self.db.profile.enabled then return end
+    if not self.db.profile.enabled then 
+        return 
+    end
+    
+    if not self.db.profile.targetGlow.enabled then
+        return
+    end
     
     -- Initialize target border data
     self.targetGlowFrames = {}
@@ -154,7 +199,10 @@ function Module:SetupTargetGlow()
     self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateAdded") 
     self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateRemoved")
     
-    self:Debug("Target border system initialized")
+    -- Test current target if any
+    if UnitExists("target") then
+        self:OnTargetChanged()
+    end
 end
 
 function Module:CleanupTargetGlow()
@@ -172,8 +220,6 @@ function Module:CleanupTargetGlow()
     self:UnregisterEvent("PLAYER_TARGET_CHANGED")
     self:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
     self:UnregisterEvent("NAME_PLATE_UNIT_REMOVED")
-    
-    self:Debug("Target border system cleaned up")
 end
 
 function Module:OnTargetChanged()
@@ -190,17 +236,18 @@ function Module:OnTargetChanged()
     -- Add glow to new target
     local targetUnit = "target"
     if UnitExists(targetUnit) then
-        -- Find the nameplate for this target
+        local targetName = UnitName(targetUnit) or "Unknown"
+        
+        local found = false
         for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
             if nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, targetUnit) then
                 self:AddTargetGlow(nameplate)
                 self.currentTargetFrame = nameplate
+                found = true
                 break
             end
         end
     end
-    
-    self:Debug("Target changed - border updated")
 end
 
 function Module:OnNamePlateAdded(unit, nameplate)
@@ -226,7 +273,9 @@ function Module:OnNamePlateRemoved(unit, nameplate)
 end
 
 function Module:AddTargetGlow(nameplate)
-    if not nameplate or not nameplate.UnitFrame then return end
+    if not nameplate or not nameplate.UnitFrame then 
+        return 
+    end
     
     -- Don't add border if already exists
     if self.targetGlowFrames and self.targetGlowFrames[nameplate] then
@@ -234,7 +283,9 @@ function Module:AddTargetGlow(nameplate)
     end
     
     local healthBar = nameplate.UnitFrame.healthBar
-    if not healthBar then return end
+    if not healthBar then 
+        return 
+    end
     
     -- Create border frame
     local borderFrame = CreateFrame("Frame", nil, nameplate)
@@ -286,8 +337,6 @@ function Module:AddTargetGlow(nameplate)
             right = rightBorder
         }
     }
-    
-    self:Debug("Target border added to nameplate")
 end
 
 function Module:RemoveTargetGlow(nameplate)
@@ -306,7 +355,7 @@ function Module:RemoveTargetGlow(nameplate)
     -- Remove from tracking
     self.targetGlowFrames[nameplate] = nil
     
-    self:Debug("Target border removed from nameplate")
+    -- Debug removed - too spammy for target border
 end
 
 function Module:UpdateAllTargetGlows()
@@ -321,8 +370,6 @@ function Module:UpdateAllTargetGlows()
     if self.db.profile.targetGlow.enabled and UnitExists("target") then
         self:OnTargetChanged()
     end
-    
-    self:Debug("All target borders updated")
 end
 
 -------------------------------------------------
@@ -333,17 +380,25 @@ function Module:SetupMouseoverGlow()
     
     -- Hook into nameplate creation to control selectionHighlight
     self:SetupSelectionHighlightHooks()
-    
-    self:Debug("Mouseover glow system initialized")
 end
 
 function Module:SetupSelectionHighlightHooks()
     -- Hook nameplate updates to control selectionHighlight
     self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnMouseoverUpdate")
     
-    -- Hook into nameplate frame updates
+    -- Hook into nameplate frame updates (use global hook instead of SecureHook)
     if C_NamePlateManager then
-        self:SecureHook(C_NamePlateManager, "UpdateAll", "OnNamePlateUpdate")
+        -- Store original function for cleanup
+        if not self.originalUpdateAll and C_NamePlateManager.UpdateAll then
+            self.originalUpdateAll = C_NamePlateManager.UpdateAll
+            
+            -- Replace with hooked version
+            C_NamePlateManager.UpdateAll = function(...)
+                local result = self.originalUpdateAll(...)
+                self:OnNamePlateUpdate()
+                return result
+            end
+        end
     end
 end
 
@@ -399,7 +454,6 @@ end
 function Module:UpdateMouseoverGlowSettings()
     -- Update all nameplate selection highlights immediately
     self:OnMouseoverUpdate()
-    self:Debug("Mouseover glow settings updated")
 end
 
 -------------------------------------------------
@@ -424,8 +478,6 @@ function Module:DisableAllNameplateGlows()
             end
         end)
     end
-    
-    self:Debug("All nameplate glows disabled with periodic refresh")
 end
 
 function Module:OnNamePlateGlowDisable()
@@ -476,6 +528,363 @@ function Module:DisableNameplateGlow(unitFrame)
 end
 
 -------------------------------------------------
+-- Threat System
+-------------------------------------------------
+
+function Module:SetupThreatSystem()
+    -- Check if Ascension NamePlates is available first
+    if not self:CheckNamePlatesAddon() then
+        return
+    end
+    
+    if not self.db.profile.enabled then
+        return 
+    end
+    
+    if not self.db.profile.threatSystem or not self.db.profile.threatSystem.enabled then
+        -- Try to initialize config if missing
+        if not self.db.profile.threatSystem then
+            self.db.profile.threatSystem = {
+                enabled = true,
+                method = "healthcolor",
+                colors = {
+                    none = {0.5, 0.5, 0.5, 1.0},
+                    low = {1.0, 1.0, 0.0, 1.0},
+                    medium = {1.0, 0.5, 0.0, 1.0},
+                    high = {1.0, 0.0, 0.0, 1.0},
+                    tanking = {0.5, 0.0, 1.0, 1.0}, -- Purple for tanking
+                }
+            }
+        end
+        
+        if not self.db.profile.threatSystem.enabled then
+            return 
+        end
+    end
+    
+    -- Initialize threat data
+    self.threatData = {}
+    
+    -- Register events for threat detection
+    self:RegisterEvent("UNIT_THREAT_LIST_UPDATE", "OnThreatUpdate")
+    self:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", "OnThreatUpdate") 
+    self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnThreatNameplateAdded")
+    self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnThreatNameplateRemoved")
+    self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnThreatTargetChanged")
+    self:RegisterEvent("UNIT_TARGET", "OnThreatUnitTarget")
+    self:RegisterEvent("PLAYER_REGEN_ENABLED", "OnThreatCombatEnd")
+    self:RegisterEvent("PLAYER_REGEN_DISABLED", "OnThreatCombatStart")
+    
+    -- Create a timer to periodically update threat (fallback)
+    if not self.threatUpdateTimer then
+        self.threatUpdateTimer = C_Timer.NewTicker(1, function()
+            if self.db.profile.threatSystem.enabled then
+                self:UpdateAllThreatIndicators()
+            end
+        end)
+    end
+    
+    -- Update threat for existing nameplates
+    self:UpdateAllThreatIndicators()
+end
+
+function Module:CleanupThreatSystem()
+    -- Stop threat update timer
+    if self.threatUpdateTimer then
+        self.threatUpdateTimer:Cancel()
+        self.threatUpdateTimer = nil
+    end
+    
+    -- Reset all nameplate colors to default
+    if self.threatData then
+        for nameplate, data in pairs(self.threatData) do
+            self:ResetNameplateColors(nameplate)
+        end
+        self.threatData = {}
+    end
+    
+    -- Unregister threat events
+    self:UnregisterEvent("UNIT_THREAT_LIST_UPDATE")
+    self:UnregisterEvent("UNIT_THREAT_SITUATION_UPDATE")
+    self:UnregisterEvent("PLAYER_TARGET_CHANGED")
+    self:UnregisterEvent("UNIT_TARGET")
+    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    self:UnregisterEvent("PLAYER_REGEN_DISABLED")
+end
+
+function Module:OnThreatUpdate(event, unit)
+    if not self.db.profile.threatSystem.enabled then return end
+    
+    -- Update threat for all nameplates when threat changes
+    self:UpdateAllThreatIndicators()
+end
+
+function Module:OnThreatTargetChanged()
+    if not self.db.profile.threatSystem.enabled then return end
+    
+    self:UpdateAllThreatIndicators()
+    
+    -- IMPORTANT: Also call target border system since this event handler is the active one
+    self:OnTargetChanged()
+end
+
+function Module:OnThreatUnitTarget(event, unit)
+    if not self.db.profile.threatSystem.enabled then return end
+    
+    self:UpdateAllThreatIndicators()
+end
+
+function Module:OnThreatCombatStart()
+    if not self.db.profile.threatSystem.enabled then return end
+    
+    self:UpdateAllThreatIndicators()
+end
+
+function Module:OnThreatCombatEnd()
+    if not self.db.profile.threatSystem.enabled then return end
+    
+    self:UpdateAllThreatIndicators()
+end
+
+function Module:OnThreatNameplateAdded(event, unit, nameplate)
+    if not self.db.profile.threatSystem.enabled then return end
+    
+    -- Update threat for the new nameplate
+    self:UpdateNameplateThreat(nameplate, unit)
+end
+
+function Module:OnThreatNameplateRemoved(event, unit, nameplate)
+    -- Clean up threat data for removed nameplate
+    if self.threatData and self.threatData[nameplate] then
+        self.threatData[nameplate] = nil
+    end
+end
+
+function Module:UpdateAllThreatIndicators()
+    if not self.db.profile.threatSystem.enabled then 
+        return 
+    end
+    
+    -- Update threat for all active nameplates
+    local count = 0
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame then
+            count = count + 1
+            self:UpdateNameplateThreat(nameplate, nameplate.UnitFrame.unit)
+        end
+    end
+end
+
+function Module:UpdateNameplateThreat(nameplate, unit)
+    -- Early exit if threat system is not enabled
+    if not self.db.profile.threatSystem or not self.db.profile.threatSystem.enabled then
+        return
+    end
+    
+    if not nameplate or not nameplate.UnitFrame or not unit then 
+        return 
+    end
+    
+    local unitFrame = nameplate.UnitFrame
+    local threatLevel = self:GetThreatLevel(unit)
+    local unitName = UnitName(unit) or "Unknown"
+    
+    -- CRITICAL: Only proceed if there's actual threat
+    -- Don't touch nameplates that have no threat engagement
+    if threatLevel == "none" then
+        -- Don't modify nameplate colors at all - leave them natural
+        return
+    end
+    
+    -- DEBUG: Only log when threat level is significant
+    if threatLevel ~= "none" then
+        -- Threat working - debug removed
+    end
+    
+    -- Store threat data
+    if not self.threatData then
+        self.threatData = {}
+    end
+    self.threatData[nameplate] = {
+        unit = unit,
+        threatLevel = threatLevel,
+        lastUpdate = GetTime()
+    }
+    
+    -- Apply threat coloring - only health bar color
+    self:ApplyThreatToHealthBar(unitFrame, threatLevel)
+end
+
+function Module:GetThreatLevel(unit)
+    if not unit or not UnitExists(unit) then 
+        return "none" 
+    end
+    
+    -- Check if unit is actually attackable
+    if not UnitCanAttack("player", unit) then
+        return "none"
+    end
+    
+    -- CRITICAL: Both player AND unit must be in combat
+    if not UnitAffectingCombat(unit) or not UnitAffectingCombat("player") then
+        return "none"  -- No combat = no threat colors
+    end
+    
+    -- Check for direct engagement
+    local unitTarget = UnitExists(unit .. "target") and UnitName(unit .. "target")
+    local playerName = UnitName("player")
+    local petName = UnitExists("pet") and UnitName("pet")
+    local playerTarget = UnitExists("target") and UnitName("target")
+    local unitName = UnitName(unit)
+    
+    local isTargetingPlayerOrPet = (unitTarget == playerName) or (petName and unitTarget == petName)
+    local isPlayerTargeting = (playerTarget == unitName)
+    
+    -- STRICT: Must have direct engagement, not just "in combat"
+    if not isTargetingPlayerOrPet and not isPlayerTargeting then
+        return "none"  -- In combat but not with us
+    end
+    
+    -- Method 1: Try UnitDetailedThreatSituation (might not work in Ascension)
+    local isTanking, status, threatpct, rawthreatpct, threatvalue = UnitDetailedThreatSituation("player", unit)
+    
+    if isTanking then
+        return "tanking"
+    elseif status then
+        -- WoW threat status: 0=not tanking, 1=higher than tank, 2=insecurely tanking, 3=securely tanking
+        if status >= 2 then
+            return "high"
+        elseif status == 1 then
+            return "medium"
+        else
+            return "low"
+        end
+    elseif threatpct and threatpct > 0 then
+        -- Use threat percentage if available
+        if threatpct >= 80 then
+            return "high"
+        elseif threatpct >= 50 then
+            return "medium"
+        else
+            return "low"
+        end
+    end
+    
+    -- Method 2: Fallback - Check if unit is targeting player (simple aggro check)
+    if unitTarget == playerName then
+        return "tanking"
+    elseif petName and unitTarget == petName then
+        -- Only show low threat if player is actually generating threat on this target
+        -- Don't show colors just because pet is tanking
+        return "none"
+    end
+    
+    -- Method 3: If we reach here and both are in combat, but no direct threat detected
+    return "none"
+end
+
+function Module:ApplyThreatToNameText(unitFrame, threatLevel)
+    if not unitFrame.name then return end
+    
+    local color = self.db.profile.threatSystem.colors[threatLevel]
+    if color then
+        unitFrame.name:SetTextColor(color[1], color[2], color[3], color[4])
+    end
+end
+
+function Module:ApplyThreatToHealthBar(unitFrame, threatLevel)
+    if not unitFrame.healthBar then 
+        return 
+    end
+    
+    local color = self.db.profile.threatSystem.colors[threatLevel]
+    if color then
+        unitFrame.healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+        
+        -- Also try setting the texture color if SetStatusBarColor doesn't work
+        local texture = unitFrame.healthBar:GetStatusBarTexture()
+        if texture then
+            texture:SetVertexColor(color[1], color[2], color[3], color[4])
+        end
+    end
+end
+
+function Module:ResetHealthBarColor(unitFrame)
+    if not unitFrame or not unitFrame.healthBar then
+        return
+    end
+    
+    -- Reset to default nameplate health bar color
+    -- This will restore the original color (usually red for enemies)
+    unitFrame.healthBar:SetStatusBarColor(1, 0, 0, 1) -- Default red for enemies
+    
+    -- Also reset texture color
+    local texture = unitFrame.healthBar:GetStatusBarTexture()
+    if texture then
+        texture:SetVertexColor(1, 0, 0, 1)
+    end
+end
+
+function Module:ApplyThreatToBorder(unitFrame, threatLevel)
+    -- This would create a threat border similar to our target border
+    -- For now, we'll implement it as a colored outline
+    if not unitFrame.healthBar then return end
+    
+    local color = self.db.profile.threatSystem.colors[threatLevel]
+    if not color or threatLevel == "none" then
+        -- Remove threat border if no threat
+        if unitFrame.threatBorder then
+            unitFrame.threatBorder:Hide()
+        end
+        return
+    end
+    
+    -- Create threat border if it doesn't exist
+    if not unitFrame.threatBorder then
+        unitFrame.threatBorder = CreateFrame("Frame", nil, unitFrame)
+        unitFrame.threatBorder:SetFrameLevel(unitFrame.healthBar:GetFrameLevel() - 1)
+        
+        -- Create border background
+        unitFrame.threatBorder.bg = unitFrame.threatBorder:CreateTexture(nil, "BACKGROUND")
+        unitFrame.threatBorder.bg:SetAllPoints(unitFrame.healthBar)
+    end
+    
+    -- Position and color the threat border
+    unitFrame.threatBorder:SetPoint("TOPLEFT", unitFrame.healthBar, "TOPLEFT", -1, 1)
+    unitFrame.threatBorder:SetPoint("BOTTOMRIGHT", unitFrame.healthBar, "BOTTOMRIGHT", 1, -1)
+    unitFrame.threatBorder.bg:SetColorTexture(color[1], color[2], color[3], color[4])
+    unitFrame.threatBorder:Show()
+end
+
+function Module:ResetNameplateColors(nameplate)
+    if not nameplate or not nameplate.UnitFrame then return end
+    
+    local unitFrame = nameplate.UnitFrame
+    
+    -- Reset name color to default
+    if unitFrame.name then
+        -- Let the game handle default name coloring
+        unitFrame.name:SetTextColor(1, 1, 1, 1)
+    end
+    
+    -- Reset health bar color to default  
+    if unitFrame.healthBar then
+        -- Let the game handle default health bar coloring
+        unitFrame.healthBar:SetStatusBarColor(0, 1, 0, 1)
+    end
+    
+    -- Hide threat border
+    if unitFrame.threatBorder then
+        unitFrame.threatBorder:Hide()
+    end
+end
+
+function Module:UpdateThreatSettings()
+    -- Update all threat indicators when settings change
+    self:UpdateAllThreatIndicators()
+end
+
+-------------------------------------------------
 -- Check if Ascension NamePlates addon is available
 -------------------------------------------------
 function Module:CheckNamePlatesAddon()
@@ -483,13 +892,10 @@ function Module:CheckNamePlatesAddon()
     local canLoad = select(4, GetAddOnInfo("Ascension_NamePlates"))
     
     if isLoaded then
-        self:Debug("Ascension NamePlates addon is loaded")
         return true
     elseif canLoad then
-        self:Debug("Ascension NamePlates addon is available but not loaded")
         return false
     else
-        self:Debug("Ascension NamePlates addon is not available")
         return false
     end
 end
@@ -572,8 +978,6 @@ function Module:ApplyGlobalHealthBarTexture()
     self:SetNamePlatesOption("friendly", "health", "statusBar", textureName)
     self:SetNamePlatesOption("enemy", "health", "statusBar", textureName)
     self:SetNamePlatesOption("personal", "health", "statusBar", textureName)
-    
-    self:Debug("Global health bar texture applied: " .. textureName)
 end
 
 function Module:IsNamePlatesConfigured()
@@ -606,7 +1010,6 @@ function Module:LoadNamePlatesAddon()
     if canLoad and not IsAddOnLoaded("Ascension_NamePlates") then
         EnableAddOn("Ascension_NamePlates")
         LoadAddOn("Ascension_NamePlates")
-        self:Debug("Loaded Ascension NamePlates addon")
         return true
     end
     return false
@@ -735,19 +1138,19 @@ function Module:BuildStatusTab()
                         -- Re-enable functionality without calling AceAddon Enable
                         self:SetupTargetGlow()
                         self:SetupMouseoverGlow()
+                        self:SetupThreatSystem()
                         self:DisableAllNameplateGlows()
                         self:ApplyGlobalHealthBarTexture()
-                        self:Debug("NamePlates module functionality enabled")
                     else
                         -- Disable functionality without calling AceAddon Disable
                         self:CleanupTargetGlow()
+                        self:CleanupThreatSystem()
                         if self.glowDisableTimer then
                             self.glowDisableTimer:Cancel()
                             self.glowDisableTimer = nil
                         end
                         self:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
                         self:UnregisterEvent("PLAYER_TARGET_CHANGED")
-                        self:Debug("NamePlates module functionality disabled")
                     end
                 end
             end,
@@ -923,15 +1326,101 @@ function Module:BuildGeneralTab()
         
         spacer3 = { type = "description", name = "\n", order = 25 },
         
-        spacer4 = { type = "description", name = "\n", order = 35 },
+        -- Threat System (YATP Custom Feature)
+        threatHeader = { type = "header", name = L["Threat System (YATP Custom)"] or "Threat System (YATP Custom)", order = 30 },
+        
+        threatEnabled = {
+            type = "toggle",
+            name = L["Enable Threat System"] or "Enable Threat System",
+            desc = L["Color nameplates based on your threat level with that enemy"] or "Color nameplates based on your threat level with that enemy",
+            get = function() return self.db.profile.threatSystem.enabled end,
+            set = function(_, value) 
+                self.db.profile.threatSystem.enabled = value
+                if value then
+                    self:SetupThreatSystem()
+                else
+                    self:CleanupThreatSystem()
+                end
+            end,
+            order = 31,
+        },
+        
+        threatColors = {
+            type = "group",
+            name = L["Threat Colors"] or "Threat Colors",
+            desc = L["Configure colors for different threat levels"] or "Configure colors for different threat levels",
+            inline = true,
+            disabled = function() return not self.db.profile.threatSystem.enabled end,
+            order = 33,
+            args = {
+                low = {
+                    type = "color",
+                    name = L["Low Threat"] or "Low Threat",
+                    desc = L["Color when you have low threat"] or "Color when you have low threat",
+                    get = function() 
+                        local c = self.db.profile.threatSystem.colors.low
+                        return c[1], c[2], c[3], c[4]
+                    end,
+                    set = function(_, r, g, b, a) 
+                        self.db.profile.threatSystem.colors.low = {r, g, b, a}
+                        self:UpdateThreatSettings()
+                    end,
+                    order = 1,
+                },
+                medium = {
+                    type = "color",
+                    name = L["Medium Threat"] or "Medium Threat",
+                    desc = L["Color when you have medium threat"] or "Color when you have medium threat",
+                    get = function() 
+                        local c = self.db.profile.threatSystem.colors.medium
+                        return c[1], c[2], c[3], c[4]
+                    end,
+                    set = function(_, r, g, b, a) 
+                        self.db.profile.threatSystem.colors.medium = {r, g, b, a}
+                        self:UpdateThreatSettings()
+                    end,
+                    order = 2,
+                },
+                high = {
+                    type = "color",
+                    name = L["High Threat"] or "High Threat",
+                    desc = L["Color when you have high threat"] or "Color when you have high threat",
+                    get = function() 
+                        local c = self.db.profile.threatSystem.colors.high
+                        return c[1], c[2], c[3], c[4]
+                    end,
+                    set = function(_, r, g, b, a) 
+                        self.db.profile.threatSystem.colors.high = {r, g, b, a}
+                        self:UpdateThreatSettings()
+                    end,
+                    order = 3,
+                },
+                tanking = {
+                    type = "color",
+                    name = L["Tanking"] or "Tanking",
+                    desc = L["Color when you have aggro"] or "Color when you have aggro",
+                    get = function() 
+                        local c = self.db.profile.threatSystem.colors.tanking
+                        return c[1], c[2], c[3], c[4]
+                    end,
+                    set = function(_, r, g, b, a) 
+                        self.db.profile.threatSystem.colors.tanking = {r, g, b, a}
+                        self:UpdateThreatSettings()
+                    end,
+                    order = 4,
+                },
+            },
+        },
+        
+        spacer4 = { type = "description", name = "\n", order = 34 },
         
         -- Clickable area settings
-        clickableHeader = { type = "header", name = L["Clickable Area"] or "Clickable Area", order = 40 },
+        clickableHeader = { type = "header", name = L["Clickable Area"] or "Clickable Area", order = 35 },
         
         clickableDesc = {
             type = "description",
             name = L["These settings control the invisible clickable area of nameplates. This does not affect the visual appearance of health bars."] or "These settings control the invisible clickable area of nameplates. This does not affect the visual appearance of health bars.",
-            order = 41,
+            order = 36,
         },
         
         clickableWidth = {
@@ -950,7 +1439,7 @@ function Module:BuildGeneralTab()
                     C_NamePlateManager.SetNamePlateSize(value, height)
                 end
             end,
-            order = 42,
+            order = 37,
         },
         
         clickableHeight = {
@@ -969,7 +1458,7 @@ function Module:BuildGeneralTab()
                     C_NamePlateManager.SetNamePlateSize(width, value)
                 end
             end,
-            order = 43,
+            order = 38,
         },
         
         showClickableBox = {
@@ -988,7 +1477,7 @@ function Module:BuildGeneralTab()
                     addon:UpdateAll()
                 end
             end,
-            order = 44,
+            order = 39,
         },
     }
 end

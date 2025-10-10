@@ -41,10 +41,6 @@ function YATP:OnInitialize()
     self.categories = self.categories or {}          -- tablas de opciones por categoría
     self.categoryFrames = self.categoryFrames or {}  -- referencias a frames de InterfaceOptions
 
-    if self.db.profile.debug then
-        self:Print("|cff33ff99YATP|r initializing...")
-    end
-
     local version = GetAddOnMetadata(ADDON_NAME, "Version") or "?"
 
     -- Panel raíz (solo página "About"). Las categorías se registran como sub-panels

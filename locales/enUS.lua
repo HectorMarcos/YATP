@@ -377,18 +377,31 @@ L["Border Color"] = true
 L["Color of the target border effect"] = true
 L["Border Thickness"] = true
 L["Thickness of the border in pixels. Higher values create a thicker border"] = true
-
--- Non-Target Alpha Control
-L["Non-Target Alpha Control"] = true
-L["Control the transparency of non-targeted nameplates when you have a target selected. This helps focus attention on your current target."] = true
-L["Enable Non-Target Alpha"] = true
-L["Reduce the opacity of all nameplates except your current target"] = true
-L["Non-Target Transparency"] = true
-L["Controls how transparent non-target nameplates become. Lower values = more transparent"] = true
-
 L["Static (No Animation)"] = true
 L["Pulse (Fade In/Out)"] = true
 L["Breathe (Scale In/Out)"] = true
+
+-- Threat System
+L["Threat System (YATP Custom)"] = true
+L["Enable Threat System"] = true
+L["Color nameplates based on your threat level with that enemy"] = true
+L["Threat Display Method"] = true
+L["How threat levels are displayed on nameplates"] = true
+L["Name Color"] = true
+L["Health Bar Color"] = true
+L["Border Color"] = true
+L["Threat Colors"] = true
+L["Configure colors for different threat levels"] = true
+L["No Threat"] = true
+L["Color when you have no threat"] = true
+L["Low Threat"] = true
+L["Color when you have low threat"] = true
+L["Medium Threat"] = true
+L["Color when you have medium threat"] = true
+L["High Threat"] = true
+L["Color when you have high threat"] = true
+L["Tanking"] = true
+L["Color when you have aggro"] = true
 
 L["Additional Enemy Options"] = true
 L["For more enemy nameplate customization options, visit the"] = true
