@@ -69,13 +69,12 @@ end
 -- OnEnable
 -------------------------------------------------
 function Module:OnEnable()
-    if not self.db.profile.enabled then
-        self:Debug("NamePlates module disabled")
-        return
-    end
-    
+    -- Always register the module options so the toggle is available
     -- Register this module as its own category (not under Interface Hub)
-    if YATP.AddModuleOptions then
+    local AceConfig = LibStub("AceConfig-3.0")
+    local AceConfigDialog = LibStub("AceConfigDialog-3.0")
+    
+    if AceConfig and AceConfigDialog then
         -- Create the main NamePlates category with childGroups = "tab"
         local namePlatesOptions = {
             type = "group",
@@ -85,14 +84,23 @@ function Module:OnEnable()
         }
         
         -- Register as a separate category under YATP main panel
-        local AceConfig = LibStub("AceConfig-3.0")
-        local AceConfigDialog = LibStub("AceConfigDialog-3.0")
-        
         AceConfig:RegisterOptionsTable("YATP-NamePlates", namePlatesOptions)
         AceConfigDialog:AddToBlizOptions("YATP-NamePlates", L["NamePlates"] or "NamePlates", "YATP")
+        
+        self:Debug("NamePlates options registered successfully")
+    else
+        self:Debug("Failed to register NamePlates options - AceConfig libraries not found")
     end
     
-    self:Debug("NamePlates module enabled and registered as separate category")
+    self:Debug("NamePlates module registered in options")
+    
+    -- Only initialize functionality if enabled
+    if not self.db.profile.enabled then
+        self:Debug("NamePlates module disabled - functionality not loaded")
+        return
+    end
+    
+    self:Debug("NamePlates module enabled and functionality loaded")
     self:CheckNamePlatesAddon()
     self:SetupTargetGlow()
     self:SetupMouseoverGlow()
@@ -106,6 +114,7 @@ end
 -- OnDisable
 -------------------------------------------------
 function Module:OnDisable()
+    -- Clean up active functionality but keep module registered
     self:CleanupTargetGlow()
     
     -- Stop glow disable timer
@@ -114,9 +123,18 @@ function Module:OnDisable()
         self.glowDisableTimer = nil
     end
     
-    -- Unregister glow disable events
+    -- Unregister events but don't unregister from options
     self:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
     self:UnregisterEvent("PLAYER_TARGET_CHANGED")
+    
+    -- Hide any active UI elements without destroying settings
+    if self.targetGlowFrames then
+        for nameplate, borderData in pairs(self.targetGlowFrames) do
+            if borderData.borderFrame then
+                borderData.borderFrame:Hide()
+            end
+        end
+    end
     
     self:Debug("NamePlates module disabled")
 end
@@ -389,6 +407,8 @@ end
 -------------------------------------------------
 
 function Module:DisableAllNameplateGlows()
+    if not self.db.profile.enabled then return end
+    
     -- Register events to continuously disable glows on all nameplates
     self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateGlowDisable")
     self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnNamePlateGlowDisable")
@@ -399,7 +419,9 @@ function Module:DisableAllNameplateGlows()
     -- Create a timer to periodically disable glows (in case they get re-enabled)
     if not self.glowDisableTimer then
         self.glowDisableTimer = C_Timer.NewTicker(2, function()
-            self:DisableGlowsOnAllNameplates()
+            if self.db.profile.enabled then
+                self:DisableGlowsOnAllNameplates()
+            end
         end)
     end
     
@@ -710,9 +732,22 @@ function Module:BuildStatusTab()
                 if self.db and self.db.profile then
                     self.db.profile.enabled = value
                     if value then
-                        self:Enable()
+                        -- Re-enable functionality without calling AceAddon Enable
+                        self:SetupTargetGlow()
+                        self:SetupMouseoverGlow()
+                        self:DisableAllNameplateGlows()
+                        self:ApplyGlobalHealthBarTexture()
+                        self:Debug("NamePlates module functionality enabled")
                     else
-                        self:Disable()
+                        -- Disable functionality without calling AceAddon Disable
+                        self:CleanupTargetGlow()
+                        if self.glowDisableTimer then
+                            self.glowDisableTimer:Cancel()
+                            self.glowDisableTimer = nil
+                        end
+                        self:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
+                        self:UnregisterEvent("PLAYER_TARGET_CHANGED")
+                        self:Debug("NamePlates module functionality disabled")
                     end
                 end
             end,
