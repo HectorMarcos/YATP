@@ -1,7 +1,7 @@
 --========================================================--
 -- YATP - Hotkeys Module (integrated & adapted from BetterKeybinds)
 -- Provides hotkey font styling + ability icon tint (range/mana/usability)
--- Range checking system replicated from Bartender4
+-- Per-button range checking with independent timers
 -- Note: Click behavior (pressdown) is handled by the separate Pressdown module
 --========================================================--
 
@@ -17,8 +17,8 @@ local Module = YATP:NewModule(ModuleName, "AceConsole-3.0", "AceEvent-3.0")
 -- ========================================================
 -- Constants / Default Config
 -- ========================================================
--- Bartender4 replicated system: each button has its own rangeTimer
-local TOOLTIP_UPDATE_TIME = 0.2 -- interval between range checks (matching Bartender4)
+-- Each button has its own rangeTimer for independent checking
+local TOOLTIP_UPDATE_TIME = 0.2 -- interval between range checks (0.2s default)
 local RANGE_INDICATOR = "•" -- visual indicator when there's no hotkey
 
 local FONTS = {
@@ -54,7 +54,7 @@ Module.defaults = {
   flags = "OUTLINE",
   hotkeyColor = {1,1,1},
   tintEnabled = true,
-  outofrange = "button", -- "none", "button", "hotkey" (matching Bartender4)
+  outofrange = "button", -- full button tinting mode
   colors = {
     range = {0.8,0.1,0.1},
     mana  = {0.5,0.5,1.0},
@@ -110,11 +110,11 @@ function Module:StyleHotkey(button)
 end
 
 -- ========================================================
--- Range Check Logic (Bartender4 Style - Per-Button Timer)
+-- Range Check Logic (Per-Button Timer)
 -- ========================================================
 local activeButtons = {}   -- set of registered buttons
 
--- OnUpdate handler for each button (Bartender4 style)
+-- OnUpdate handler for each button
 local function Button_OnUpdate(self, elapsed)
   local db = Module.db
   if not (db and db.enabled) then return end
@@ -153,7 +153,7 @@ function Module:UpdateUsable(button)
   if not db.tintEnabled then
     desired = db.colors.normal
   else
-    -- Bartender4 logic: range check first, then usability
+    -- Priority: range check first, then usability
     if db.outofrange == "button" and outOfRange then
       desired = db.colors.range
     elseif not isUsable then
@@ -208,7 +208,7 @@ function Module:SetupButton(button)
     activeButtons[button] = true
   end
   
-  -- Setup OnUpdate handler (Bartender4 style)
+  -- Setup OnUpdate handler
   if not button.__YATP_OnUpdateHooked then
     button:SetScript("OnUpdate", Button_OnUpdate)
     button.__YATP_OnUpdateHooked = true
@@ -352,7 +352,7 @@ function Module:BuildOptions()
           set(info,val)
           if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end
         end },
-      desc = { type="description", order=2, fontSize="medium", name = L["Customize action button hotkey fonts and ability icon tint using Bartender4-style range checking system."] or "Customize action button hotkey fonts and ability icon tint using Bartender4-style range checking system." },
+      desc = { type="description", order=2, fontSize="medium", name = L["Customize action button hotkey fonts and ability icon tint. Click behavior is handled by the Pressdown module."] or "Customize action button hotkey fonts and ability icon tint. Click behavior is handled by the Pressdown module." },
       fontGroup = { type="group", order=10, inline=true, name=L["Font"], args = {
         font = { type="select", order=1, name=L["Font Face"], values=fontValues(), get=get, set=set },
         size = { type="range", order=2, name=L["Font Size"], min=8, max=24, step=1, get=get, set=set },
@@ -363,19 +363,10 @@ function Module:BuildOptions()
       }},
       tintGroup = { type="group", order=20, inline=true, name=L["Icon Tint"], args = {
         tintEnabled = { type="toggle", order=1, name=L["Enable Tint"], get=get, set=set },
-        outofrange = { type="select", order=2, name=L["Out of Range Indicator"] or "Out of Range Indicator",
-          desc = L["Configure how the Out of Range indicator displays on buttons (Bartender4 style)."] or "Configure how the Out of Range indicator displays on buttons (Bartender4 style).",
-          values = { 
-            none = L["No Display"] or "No Display", 
-            button = L["Full Button Mode"] or "Full Button Mode", 
-            hotkey = L["Hotkey Mode"] or "Hotkey Mode (Not Yet Implemented)" 
-          },
-          get=get, set=set },
-        spacer1 = { type="description", order=3, name=" " },
-        range = { type="color", order=4, name=L["Out of Range"] or "Out of Range", get=get, set=set },
-        mana = { type="color", order=5, name=L["Not Enough Mana"] or "Not Enough Mana", get=get, set=set },
-        unusable = { type="color", order=6, name=L["Unusable"] or "Unusable", get=get, set=set },
-        normal = { type="color", order=7, name=L["Normal"] or "Normal", get=get, set=set },
+        range = { type="color", order=2, name=L["Out of Range"] or "Out of Range", get=get, set=set },
+        mana = { type="color", order=3, name=L["Not Enough Mana"] or "Not Enough Mana", get=get, set=set },
+        unusable = { type="color", order=4, name=L["Unusable"] or "Unusable", get=get, set=set },
+        normal = { type="color", order=5, name=L["Normal"] or "Normal", get=get, set=set },
       }},
     },
   }

@@ -177,6 +177,7 @@ L["Out of Range Indicator"] = true
 L["Configure how the Out of Range indicator displays on buttons (Bartender4 style)."] = true
 L["No Display"] = true
 L["Full Button Mode"] = true
+L["Hotkey Mode"] = true
 L["Hotkey Mode (Not Yet Implemented)"] = true
 L["Not Enough Mana"] = true
 L["Unusable"] = true
