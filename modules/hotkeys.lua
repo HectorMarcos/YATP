@@ -16,12 +16,9 @@ local Module = YATP:NewModule(ModuleName, "AceConsole-3.0", "AceEvent-3.0")
 -- ========================================================
 -- Constantes / Config por defecto
 -- ========================================================
--- Intervalo base anterior: 0.15. Ahora gestionado vía scheduler central.
-local UPDATE_INTERVAL = 0.15 -- intervalo base (ajustable por usuario)
-local BATCH_SIZE = 18         -- número de botones procesados por tick (round-robin)
-local MIN_INTERVAL = 0.10
-local MAX_INTERVAL = 0.40
--- Burst reactivo eliminado (mantener intervalo uniforme para simplificar y evitar micro picos)
+-- Sistema replicado de Bartender4: cada botón tiene su propio rangeTimer
+local TOOLTIP_UPDATE_TIME = 0.2 -- intervalo entre checks de rango (matching Bartender4)
+local RANGE_INDICATOR = "•" -- indicador visual cuando no hay hotkey
 
 local FONTS = {
   FRIZQT   = { name = "Friz Quadrata", path = "Fonts\\FRIZQT__.TTF" },
@@ -51,12 +48,12 @@ local BUTTON_GROUPS = {
 
 Module.defaults = {
   enabled = true,
-  interval = 0.15, -- user adjustable (default lowered per feedback)
   font = "FRIZQT",
   size = 13,
   flags = "OUTLINE",
   hotkeyColor = {1,1,1},
   tintEnabled = true, -- allow turning icon tinting off
+  outofrange = "button", -- "none", "button", "hotkey" (matching Bartender4)
   colors = {
     range = {0.8,0.1,0.1},
     mana  = {0.5,0.5,1.0},
@@ -112,24 +109,51 @@ function Module:StyleHotkey(button)
 end
 
 -- ========================================================
--- Tint Logic (centralizado)
+-- Range Check Logic (Bartender4 Style - Per-Button Timer)
 -- ========================================================
 local activeButtons = {}   -- set de botones registrados
-local activeList = {}      -- lista indexada para batching
-local activeCount = 0
-local rrIndex = 1          -- índice round-robin
-local scheduled = false    -- marca si la tarea del scheduler ya está añadida
 
-local function UpdateUsable(button, db)
+-- OnUpdate handler para cada botón (estilo Bartender4)
+local function Button_OnUpdate(self, elapsed)
+  local db = Module.db
+  if not (db and db.enabled) then return end
+  
+  -- Range timer check
+  if self.__YATP_rangeTimer then
+    self.__YATP_rangeTimer = self.__YATP_rangeTimer - elapsed
+    if self.__YATP_rangeTimer <= 0 then
+      -- Check range
+      if self.action and HasAction(self.action) and ActionHasRange(self.action) then
+        local valid = IsActionInRange(self.action)
+        self.__YATP_OutOfRange = (valid == 0)
+      else
+        self.__YATP_OutOfRange = false
+      end
+      
+      -- Update usable state
+      Module:UpdateUsable(self)
+      
+      -- Reset timer
+      self.__YATP_rangeTimer = TOOLTIP_UPDATE_TIME
+    end
+  end
+end
+
+-- Actualiza el estado visual del botón (usable/mana/range)
+function Module:UpdateUsable(button)
   local icon = GetButtonIcon(button)
   if not icon or not button.action or not HasAction(button.action) then return end
+  
+  local db = self.db
   local isUsable, notEnoughMana = IsUsableAction(button.action)
   local outOfRange = button.__YATP_OutOfRange
+  
   local desired
   if not db.tintEnabled then
     desired = db.colors.normal
   else
-    if outOfRange then
+    -- Bartender4 logic: range check first, then usability
+    if db.outofrange == "button" and outOfRange then
       desired = db.colors.range
     elseif not isUsable then
       desired = notEnoughMana and db.colors.mana or db.colors.unusable
@@ -137,57 +161,36 @@ local function UpdateUsable(button, db)
       desired = db.colors.normal
     end
   end
+  
+  -- Optimización: solo actualizar si el color cambió
   local last = button.__YATP_LastColor
   if not last or last[1]~=desired[1] or last[2]~=desired[2] or last[3]~=desired[3] then
     if icon:IsVisible() then
       icon:SetVertexColor(desired[1], desired[2], desired[3])
-      button.__YATP_LastColor = desired -- reuse table ref
+      button.__YATP_LastColor = desired
     end
   end
 end
 
--- Ejecuta un lote de botones (batch) y avanza rrIndex.
-local function ProcessBatch()
-  local db = Module.db
-  if not (db and db.enabled) then return end
-  if activeCount == 0 then return end
-  local processed = 0
-  while processed < BATCH_SIZE do
-    if activeCount == 0 then break end
-    if rrIndex > activeCount then rrIndex = 1 end
-    local button = activeList[rrIndex]
-    rrIndex = rrIndex + 1
-    processed = processed + 1
-    if button and activeButtons[button] then
-      if button.action and HasAction(button.action) then
-        if ActionHasRange(button.action) then
-          local inRange = IsActionInRange(button.action)
-          button.__YATP_OutOfRange = (inRange == 0)
-        else
-          button.__YATP_OutOfRange = false
-        end
-        UpdateUsable(button, db)
-      else
-        local icon = GetButtonIcon(button)
-        if icon then icon:SetVertexColor(1,1,1) end
-      end
+-- Inicializa o actualiza el range timer de un botón
+function Module:UpdateRange(button)
+  if not button then return end
+  local db = self.db
+  
+  if db.outofrange == "none" or not button.action or not ActionHasRange(button.action) then
+    -- No necesita range check
+    button.__YATP_rangeTimer = nil
+    button.__YATP_OutOfRange = false
+  else
+    -- Necesita range check - iniciar timer
+    if not button.__YATP_rangeTimer then
+      button.__YATP_rangeTimer = TOOLTIP_UPDATE_TIME
     end
-    if processed >= BATCH_SIZE then break end
   end
-end
-
-local function EnsureScheduled()
-  if scheduled then return end
-  local sched = YATP and YATP.GetScheduler and YATP:GetScheduler()
-  if not sched then return end
-  -- Usamos función de intervalo dinámica para soportar burst y slider
-  sched:AddTask("HotkeysUpdate", function()
-    local db = Module.db
-    local iv = (db and tonumber(db.interval)) or UPDATE_INTERVAL
-    if iv < MIN_INTERVAL then iv = MIN_INTERVAL elseif iv > MAX_INTERVAL then iv = MAX_INTERVAL end
-    return iv
-  end, ProcessBatch, { spread = 0 })
-  scheduled = true
+  
+  self:UpdateUsable(button)
+  -- Forzar actualización inmediata
+  Button_OnUpdate(button, 10)
 end
 
 -- ========================================================
@@ -198,21 +201,26 @@ function Module:SetupButton(button)
   button.__YATP_HK_Setup = true
 
   self:StyleHotkey(button)
+  
+  -- Registrar botón
   if not activeButtons[button] then
     activeButtons[button] = true
-    activeCount = activeCount + 1
-    activeList[activeCount] = button
   end
-  UpdateUsable(button, self.db) -- actualización inmediata inicial
-  EnsureScheduled()
+  
+  -- Setup OnUpdate handler (estilo Bartender4)
+  if not button.__YATP_OnUpdateHooked then
+    button:SetScript("OnUpdate", Button_OnUpdate)
+    button.__YATP_OnUpdateHooked = true
+  end
+  
+  -- Inicializar range check
+  self:UpdateRange(button)
 end
 
 function Module:ForceAll()
-  -- reconstruir listas (útil si barras cambiaron)
+  -- Reconstruir lista de botones
   wipe(activeButtons)
-  wipe(activeList)
-  activeCount = 0
-  rrIndex = 1
+  
   for _, group in ipairs(BUTTON_GROUPS) do
     local prefix, count = group[1], group[2]
     for i=1, count do
@@ -220,26 +228,26 @@ function Module:ForceAll()
       if btn then self:SetupButton(btn) end
     end
   end
-  EnsureScheduled()
 end
 
--- Forzar una actualización completa inmediata (sin esperar batches) útil en burst
--- ImmediateFullRefresh eliminado (ya no necesario sin burst)
-
--- Hooks para que futuros botones ( stance / pet updates ) se integren
+-- ========================================================
+-- Hooks para integración con eventos de Blizzard
+-- ========================================================
 local function HookActionUpdate(btn)
-  if btn then Module:SetupButton(btn) end
+  if btn and btn.__YATP_HK_Setup then
+    Module:UpdateRange(btn)
+  else
+    Module:SetupButton(btn)
+  end
 end
 
--- Hotkey refresh
 local function HookHotkeyUpdate(btn)
   if type(btn)=="table" then Module:StyleHotkey(btn) end
 end
 
--- Usable state change
 local function HookUsableUpdate(btn)
   if btn and btn.__YATP_HK_Setup then
-    UpdateUsable(btn, Module.db)
+    Module:UpdateUsable(btn)
   end
 end
 
@@ -258,33 +266,53 @@ function Module:OnInitialize()
   end
 
   self:RegisterChatCommand("yatphotkeys", function() self:OpenConfig() end)
-  -- Comando rápido para cambiar intervalo: /yatphotkint 0.18
-  self:RegisterChatCommand("yatphotkint", function(input)
-    local v = tonumber(input)
-    if not v then
-      return
-    end
-    if v < MIN_INTERVAL then v = MIN_INTERVAL elseif v > MAX_INTERVAL then v = MAX_INTERVAL end
-    self.db.interval = v
-  end)
 end
 
 function Module:OnEnable()
   if not self.db.enabled then return end
-  EnsureScheduled()
+  
+  -- Hooks de eventos de Blizzard
   hooksecurefunc("ActionButton_Update", HookActionUpdate)
   hooksecurefunc("ActionButton_UpdateHotkeys", HookHotkeyUpdate)
   hooksecurefunc("ActionButton_UpdateUsable", HookUsableUpdate)
+  
+  -- Eventos para reactividad
+  self:RegisterEvent("PLAYER_TARGET_CHANGED", function()
+    for button in pairs(activeButtons) do
+      if button.__YATP_rangeTimer then
+        -- Forzar check inmediato
+        button.__YATP_rangeTimer = 0
+      end
+    end
+  end)
+  
+  self:RegisterEvent("ACTIONBAR_SLOT_CHANGED", function()
+    for button in pairs(activeButtons) do
+      if button then
+        Module:UpdateRange(button)
+      end
+    end
+  end)
+  
+  self:RegisterEvent("UPDATE_BINDINGS", function()
+    self:ForceAll()
+  end)
+  
+  -- Setup inicial
   self:ForceAll()
 end
 
 function Module:OnDisable()
-  -- Limpieza ligera: no desmontamos hooksecurefunc (no se puede), sólo paramos frame
-  -- Detener sólo el estado interno (el scheduler mantiene la tarea, pero inactiva al ver enabled=false)
+  -- Limpiar botones
+  for button in pairs(activeButtons) do
+    if button then
+      button.__YATP_rangeTimer = nil
+      button.__YATP_OutOfRange = false
+      local icon = GetButtonIcon(button)
+      if icon then icon:SetVertexColor(1,1,1) end
+    end
+  end
   wipe(activeButtons)
-  wipe(activeList)
-  activeCount = 0
-  rrIndex = 1
 end
 
 -- ========================================================
@@ -323,7 +351,7 @@ function Module:BuildOptions()
           set(info,val)
           if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end
         end },
-      desc = { type="description", order=2, fontSize="medium", name = L["Customize action button hotkey fonts and ability icon tint. Click behavior is handled by the Pressdown module."] or "Customize action button hotkey fonts and ability icon tint. Click behavior is handled by the Pressdown module." },
+      desc = { type="description", order=2, fontSize="medium", name = L["Customize action button hotkey fonts and ability icon tint using Bartender4-style range checking system."] or "Customize action button hotkey fonts and ability icon tint using Bartender4-style range checking system." },
       fontGroup = { type="group", order=10, inline=true, name=L["Font"], args = {
         font = { type="select", order=1, name=L["Font Face"], values=fontValues(), get=get, set=set },
         size = { type="range", order=2, name=L["Font Size"], min=8, max=24, step=1, get=get, set=set },
@@ -334,25 +362,19 @@ function Module:BuildOptions()
       }},
       tintGroup = { type="group", order=20, inline=true, name=L["Icon Tint"], args = {
         tintEnabled = { type="toggle", order=1, name=L["Enable Tint"], get=get, set=set },
-        range = { type="color", order=2, name=L["Out of Range"], get=get, set=set },
-        mana = { type="color", order=3, name=L["Not Enough Mana"], get=get, set=set },
-        unusable = { type="color", order=4, name=L["Unusable"], get=get, set=set },
-        normal = { type="color", order=5, name=L["Normal"], get=get, set=set },
-        interval = { type="range", order=6, name=L["Update Interval"], desc=L["Base seconds between tint update batches (lower = more responsive, higher = cheaper)."], min=MIN_INTERVAL, max=MAX_INTERVAL, step=0.01, get=get, set=function(info,v)
-          set(info,v)
-          -- Pequeño refresco rápido para que el usuario note el cambio al bajar intervalo
-          for btn in pairs(activeButtons) do
-            if btn and btn.action and HasAction(btn.action) then
-              if ActionHasRange(btn.action) then
-                local inRange = IsActionInRange(btn.action)
-                btn.__YATP_OutOfRange = (inRange == 0)
-              else
-                btn.__YATP_OutOfRange = false
-              end
-              UpdateUsable(btn, self.db)
-            end
-          end
-        end },
+        outofrange = { type="select", order=2, name=L["Out of Range Indicator"] or "Out of Range Indicator",
+          desc = L["Configure how the Out of Range indicator displays on buttons (Bartender4 style)."] or "Configure how the Out of Range indicator displays on buttons (Bartender4 style).",
+          values = { 
+            none = L["No Display"] or "No Display", 
+            button = L["Full Button Mode"] or "Full Button Mode", 
+            hotkey = L["Hotkey Mode"] or "Hotkey Mode (Not Yet Implemented)" 
+          },
+          get=get, set=set },
+        spacer1 = { type="description", order=3, name=" " },
+        range = { type="color", order=4, name=L["Out of Range"] or "Out of Range", get=get, set=set },
+        mana = { type="color", order=5, name=L["Not Enough Mana"] or "Not Enough Mana", get=get, set=set },
+        unusable = { type="color", order=6, name=L["Unusable"] or "Unusable", get=get, set=set },
+        normal = { type="color", order=7, name=L["Normal"] or "Normal", get=get, set=set },
       }},
     },
   }
