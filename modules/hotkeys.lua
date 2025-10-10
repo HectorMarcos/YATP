@@ -1,6 +1,7 @@
 --========================================================--
 -- YATP - Hotkeys Module (integrated & adapted from BetterKeybinds)
 -- Provides hotkey font styling + ability icon tint (range/mana/usability)
+-- Note: Click behavior (pressdown) is handled by the separate Pressdown module
 --========================================================--
 
 local ADDON = "YATP"
@@ -48,27 +49,6 @@ local BUTTON_GROUPS = {
   { "ShapeshiftButton", 10 },
 }
 
--- Cache for button -> primary binding (updated on demand)
-local buttonBindings = {}
-
--- Helper: get the first binding key for an action button id (e.g. "ACTIONBUTTON1")
-local function GetPrimaryBindingForButton(button)
-  if not button or not button.GetName then return nil end
-  local name = button:GetName()
-  if not name then return nil end
-  -- Normalize some standard prefixes -> binding names used by Blizzard
-  -- Most default bars use ActionButtonX (1..12)
-  local id = button.action or (button.GetID and button:GetID())
-  if id then
-    -- For primary action bar 1..12
-    local binding = GetBindingKey("ACTIONBUTTON"..id)
-    if binding then return binding end
-  end
-  -- Fallback: try name directly (rare cases)
-  local binding = GetBindingKey(name:upper())
-  return binding
-end
-
 Module.defaults = {
   enabled = true,
   interval = 0.15, -- user adjustable (default lowered per feedback)
@@ -83,8 +63,6 @@ Module.defaults = {
     unusable = {0.4,0.4,0.4},
     normal = {1,1,1},
   },
-  anyDown = false, -- toggle para RegisterForClicks("AnyDown")
-  keyboardOnly = true, -- requested: limit AnyDown to keys only (heuristic, see comments)
 }
 
 -- ========================================================
@@ -219,31 +197,6 @@ function Module:SetupButton(button)
   if not button or button.__YATP_HK_Setup then return end
   button.__YATP_HK_Setup = true
 
-  -- AnyDown toggle (only if db.anyDown true). Keyboard-only requested:
-  -- Technical note: The Blizzard API does not expose a direct way to distinguish keyboard vs mouse
-  -- for RegisterForClicks decisions. To approximate "keyboard only" we check if a key binding exists;
-  -- if present we register AnyDown, otherwise fall back to AnyUp. This is a safe heuristic that avoids taint.
-  -- More advanced filtering (e.g. pre-cast mouse suppression) intentionally omitted for simplicity.
-  local db = self.db
-  if button.RegisterForClicks then
-    if db.anyDown then
-      if db.keyboardOnly then
-        -- Only register AnyDown if button has a keyboard binding; leave mouse default (Up)
-        local binding = GetPrimaryBindingForButton(button)
-        buttonBindings[button] = binding
-        if binding then
-          button:RegisterForClicks("AnyDown")
-        else
-          button:RegisterForClicks("AnyUp")
-        end
-      else
-        button:RegisterForClicks("AnyDown")
-      end
-    else
-      button:RegisterForClicks("AnyUp")
-    end
-  end
-
   self:StyleHotkey(button)
   if not activeButtons[button] then
     activeButtons[button] = true
@@ -272,30 +225,6 @@ end
 
 -- Forzar una actualización completa inmediata (sin esperar batches) útil en burst
 -- ImmediateFullRefresh eliminado (ya no necesario sin burst)
-
--- Reapply click registration for all active buttons when bindings/flags change
-function Module:ReapplyClickRegistration()
-  if not self.db then return end
-  for button in pairs(activeButtons) do
-    if button and button.RegisterForClicks then
-      if self.db.anyDown then
-        if self.db.keyboardOnly then
-          local binding = GetPrimaryBindingForButton(button)
-            buttonBindings[button] = binding
-            if binding then
-              button:RegisterForClicks("AnyDown")
-            else
-              button:RegisterForClicks("AnyUp")
-            end
-        else
-          button:RegisterForClicks("AnyDown")
-        end
-      else
-        button:RegisterForClicks("AnyUp")
-      end
-    end
-  end
-end
 
 -- Hooks para que futuros botones ( stance / pet updates ) se integren
 local function HookActionUpdate(btn)
@@ -348,10 +277,6 @@ function Module:OnEnable()
   hooksecurefunc("ActionButton_Update", HookActionUpdate)
   hooksecurefunc("ActionButton_UpdateHotkeys", HookHotkeyUpdate)
   hooksecurefunc("ActionButton_UpdateUsable", HookUsableUpdate)
-  -- Listen for keybinding updates so we can re-evaluate keyboardOnly heuristics
-  self:RegisterEvent("UPDATE_BINDINGS", function() self:ReapplyClickRegistration() end)
-  -- Burst cuando cambia el objetivo para reacción rápida de rango
-  -- Sin burst: se mantiene actualización uniforme basado en intervalo
   self:ForceAll()
 end
 
@@ -360,7 +285,6 @@ function Module:OnDisable()
   -- Detener sólo el estado interno (el scheduler mantiene la tarea, pero inactiva al ver enabled=false)
   wipe(activeButtons)
   wipe(activeList)
-  wipe(buttonBindings)
   activeCount = 0
   rrIndex = 1
 end
@@ -386,9 +310,6 @@ function Module:BuildOptions()
     self.db[key] = val
     if key == "enabled" then
       if val then self:Enable() else self:Disable() end
-    elseif key == "anyDown" then
-      -- Reaplicar clicks
-      self:ForceAll()
     else
       self:ForceAll()
     end
@@ -404,7 +325,7 @@ function Module:BuildOptions()
           set(info,val)
           if YATP and YATP.ShowReloadPrompt then YATP:ShowReloadPrompt() end
         end },
-      desc = { type="description", order=2, fontSize="medium", name = L["Customize action button hotkey fonts and ability icon tint."] or "Customize action button hotkey fonts and ability icon tint." },
+      desc = { type="description", order=2, fontSize="medium", name = L["Customize action button hotkey fonts and ability icon tint. Click behavior is handled by the Pressdown module."] or "Customize action button hotkey fonts and ability icon tint. Click behavior is handled by the Pressdown module." },
       fontGroup = { type="group", order=10, inline=true, name=L["Font"], args = {
         font = { type="select", order=1, name=L["Font Face"], values=fontValues(), get=get, set=set },
         size = { type="range", order=2, name=L["Font Size"], min=8, max=24, step=1, get=get, set=set },
@@ -434,10 +355,6 @@ function Module:BuildOptions()
             end
           end
         end },
-      }},
-      behaviorGroup = { type="group", order=30, inline=true, name=L["Behavior"], args = {
-        anyDown = { type="toggle", order=1, name=L["Trigger on Key Down"], desc=L["Fire actions on key press (may reduce perceived input lag)."], get=get, set=function(info,v) set(info,v); self:ReapplyClickRegistration() end },
-        keyboardOnly = { type="toggle", order=2, name=L["Keyboard Only"] , desc=L["Apply 'key down' only if the button has a keyboard binding; mouse clicks stay default (on release)."], get=get, set=function(info,v) set(info,v); self:ReapplyClickRegistration() end },
       }},
     },
   }

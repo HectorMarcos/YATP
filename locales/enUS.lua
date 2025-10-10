@@ -166,6 +166,7 @@ L["Debug Messages"] = true
 -- Hotkeys Module
 L["Hotkeys"] = true
 L["Customize action button hotkey fonts and ability icon tint."] = true
+L["Customize action button hotkey fonts and ability icon tint. Click behavior is handled by the Pressdown module."] = true
 L["Hotkey Color"] = true
 L["Font"] = true -- already defined earlier, reuse
 L["Icon Tint"] = true
@@ -179,6 +180,11 @@ L["Trigger on Key Down"] = true
 L["Keyboard Only"] = true
 L["Apply 'key down' only if the button has a keyboard binding; mouse clicks stay default (on release)."] = true
 L["Fire actions on key press (may reduce perceived input lag)."] = true
+
+-- Pressdown Module  
+L["Pressdown"] = true
+L["Configure when action buttons trigger (on key press vs key release)."] = true
+L["Click Behavior"] = true
 -- Legacy QuickConfirm exit-related keys removed (scope now only transmog)
 -- Extras / Fixes
 L["Extras"] = true

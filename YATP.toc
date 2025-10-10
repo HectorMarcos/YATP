@@ -36,6 +36,8 @@ modules\playerauras.lua
 modules\infobar.lua
 modules\quickconfirm.lua
 modules\hotkeys.lua
+modules\pressdown_settings.lua
+modules\pressdown.lua
 modules\waadifix.lua
 modules\backgroundfpsfix.lua
 modules\lootrollinfo.lua

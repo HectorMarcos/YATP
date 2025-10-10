@@ -8,6 +8,8 @@
 -- 4. Adjust defaults and BuildOptions for your needs.
 -- 5. Keep automatic registration (YATP:AddModuleOptions) so it appears in the Interface Hub.
 --
+-- See hotkeys.lua and pressdown.lua for an example of splitting functionality between modules.
+--
 -- YATP conventions:
 --  * self.db                   -> per-profile config table (AceDB) at YATP.db.profile.modules[Name]
 --  * Module.defaults           -> cloned via CopyTable() first initialization
