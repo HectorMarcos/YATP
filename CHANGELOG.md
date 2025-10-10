@@ -7,7 +7,24 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
-_No changes yet._
+### Improved
+
+- **Hotkeys**: Completely redesigned range checking system with per-button independent timers for more accurate and responsive out-of-range detection.
+- **Hotkeys**: Replaced batch/round-robin processing with individual OnUpdate handlers for each button, eliminating delay between checks.
+- **Hotkeys**: Added reactive event handlers for instant updates on target changes (`PLAYER_TARGET_CHANGED`), action slot changes (`ACTIONBAR_SLOT_CHANGED`), and binding updates (`UPDATE_BINDINGS`).
+- **Hotkeys**: Optimized color caching system to minimize unnecessary `SetVertexColor` calls, improving performance.
+- **Hotkeys**: Simplified configuration interface by removing unused range display modes, keeping only the full button tinting mode.
+- **Hotkeys**: Range check interval now fixed at 0.2 seconds per button for consistent responsiveness matching game engine tooltip updates.
+
+### Changed
+
+- **Hotkeys**: Removed user-adjustable update interval slider in favor of optimal fixed timing.
+- **Hotkeys**: Removed scheduler dependency for range checks, each button now manages its own timer independently.
+
+### Fixed
+
+- **Hotkeys**: Fixed range indicator lag that occurred with many active buttons due to batching delays.
+- **Hotkeys**: Resolved delayed range updates when changing targets or switching action bars.
 
 ## [0.5.0] - 2025-10-10
 
