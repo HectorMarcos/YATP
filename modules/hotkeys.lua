@@ -1,6 +1,7 @@
 --========================================================--
 -- YATP - Hotkeys Module (integrated & adapted from BetterKeybinds)
 -- Provides hotkey font styling + ability icon tint (range/mana/usability)
+-- Range checking system replicated from Bartender4
 -- Note: Click behavior (pressdown) is handled by the separate Pressdown module
 --========================================================--
 
@@ -14,11 +15,11 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON, true) or setmetatable({}, { 
 local Module = YATP:NewModule(ModuleName, "AceConsole-3.0", "AceEvent-3.0")
 
 -- ========================================================
--- Constantes / Config por defecto
+-- Constants / Default Config
 -- ========================================================
--- Sistema replicado de Bartender4: cada botón tiene su propio rangeTimer
-local TOOLTIP_UPDATE_TIME = 0.2 -- intervalo entre checks de rango (matching Bartender4)
-local RANGE_INDICATOR = "•" -- indicador visual cuando no hay hotkey
+-- Bartender4 replicated system: each button has its own rangeTimer
+local TOOLTIP_UPDATE_TIME = 0.2 -- interval between range checks (matching Bartender4)
+local RANGE_INDICATOR = "•" -- visual indicator when there's no hotkey
 
 local FONTS = {
   FRIZQT   = { name = "Friz Quadrata", path = "Fonts\\FRIZQT__.TTF" },
@@ -52,7 +53,7 @@ Module.defaults = {
   size = 13,
   flags = "OUTLINE",
   hotkeyColor = {1,1,1},
-  tintEnabled = true, -- allow turning icon tinting off
+  tintEnabled = true,
   outofrange = "button", -- "none", "button", "hotkey" (matching Bartender4)
   colors = {
     range = {0.8,0.1,0.1},
@@ -111,9 +112,9 @@ end
 -- ========================================================
 -- Range Check Logic (Bartender4 Style - Per-Button Timer)
 -- ========================================================
-local activeButtons = {}   -- set de botones registrados
+local activeButtons = {}   -- set of registered buttons
 
--- OnUpdate handler para cada botón (estilo Bartender4)
+-- OnUpdate handler for each button (Bartender4 style)
 local function Button_OnUpdate(self, elapsed)
   local db = Module.db
   if not (db and db.enabled) then return end
@@ -139,7 +140,7 @@ local function Button_OnUpdate(self, elapsed)
   end
 end
 
--- Actualiza el estado visual del botón (usable/mana/range)
+-- Updates the visual state of the button (usable/mana/range)
 function Module:UpdateUsable(button)
   local icon = GetButtonIcon(button)
   if not icon or not button.action or not HasAction(button.action) then return end
@@ -162,7 +163,7 @@ function Module:UpdateUsable(button)
     end
   end
   
-  -- Optimización: solo actualizar si el color cambió
+  -- Optimization: only update if color changed
   local last = button.__YATP_LastColor
   if not last or last[1]~=desired[1] or last[2]~=desired[2] or last[3]~=desired[3] then
     if icon:IsVisible() then
@@ -172,24 +173,24 @@ function Module:UpdateUsable(button)
   end
 end
 
--- Inicializa o actualiza el range timer de un botón
+-- Initializes or updates the range timer of a button
 function Module:UpdateRange(button)
   if not button then return end
   local db = self.db
   
   if db.outofrange == "none" or not button.action or not ActionHasRange(button.action) then
-    -- No necesita range check
+    -- No range check needed
     button.__YATP_rangeTimer = nil
     button.__YATP_OutOfRange = false
   else
-    -- Necesita range check - iniciar timer
+    -- Needs range check - start timer
     if not button.__YATP_rangeTimer then
       button.__YATP_rangeTimer = TOOLTIP_UPDATE_TIME
     end
   end
   
   self:UpdateUsable(button)
-  -- Forzar actualización inmediata
+  -- Force immediate update
   Button_OnUpdate(button, 10)
 end
 
@@ -202,23 +203,23 @@ function Module:SetupButton(button)
 
   self:StyleHotkey(button)
   
-  -- Registrar botón
+  -- Register button
   if not activeButtons[button] then
     activeButtons[button] = true
   end
   
-  -- Setup OnUpdate handler (estilo Bartender4)
+  -- Setup OnUpdate handler (Bartender4 style)
   if not button.__YATP_OnUpdateHooked then
     button:SetScript("OnUpdate", Button_OnUpdate)
     button.__YATP_OnUpdateHooked = true
   end
   
-  -- Inicializar range check
+  -- Initialize range check
   self:UpdateRange(button)
 end
 
 function Module:ForceAll()
-  -- Reconstruir lista de botones
+  -- Rebuild button list
   wipe(activeButtons)
   
   for _, group in ipairs(BUTTON_GROUPS) do
@@ -231,7 +232,7 @@ function Module:ForceAll()
 end
 
 -- ========================================================
--- Hooks para integración con eventos de Blizzard
+-- Hooks for integration with Blizzard events
 -- ========================================================
 local function HookActionUpdate(btn)
   if btn and btn.__YATP_HK_Setup then
@@ -271,16 +272,16 @@ end
 function Module:OnEnable()
   if not self.db.enabled then return end
   
-  -- Hooks de eventos de Blizzard
+  -- Blizzard event hooks
   hooksecurefunc("ActionButton_Update", HookActionUpdate)
   hooksecurefunc("ActionButton_UpdateHotkeys", HookHotkeyUpdate)
   hooksecurefunc("ActionButton_UpdateUsable", HookUsableUpdate)
   
-  -- Eventos para reactividad
+  -- Events for reactivity
   self:RegisterEvent("PLAYER_TARGET_CHANGED", function()
     for button in pairs(activeButtons) do
       if button.__YATP_rangeTimer then
-        -- Forzar check inmediato
+        -- Force immediate check
         button.__YATP_rangeTimer = 0
       end
     end
@@ -298,12 +299,12 @@ function Module:OnEnable()
     self:ForceAll()
   end)
   
-  -- Setup inicial
+  -- Initial setup
   self:ForceAll()
 end
 
 function Module:OnDisable()
-  -- Limpiar botones
+  -- Clean up buttons
   for button in pairs(activeButtons) do
     if button then
       button.__YATP_rangeTimer = nil
