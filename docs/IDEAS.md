@@ -12,6 +12,14 @@ Only pending items are listed (shipped removed). Keep each idea short.
 
 Highest current priority (score 2). Internal ordering: Impact desc, then Effort asc.
 
+### Quest Tracker Enhancements
+
+Status: spec  
+Problem: Default quest tracker lacks visual clarity, progress indicators, and customization options. Players struggle to efficiently track multiple quests and identify completion status at a glance.  
+Proposal: Enhanced quest display with level indicators, progress percentages, difficulty color coding, and visual customization options (scale, transparency). Add notification system for quest progress/completion and auto-tracking features.  
+Notes: Implemented in questtracker.lua module. Future enhancements: quest routing integration, advanced filtering, statistics tracking.  
+Score: I=3 E=2 R=1 -> Priority=3
+
 ### PlayerAuraFilter Rewrite From Scratch
 
 Status: seed  
