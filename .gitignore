@@ -1,5 +1,6 @@
 # Reference folders that should not be committed
 Bartender4/
+QuestFrame/
 
 # OS files
 .DS_Store

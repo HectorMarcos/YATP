@@ -263,3 +263,40 @@ if not L["Configure custom Target Border enhancements for enemy units that you h
 -- Error messages
 if not L["Cannot enable NamePlates Integration:"] then L["Cannot enable NamePlates Integration:"] = "Cannot enable NamePlates Integration:" end
 if not L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] then L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] = "Ascension NamePlates addon is not loaded. Please load it first using the button below." end
+
+-- Quest Tracker Module
+if not L["Quest Tracker"] then L["Quest Tracker"] = "Suivi des Quêtes" end
+if not L["Enable or disable the Quest Tracker module."] then L["Enable or disable the Quest Tracker module."] = "Activer ou désactiver le module de Suivi des Quêtes." end
+if not L["Display Options"] then L["Display Options"] = "Options d'Affichage" end
+if not L["Enhanced Display"] then L["Enhanced Display"] = "Affichage Amélioré" end
+if not L["Enable enhanced quest tracker display features."] then L["Enable enhanced quest tracker display features."] = "Activer les fonctionnalités d'affichage amélioré du suivi des quêtes." end
+if not L["Show Quest Levels"] then L["Show Quest Levels"] = "Afficher les Niveaux de Quête" end
+if not L["Display quest levels in the tracker."] then L["Display quest levels in the tracker."] = "Afficher les niveaux de quête dans le suivi." end
+if not L["Show Progress Percentage"] then L["Show Progress Percentage"] = "Afficher le Pourcentage de Progression" end
+if not L["Display completion percentages for quest objectives."] then L["Display completion percentages for quest objectives."] = "Afficher les pourcentages de completion pour les objectifs de quête." end
+if not L["Compact Mode"] then L["Compact Mode"] = "Mode Compact" end
+if not L["Use a more compact display for quest information."] then L["Use a more compact display for quest information."] = "Utiliser un affichage plus compact pour les informations de quête." end
+if not L["Color Code by Difficulty"] then L["Color Code by Difficulty"] = "Code Couleur par Difficulté" end
+if not L["Color quest titles based on difficulty level."] then L["Color quest titles based on difficulty level."] = "Colorer les titres de quête selon le niveau de difficulté." end
+if not L["Visual Settings"] then L["Visual Settings"] = "Paramètres Visuels" end
+if not L["Tracker Scale"] then L["Tracker Scale"] = "Échelle du Suivi" end
+if not L["Adjust the size of the quest tracker."] then L["Adjust the size of the quest tracker."] = "Ajuster la taille du suivi des quêtes." end
+if not L["Tracker Transparency"] then L["Tracker Transparency"] = "Transparence du Suivi" end
+if not L["Adjust the transparency of the quest tracker."] then L["Adjust the transparency of the quest tracker."] = "Ajuster la transparence du suivi des quêtes." end
+if not L["Lock Position"] then L["Lock Position"] = "Verrouiller la Position" end
+if not L["Prevent the quest tracker from being moved."] then L["Prevent the quest tracker from being moved."] = "Empêcher le suivi des quêtes d'être déplacé." end
+if not L["Notifications"] then L["Notifications"] = "Notifications" end
+if not L["Progress Notifications"] then L["Progress Notifications"] = "Notifications de Progression" end
+if not L["Show notifications for quest progress updates."] then L["Show notifications for quest progress updates."] = "Afficher les notifications pour les mises à jour de progression des quêtes." end
+if not L["Completion Sound"] then L["Completion Sound"] = "Son de Completion" end
+if not L["Play a sound when quests are completed."] then L["Play a sound when quests are completed."] = "Jouer un son lorsque les quêtes sont terminées." end
+if not L["Objective Complete Alert"] then L["Objective Complete Alert"] = "Alerte d'Objectif Terminé" end
+if not L["Show alerts when individual objectives are completed."] then L["Show alerts when individual objectives are completed."] = "Afficher des alertes lorsque des objectifs individuels sont terminés." end
+if not L["Auto-tracking"] then L["Auto-tracking"] = "Suivi Automatique" end
+if not L["Auto-track New Quests"] then L["Auto-track New Quests"] = "Suivi Automatique des Nouvelles Quêtes" end
+if not L["Automatically track newly accepted quests."] then L["Automatically track newly accepted quests."] = "Suivre automatiquement les quêtes nouvellement acceptées." end
+if not L["Auto-untrack Complete"] then L["Auto-untrack Complete"] = "Arrêter Automatiquement le Suivi des Terminées" end
+if not L["Automatically untrack completed quests."] then L["Automatically untrack completed quests."] = "Arrêter automatiquement le suivi des quêtes terminées." end
+if not L["Max Tracked Quests"] then L["Max Tracked Quests"] = "Maximum de Quêtes Suivies" end
+if not L["Maximum number of quests to track simultaneously."] then L["Maximum number of quests to track simultaneously."] = "Nombre maximum de quêtes à suivre simultanément." end
+if not L["This module enhances the quest tracker with additional features and customization options."] then L["This module enhances the quest tracker with additional features and customization options."] = "Ce module améliore le suivi des quêtes avec des fonctionnalités supplémentaires et des options de personnalisation." end

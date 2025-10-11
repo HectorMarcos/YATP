@@ -22,6 +22,8 @@ Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
 
 # Locales
 locales\enUS.lua
+locales\esES.lua
+locales\frFR.lua
 
 # Core
 core\core.lua
@@ -43,3 +45,4 @@ modules\backgroundfpsfix.lua
 modules\lootrollinfo.lua
 modules\chatfilters.lua
 modules\nameplates.lua
+modules\questtracker.lua
