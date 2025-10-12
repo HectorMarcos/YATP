@@ -1327,6 +1327,7 @@ end
 function Module:TrackAllQuests()
     local numEntries = GetNumQuestLogEntries()
     local trackedCount = 0
+    local untrackedCount = 0
     
     for i = 1, numEntries do
         local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
@@ -1342,20 +1343,40 @@ function Module:TrackAllQuests()
                 end
             end
             
-            -- Add to tracker if not already tracked
-            if not isTracked then
+            -- Determine if we should track this quest
+            local shouldTrack = true
+            
+            -- Skip completed quests if auto-untrack is enabled
+            if self.db.autoUntrackComplete and (isComplete == 1 or isComplete == -1) then
+                shouldTrack = false
+            end
+            
+            -- Apply tracking logic
+            if shouldTrack and not isTracked then
                 AddQuestWatch(i)
                 trackedCount = trackedCount + 1
                 self:Debug("Auto-tracked quest: " .. (questTitle or "Unknown"))
+            elseif not shouldTrack and isTracked then
+                RemoveQuestWatch(i)
+                untrackedCount = untrackedCount + 1
+                self:Debug("Auto-untracked completed quest: " .. (questTitle or "Unknown"))
             end
         end
     end
     
+    -- Provide user feedback
+    local message = "Force Track All: "
     if trackedCount > 0 then
-        self:Print("Force Track All: Added " .. trackedCount .. " quests to tracker")
-    else
-        self:Print("Force Track All: All quests already tracked")
+        message = message .. "Added " .. trackedCount .. " quest(s)"
     end
+    if untrackedCount > 0 then
+        if trackedCount > 0 then message = message .. ", " end
+        message = message .. "Removed " .. untrackedCount .. " completed quest(s)"
+    end
+    if trackedCount == 0 and untrackedCount == 0 then
+        message = message .. "No changes needed"
+    end
+    self:Print(message)
 end
 
 -- Track quests only for current zone (and always track Ascension Main Quest)
@@ -1383,6 +1404,11 @@ function Module:AutoTrackByCurrentZone()
                 if questZone and questZone == currentZone then
                     shouldTrack = true
                 end
+            end
+            
+            -- Skip completed quests if auto-untrack is enabled
+            if shouldTrack and self.db.autoUntrackComplete and (isComplete == 1 or isComplete == -1) then
+                shouldTrack = false
             end
             
             -- Check current tracking status
@@ -1683,8 +1709,18 @@ function Module:BuildOptions()
                     autoUntrackComplete = {
                         type = "toggle", order = 2,
                         name = L["Auto-untrack Complete"] or "Auto-untrack Complete",
-                        desc = L["Automatically untrack completed quests."] or "Automatically untrack completed quests.",
-                        get=get, set=set,
+                        desc = L["Automatically untrack completed quests. Works with both 'Force Track All' and 'Auto-track by Zone' modes."] or "Automatically untrack completed quests. Works with both 'Force Track All' and 'Auto-track by Zone' modes.",
+                        get=get, set=function(info, val)
+                            set(info, val)
+                            -- Apply changes immediately if one of the auto-tracking modes is active
+                            if self:IsEnabled() then
+                                if self.db.forceTrackAll then
+                                    self:TrackAllQuests()
+                                elseif self.db.autoTrackByZone then
+                                    self:AutoTrackByCurrentZone()
+                                end
+                            end
+                        end,
                     },
                     maxTrackedQuests = {
                         type = "range", order = 3,
