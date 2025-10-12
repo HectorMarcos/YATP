@@ -322,6 +322,15 @@ local function HookQuestTracker(self)
                     if self.db.hideBackground then
                         self:ApplyBackgroundToggle()
                     end
+                    
+                    -- Apply custom position immediately after frame update to prevent reset
+                    if self.db.positionX and self.db.positionY then
+                        questTrackerFrame:ClearAllPoints()
+                        questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", self.db.positionX, self.db.positionY)
+                    end
+                    
+                    -- Apply movable state
+                    self:ApplyMovableTracker()
                 end
             end
         end
@@ -1649,6 +1658,20 @@ function Module:MaintenanceCheck()
                 end
             end
         end
+        
+        -- Check if position needs to be reapplied
+        if self.db.positionX and self.db.positionY then
+            local currentX, currentY = questTrackerFrame:GetLeft(), questTrackerFrame:GetTop()
+            if currentX and currentY then
+                local expectedY = self.db.positionY + GetScreenHeight()
+                -- Check if position is significantly different (tolerance of 5 pixels)
+                if math.abs(currentX - self.db.positionX) > 5 or math.abs(currentY - expectedY) > 5 then
+                    questTrackerFrame:ClearAllPoints()
+                    questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", self.db.positionX, self.db.positionY)
+                    self:Debug("Position corrected in maintenance check")
+                end
+            end
+        end
     end
 end
 
@@ -1891,8 +1914,25 @@ function Module:ReapplyAllEnhancements()
         self:ScheduleTimer(function() self:ApplyBackgroundToggle() end, 0.5)
     end
     
-    -- Apply movable tracker
+    -- Apply movable tracker with multiple position attempts to fight frame regeneration
     self:ApplyMovableTracker()
+    if self.db.positionX and self.db.positionY then
+        -- Apply position multiple times to ensure it sticks during frame updates
+        self:ScheduleTimer(function() 
+            if questTrackerFrame then
+                questTrackerFrame:ClearAllPoints()
+                questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", self.db.positionX, self.db.positionY)
+                self:Debug("Reapplied position: " .. self.db.positionX .. ", " .. self.db.positionY)
+            end
+        end, 0.2)
+        self:ScheduleTimer(function() 
+            if questTrackerFrame then
+                questTrackerFrame:ClearAllPoints()
+                questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", self.db.positionX, self.db.positionY)
+                self:Debug("Final position reapplication: " .. self.db.positionX .. ", " .. self.db.positionY)
+            end
+        end, 0.5)
+    end
     
     self:Debug("All enhancements reapplied")
 end
