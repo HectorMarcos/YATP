@@ -175,12 +175,11 @@ Module.defaults = {
     filterByZone = false,      -- Zone filtering option
     
     -- Position and size
-    customPosition = false,
     positionX = 0,
     positionY = 0,
     trackerScale = 1.0,
     trackerAlpha = 1.0,
-    lockPosition = false,
+    lockPosition = true,
     
     -- Notifications
     progressNotifications = true,
@@ -608,57 +607,49 @@ function Module:ApplyBackgroundToggle()
     end
 end
 
-function Module:ApplyCustomPosition()
+function Module:ApplyMovableTracker()
     if not questTrackerFrame then 
         questTrackerFrame = WatchFrame
     end
     
     if not questTrackerFrame then 
-        self:Debug("Cannot apply custom position: WatchFrame not found")
+        self:Debug("Cannot apply movable tracker: WatchFrame not found")
         return 
     end
     
-    if self.db.customPosition then
-        local x, y = self.db.positionX, self.db.positionY
-        self:Debug("Applying custom position: " .. x .. ", " .. y)
-        
-        questTrackerFrame:ClearAllPoints()
-        questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", x, y)
-        
-        -- Make it movable if not locked
-        if not self.db.lockPosition then
-            questTrackerFrame:SetMovable(true)
-            questTrackerFrame:EnableMouse(true)
-            questTrackerFrame:RegisterForDrag("LeftButton")
-            questTrackerFrame:SetScript("OnDragStart", function(self)
-                self:StartMoving()
-            end)
-            questTrackerFrame:SetScript("OnDragStop", function(self)
-                self:StopMovingOrSizing()
-                -- Save new position
-                local x, y = self:GetLeft(), self:GetTop()
-                if x and y then
-                    Module.db.positionX = x
-                    Module.db.positionY = y - GetScreenHeight()
-                    Module:Debug("Saved new position: " .. Module.db.positionX .. ", " .. Module.db.positionY)
-                end
-            end)
-            self:Debug("Quest tracker is now movable")
-        else
-            questTrackerFrame:SetMovable(false)
-            questTrackerFrame:EnableMouse(false)
-            questTrackerFrame:SetScript("OnDragStart", nil)
-            questTrackerFrame:SetScript("OnDragStop", nil)
-            self:Debug("Quest tracker is locked")
-        end
-    else
-        self:Debug("Restoring default quest tracker position")
-        questTrackerFrame:ClearAllPoints()
-        questTrackerFrame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -300) -- Default position
+    if self.db.lockPosition then
+        -- Tracker is locked, disable movement
         questTrackerFrame:SetMovable(false)
-        questTrackerFrame:EnableMouse(false) 
+        questTrackerFrame:EnableMouse(false)
         questTrackerFrame:SetScript("OnDragStart", nil)
         questTrackerFrame:SetScript("OnDragStop", nil)
+        self:Debug("Quest tracker is locked")
+    else
+        -- Tracker is unlocked, enable movement
+        questTrackerFrame:SetMovable(true)
+        questTrackerFrame:EnableMouse(true)
+        questTrackerFrame:RegisterForDrag("LeftButton")
+        questTrackerFrame:SetScript("OnDragStart", function(self)
+            self:StartMoving()
+        end)
+        questTrackerFrame:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            -- Save new position automatically
+            local x, y = self:GetLeft(), self:GetTop()
+            if x and y then
+                Module.db.positionX = x
+                Module.db.positionY = y - GetScreenHeight()
+                Module:Debug("Saved new position: " .. Module.db.positionX .. ", " .. Module.db.positionY)
+            end
+        end)
+        self:Debug("Quest tracker is now movable")
+    end
+    
+    -- If we have saved position, apply it
+    if self.db.positionX and self.db.positionY then
+        questTrackerFrame:ClearAllPoints()
+        questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", self.db.positionX, self.db.positionY)
+        self:Debug("Applied saved position: " .. self.db.positionX .. ", " .. self.db.positionY)
     end
 end
 
@@ -1542,6 +1533,11 @@ function Module:OnEnable()
         self:Debug("Started maintenance timer")
     end
     
+    -- Apply all enhancements on enable to ensure settings are applied after reload
+    self:ScheduleTimer(function()
+        self:ReapplyAllEnhancements()
+    end, 2) -- Delay to ensure WatchFrame is fully loaded
+    
     -- Try to hook immediately if WatchFrame exists
     if WatchFrame then
         HookQuestTracker(self)
@@ -1822,10 +1818,8 @@ function Module:ReapplyAllEnhancements()
     -- Apply background toggle
     self:ApplyBackgroundToggle()
     
-    -- Apply position settings
-    if self.db.customPosition then
-        self:ApplyCustomPosition()
-    end
+    -- Apply movable tracker
+    self:ApplyMovableTracker()
 end
 
 function Module:OnUIInfoMessage(event, messageType, message)
@@ -1969,51 +1963,13 @@ function Module:BuildOptions()
                     lockPosition = {
                         type = "toggle", order = 3,
                         name = L["Lock Position"] or "Lock Position",
-                        desc = L["Prevent the quest tracker from being moved. Enable 'Custom Position' to make it movable."] or "Prevent the quest tracker from being moved. Enable 'Custom Position' to make it movable.",
-                        get=get, set=function(info, val)
-                            set(info, val)
-                            if self:IsEnabled() and self.db.customPosition then
-                                self:ApplyCustomPosition()
-                            end
-                        end,
-                        disabled = function() return not self.db.customPosition end,
-                    },
-                    customPosition = {
-                        type = "toggle", order = 4,
-                        name = L["Custom Position"] or "Custom Position",
-                        desc = L["Enable custom positioning for the quest tracker. Allows moving and position saving."] or "Enable custom positioning for the quest tracker. Allows moving and position saving.",
+                        desc = L["Lock the quest tracker in place. When disabled, you can drag the tracker to move it around."] or "Lock the quest tracker in place. When disabled, you can drag the tracker to move it around.",
                         get=get, set=function(info, val)
                             set(info, val)
                             if self:IsEnabled() then
-                                self:ApplyCustomPosition()
+                                self:ApplyMovableTracker()
                             end
                         end,
-                    },
-                    positionX = {
-                        type = "range", order = 5,
-                        name = L["Position X"] or "Position X",
-                        desc = L["Horizontal position of the quest tracker."] or "Horizontal position of the quest tracker.",
-                        min = 0, max = 2000, step = 1,
-                        get=get, set=function(info, val)
-                            set(info, val)
-                            if self:IsEnabled() and self.db.customPosition then
-                                self:ApplyCustomPosition()
-                            end
-                        end,
-                        disabled = function() return not self.db.customPosition end,
-                    },
-                    positionY = {
-                        type = "range", order = 6,
-                        name = L["Position Y"] or "Position Y",
-                        desc = L["Vertical position of the quest tracker."] or "Vertical position of the quest tracker.",
-                        min = -2000, max = 0, step = 1,
-                        get=get, set=function(info, val)
-                            set(info, val)
-                            if self:IsEnabled() and self.db.customPosition then
-                                self:ApplyCustomPosition()
-                            end
-                        end,
-                        disabled = function() return not self.db.customPosition end,
                     },
                     textOutline = {
                         type = "toggle", order = 7,

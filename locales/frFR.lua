@@ -287,7 +287,7 @@ if not L["Adjust the size of the quest tracker."] then L["Adjust the size of the
 if not L["Tracker Transparency"] then L["Tracker Transparency"] = "Transparence du Suivi" end
 if not L["Adjust the transparency of the quest tracker."] then L["Adjust the transparency of the quest tracker."] = "Ajuster la transparence du suivi des quêtes." end
 if not L["Lock Position"] then L["Lock Position"] = "Verrouiller la Position" end
-if not L["Prevent the quest tracker from being moved."] then L["Prevent the quest tracker from being moved."] = "Empêcher le suivi des quêtes d'être déplacé." end
+if not L["Lock the quest tracker in place. When disabled, you can drag the tracker to move it around."] then L["Lock the quest tracker in place. When disabled, you can drag the tracker to move it around."] = "Verrouiller le suivi des quêtes en place. Quand désactivé, vous pouvez faire glisser le suivi pour le déplacer." end
 if not L["Text Outline"] then L["Text Outline"] = "Contour du Texte" end
 if not L["Add outline to quest tracker text for better readability."] then L["Add outline to quest tracker text for better readability."] = "Ajouter un contour au texte du suivi des quêtes pour une meilleure lisibilité." end
 if not L["Clean Quest Tracker"] then L["Clean Quest Tracker"] = "Nettoyer le Suivi de Quêtes" end

@@ -551,11 +551,6 @@ L["Frame Height"] = true
 L["Set the height of the quest tracker frame in pixels."] = true
 L["Hide Background"] = true
 L["Hide the quest tracker background and border artwork."] = true
-L["Custom Position"] = true
-L["Enable custom positioning for the quest tracker. Allows moving and position saving."] = true
-L["Position X"] = true
-L["Horizontal position of the quest tracker."] = true
-L["Position Y"] = true
-L["Vertical position of the quest tracker."] = true
-L["Prevent the quest tracker from being moved. Enable 'Custom Position' to make it movable."] = true
+
+L["Lock the quest tracker in place. When disabled, you can drag the tracker to move it around."] = true
 L["This module enhances the quest tracker with additional features and customization options."] = true
