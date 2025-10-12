@@ -21,12 +21,13 @@ end
 local Module = YATP:NewModule("QuestTracker", "AceEvent-3.0", "AceConsole-3.0", "AceTimer-3.0")
 
 -------------------------------------------------
--- Debug helper
+-- Debug helper - Disabled for production
 -------------------------------------------------
 function Module:Debug(msg)
-    if YATP.db and YATP.db.profile and YATP.db.profile.debugMode then
-        print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
-    end
+    -- Debug disabled for cleaner output
+    -- if YATP.db and YATP.db.profile and YATP.db.profile.debugMode then
+    --     print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
+    -- end
 end
 
 -------------------------------------------------
@@ -67,6 +68,7 @@ Module.defaults = {
     colorCodeByDifficulty = true,
     highlightNearbyObjectives = true,
     showQuestIcons = true,
+    indentObjectives = true, -- Remove dashes and add indentation to objectives
     
     -- Text appearance
     textOutline = false,
@@ -87,6 +89,8 @@ local nearbyObjectives = {}
 local maintenanceTimer
 local savedWatchFrameContent = {}
 local savedFrameProperties = {}
+local isApplyingLevels = false -- Prevent multiple simultaneous level applications
+local lastProcessedQuests = {} -- Cache of quest titles to their line numbers
 
 -------------------------------------------------
 -- Version migrations
@@ -104,6 +108,9 @@ local function RunMigrations(self)
     end
     if self.db.frameWidth == nil then
         self.db.frameWidth = 300
+    end
+    if self.db.indentObjectives == nil then
+        self.db.indentObjectives = true
     end
     
     -- Future version migrations will go here
@@ -125,8 +132,6 @@ local function HookQuestTracker(self)
     questTrackerFrame = WatchFrame
     
     if questTrackerFrame then
-        self:Debug("Quest tracker frame found: " .. (questTrackerFrame:GetName() or "unnamed"))
-        
         -- Apply visual enhancements immediately
         self:ApplyVisualEnhancements()
         
@@ -136,43 +141,33 @@ local function HookQuestTracker(self)
             if WatchFrame_Update then
                 originalUpdateFunction = WatchFrame_Update
                 WatchFrame_Update = function(...)
-                    -- Save our current modifications before the update
-                    if self.db.showQuestLevels or self.db.textOutline or self.db.customWidth or self.db.colorCodeByDifficulty then
-                        self:SaveWatchFrameContent()
-                    end
-                    
-                    -- Call the original update function
+                    -- Call the original update function first
+                    -- This will reset the WatchFrame to its clean state
                     originalUpdateFunction(...)
                     
-                    -- Try to restore immediately without delay to prevent flash
-                    local restored = false
-                    if self.db.showQuestLevels or self.db.textOutline or self.db.customWidth or self.db.colorCodeByDifficulty then
-                        restored = self:RestoreWatchFrameContent()
+                    -- IMPORTANT: After WatchFrame_Update, the frame is CLEAN (no modifications)
+                    -- We can now safely apply our enhancements without worrying about duplicates
+                    
+                    -- Apply text enhancements (levels and colors) immediately on clean frame
+                    if self.db.showQuestLevels or self.db.colorCodeByDifficulty then
+                        self:ApplyAllTextEnhancements()
                     end
                     
-                    if not restored then
-                        -- If restoration failed, apply fresh (this will be instant since frame just updated)
-                        if self.db.showQuestLevels then
-                            self:ShowQuestLevels()
-                        end
-                        if self.db.textOutline then
-                            self:ApplyTextOutline()
-                        end
-                        if self.db.customWidth then
-                            self:ApplyCustomWidth()
-                        end
-                        if self.db.colorCodeByDifficulty then
-                            self:ApplyDifficultyColors()
-                        end
+                    -- Format quest objectives (indent and remove dashes)
+                    if self.db.indentObjectives then
+                        self:FormatQuestObjectives()
+                    end
+                    
+                    -- Apply visual enhancements (these are independent)
+                    if self.db.textOutline then
+                        self:ApplyTextOutline()
+                    end
+                    if self.db.customWidth then
+                        self:ApplyCustomWidth()
                     end
                 end
-                self:Debug("Hooked WatchFrame_Update function with flash prevention")
-            else
-                self:Debug("WatchFrame_Update function not found")
             end
         end
-    else
-        self:Debug("WatchFrame not found")
     end
 end
 
@@ -207,8 +202,6 @@ function Module:SaveWatchFrameContent()
             end
         end
     end
-    
-    self:Debug("Saved " .. #savedWatchFrameContent .. " WatchFrame lines and properties")
 end
 
 -- Restore WatchFrame content and properties seamlessly
@@ -254,7 +247,6 @@ function Module:RestoreWatchFrameContent()
             end
         end
     end
-    
     self:Debug("Restored WatchFrame content and properties")
     return true
 end
@@ -349,22 +341,14 @@ function Module:EnhanceQuestDisplay()
     -- Enhanced display is always enabled now
     if not self.db.enabled then return end
     
-    self:Debug("Enhancing quest display")
-    
     -- Update tracked quests table
     self:UpdateTrackedQuests()
     
-    -- Apply quest level display
-    if self.db.showQuestLevels then
-        self:ShowQuestLevels()
+    -- Apply text enhancements (levels and colors) in one pass
+    if self.db.showQuestLevels or self.db.colorCodeByDifficulty then
+        self:ApplyAllTextEnhancements()
     else
         self:RemoveQuestLevels()
-    end
-    
-    -- Apply color coding
-    if self.db.colorCodeByDifficulty then
-        self:ApplyDifficultyColors()
-    else
         self:RemoveDifficultyColors()
     end
 end
@@ -410,36 +394,170 @@ end
 function Module:RemoveQuestLevels()
     if not questTrackerFrame then return end
     
-    self:Debug("Removing quest levels from WatchFrame")
+    -- Clear the cache of processed quests
+    wipe(lastProcessedQuests)
     
-    -- Search through all WatchFrame lines to find ones with level prefixes
-    for lineNum = 1, 50 do -- Check up to 50 lines
+    -- Search through all WatchFrame lines to find ones with modifications
+    for lineNum = 1, 50 do
         local watchLine = _G["WatchFrameLine" .. lineNum]
         if watchLine and watchLine.text then
             local currentText = watchLine.text:GetText()
-            if currentText and string.find(currentText, "^%[%d+%] ") then
-                -- This line has a level prefix, check if it's a quest title (not an objective)
-                -- Quest titles typically don't have progress counters
-                if not string.find(currentText, "%d+/%d+") then
-                    -- Remove the level prefix
-                    local newText = string.gsub(currentText, "^%[%d+%] ", "")
+            if currentText then
+                local newText = currentText
+                local modified = false
+                
+                -- Remove difficulty symbols (!! ! ~) at the start
+                newText = string.gsub(newText, "^!! ", "")
+                newText = string.gsub(newText, "^! ", "")
+                newText = string.gsub(newText, "^~ ", "")
+                
+                -- Remove difficulty symbols after color codes
+                newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)!! ", "%1")
+                newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)! ", "%1")
+                newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)~ ", "%1")
+                
+                -- Remove ALL level prefixes (including multiple consecutive ones)
+                local maxIterations = 10 -- Prevent infinite loops
+                local iterations = 0
+                while string.find(newText, "%[%d+%]") and iterations < maxIterations do
+                    local beforeRemove = newText
+                    -- Remove level prefix at the start
+                    newText = string.gsub(newText, "^%[%d+%]%s*", "")
+                    -- Remove level prefix after color codes
+                    newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)%s*%[%d+%]%s*", "%1")
+                    
+                    -- If nothing changed, break to avoid infinite loop
+                    if beforeRemove == newText then
+                        break
+                    end
+                    modified = true
+                    iterations = iterations + 1
+                end
+                
+                if newText ~= currentText then
                     watchLine.text:SetText(newText)
-                    self:Debug("Removed level from quest title: " .. newText)
                 end
             end
         end
     end
 end
 
--- Show quest levels in tracker
-function Module:ShowQuestLevels()
-    if not self.db.showQuestLevels or not questTrackerFrame then return end
+-- Clean up any duplicate level prefixes
+function Module:CleanupDuplicateLevels()
+    if not questTrackerFrame then return end
     
-    self:Debug("Applying quest levels to WatchFrame")
+    for lineNum = 1, 50 do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine.text then
+            local currentText = watchLine.text:GetText()
+            if currentText then
+                -- Check for multiple level prefixes like "[11] [11] Quest Title"
+                local cleanedText = currentText
+                local changesMade = false
+                
+                -- Remove multiple consecutive level prefixes (more aggressive pattern)
+                while string.find(cleanedText, "%[%d+%]%s*%[%d+%]") do
+                    cleanedText = string.gsub(cleanedText, "(%[%d+%]%s*)%[%d+%]%s*", "%1")
+                    changesMade = true
+                end
+                
+                -- Also remove any extra level prefixes at the beginning
+                local levelCount = 0
+                for level in string.gmatch(cleanedText, "^%[%d+%]") do
+                    levelCount = levelCount + 1
+                end
+                
+                if levelCount > 1 then
+                    -- Extract the first level and the rest of the text
+                    local firstLevel = string.match(cleanedText, "^%[%d+%]")
+                    local restOfText = string.gsub(cleanedText, "^%[%d+%]%s*", "", 1)
+                    restOfText = string.gsub(restOfText, "^%[%d+%]%s*", "")
+                    cleanedText = firstLevel .. " " .. restOfText
+                    changesMade = true
+                end
+                
+                if changesMade then
+                    watchLine.text:SetText(cleanedText)
+                end
+            end
+        end
+    end
+end
+
+-- Helper function to find the exact title line for a quest in WatchFrame
+-- Uses WoW 3.3.5 API to map quest watch index to WatchFrame line
+local function FindQuestTitleLine(questWatchIndex, questTitle)
+    if not questWatchIndex or not questTitle then return nil end
     
-    -- Get all quest entries in WatchFrame
+    -- In WoW 3.3.5, quest titles in WatchFrame follow a predictable pattern
+    -- Each watched quest has its title on a specific line
+    -- We can use GetQuestIndexForWatch in reverse to find which line corresponds to this quest
+    
+    -- Build a map of all visible WatchFrame lines
+    local visibleLines = {}
+    for lineNum = 1, 50 do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine.text and watchLine:IsVisible() then
+            local text = watchLine.text:GetText()
+            if text and text ~= "" then
+                -- Clean the text for comparison
+                local cleanText = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
+                cleanText = string.gsub(cleanText, "|r", "")
+                cleanText = string.gsub(cleanText, "^%s+", "")
+                cleanText = string.gsub(cleanText, "%s+$", "")
+                
+                -- Remove difficulty symbols for comparison
+                cleanText = string.gsub(cleanText, "^!! ", "")
+                cleanText = string.gsub(cleanText, "^! ", "")
+                cleanText = string.gsub(cleanText, "^~ ", "")
+                
+                -- CRITICAL: Title must be an EXACT match (not substring)
+                -- and must NOT have any objective markers
+                local hasProgress = string.find(cleanText, "%d+/%d+")
+                local hasDash = string.find(cleanText, "^%-")
+                local hasBullet = string.find(cleanText, "^•")
+                local hasLevel = string.find(cleanText, "^%[%d+%]")
+                local hasColon = string.find(cleanText, ":")
+                
+                -- If text exactly matches the quest title (case insensitive) and has no markers
+                if string.lower(cleanText) == string.lower(questTitle) and 
+                   not hasProgress and not hasDash and not hasBullet and not hasLevel and not hasColon then
+                    return lineNum, watchLine
+                end
+            end
+        end
+    end
+    
+    return nil
+end
+
+-- Apply all text enhancements (levels and colors) in one pass to avoid duplicates
+-- Color System Example (player level 40):
+--   RED:    Quest level 45+ (5+ above player)
+--   ORANGE: Quest level 43-44 (3-4 above player)
+--   YELLOW: Quest level 38-42 (-2 to +2 from player)
+--   GREEN:  Quest level 30-37 (3-10 below player)
+--   GRAY:   Quest level 29- (11+ below player, no XP)
+function Module:ApplyAllTextEnhancements()
+    if not questTrackerFrame then return end
+    
+    -- Prevent multiple simultaneous applications
+    if isApplyingLevels then 
+        return 
+    end
+    isApplyingLevels = true
+    
+    -- Clean ALL existing modifications first (levels, symbols, colors)
+    -- This ensures we start fresh even if WatchFrame_Update didn't fully clean
+    self:RemoveQuestLevels()
+    self:RemoveDifficultyColors()
+    
+    -- Clear the cache since we're starting fresh
+    wipe(lastProcessedQuests)
+    
     local numWatched = GetNumQuestWatches()
-    self:Debug("Number of watched quests: " .. numWatched)
+    local playerLevel = UnitLevel("player")
+    local processedLines = {}
     
     for i = 1, numWatched do
         local questIndex = GetQuestIndexForWatch(i)
@@ -447,105 +565,187 @@ function Module:ShowQuestLevels()
             local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(questIndex)
             
             if title and level and not isHeader then
-                -- Find the quest title line in WatchFrame (quest titles don't start with bullet points or dashes)
-                -- We need to search through WatchFrame lines to find the one that matches this quest title
-                for lineNum = 1, 50 do -- Check up to 50 lines
-                    local watchLine = _G["WatchFrameLine" .. lineNum]
-                    if watchLine and watchLine.text then
-                        local currentText = watchLine.text:GetText()
-                        if currentText then
-                            -- Check if this line contains the quest title and is not an objective
-                            -- Quest titles usually don't start with bullet points, dashes, or have progress counters
-                            if string.find(currentText, title, 1, true) and 
-                               not string.find(currentText, "^[•%-]") and  -- Not starting with bullet or dash
-                               not string.find(currentText, "%d+/%d+") and  -- Not containing progress counters like "0/4"
-                               not string.find(currentText, "^%[%d+%] ") then -- Not already having level prefix
-                                
-                                local levelPrefix = "[" .. level .. "] "
-                                watchLine.text:SetText(levelPrefix .. currentText)
-                                self:Debug("Added level [" .. level .. "] to quest title: " .. title)
-                                break -- Found and modified this quest, move to next
-                            end
+                -- Calculate color if needed using WoW standard system
+                local color = ""
+                local closeColor = ""
+                local difficultySymbol = "" -- Symbol for colorblind accessibility
+                
+                if self.db.colorCodeByDifficulty then
+                    local levelDiff = level - playerLevel
+                    
+                    -- WoW Color System (ejemplo: jugador nivel 40)
+                    -- Rojo: misión 45+ (5+ niveles arriba)
+                    -- Naranja: misión 43-44 (3-4 niveles arriba)
+                    -- Amarillo: misión 38-42 (-2 a +2 niveles)
+                    -- Verde: misión 30-37 (-10 a -3 niveles)
+                    -- Gris: misión 29 o menos (más de -10 niveles)
+                    
+                    -- Using more distinct colors for colorblind accessibility
+                    if levelDiff >= 5 then
+                        color = "|cffff0000" -- Bright Red (5+ niveles arriba)
+                        difficultySymbol = "!! " -- Very difficult indicator
+                    elseif levelDiff >= 3 then
+                        color = "|cffff6600" -- Bright Orange (3-4 niveles arriba)
+                        difficultySymbol = "! " -- Difficult indicator
+                    elseif levelDiff >= -2 then
+                        color = "|cffffff00" -- Bright Yellow (-2 a +2 niveles)
+                        difficultySymbol = "" -- Normal, no symbol
+                    elseif levelDiff >= -10 then
+                        color = "|cff00ff00" -- Bright Green (-10 a -3 niveles)
+                        difficultySymbol = "" -- Easy, no symbol needed
+                    else
+                        color = "|cff999999" -- Light Gray (más de -10 niveles)
+                        difficultySymbol = "~ " -- Trivial indicator
+                    end
+                    closeColor = "|r"
+                end
+                
+                -- Find the EXACT title line for this quest using the helper function
+                local lineNum, watchLine = FindQuestTitleLine(i, title)
+                
+                if lineNum and watchLine and not processedLines[lineNum] then
+                    local currentText = watchLine.text:GetText()
+                    
+                    if currentText then
+                        -- Apply level AND color in one operation
+                        local finalText = currentText
+                        
+                        -- Add difficulty symbol first (for colorblind accessibility)
+                        if self.db.colorCodeByDifficulty and difficultySymbol ~= "" then
+                            finalText = difficultySymbol .. finalText
+                        end
+                        
+                        if self.db.showQuestLevels then
+                            finalText = "[" .. level .. "] " .. finalText
+                        end
+                        
+                        if self.db.colorCodeByDifficulty then
+                            finalText = color .. finalText .. closeColor
+                        end
+                        
+                        watchLine.text:SetText(finalText)
+                        processedLines[lineNum] = true
+                        lastProcessedQuests[title] = lineNum -- Remember this quest's line
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Format quest objectives (remove dash, add indentation)
+    if self.db.indentObjectives then
+        self:FormatQuestObjectives()
+    end
+    
+    isApplyingLevels = false
+end
+
+-- Format quest objectives by adding indentation
+function Module:FormatQuestObjectives()
+    if not questTrackerFrame then return end
+    
+    -- Track which lines are quest titles (so we can indent everything else)
+    local titleLines = {}
+    
+    -- First pass: identify all quest title lines
+    for lineNum = 1, 50 do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine.text and watchLine:IsVisible() then
+            local text = watchLine.text:GetText()
+            if text and text ~= "" then
+                local cleanText = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
+                cleanText = string.gsub(cleanText, "|r", "")
+                cleanText = string.gsub(cleanText, "^%s+", "")
+                cleanText = string.gsub(cleanText, "%s+$", "")
+                
+                -- Remove difficulty symbols and level prefixes for checking
+                cleanText = string.gsub(cleanText, "^!! ", "")
+                cleanText = string.gsub(cleanText, "^! ", "")
+                cleanText = string.gsub(cleanText, "^~ ", "")
+                cleanText = string.gsub(cleanText, "^%[%d+%]%s*", "")
+                
+                -- Check if this matches any tracked quest title
+                for i = 1, GetNumQuestWatches() do
+                    local questIndex = GetQuestIndexForWatch(i)
+                    if questIndex then
+                        local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily = GetQuestLogTitle(questIndex)
+                        if title and string.lower(cleanText) == string.lower(title) then
+                            titleLines[lineNum] = true
+                            break
                         end
                     end
                 end
             end
         end
     end
+    
+    -- Second pass: indent all non-title lines and remove dashes
+    for lineNum = 1, 50 do
+        if not titleLines[lineNum] then
+            local watchLine = _G["WatchFrameLine" .. lineNum]
+            if watchLine and watchLine.text and watchLine:IsVisible() then
+                local text = watchLine.text:GetText()
+                if text and text ~= "" then
+                    local newText = text
+                    
+                    -- FIRST: Remove any existing indentation to start clean
+                    newText = string.gsub(newText, "^%s+", "")
+                    
+                    -- SECOND: Remove leading dashes and bullets (multiple patterns for safety)
+                    newText = string.gsub(newText, "^%-+%s*", "")  -- Remove - at start
+                    newText = string.gsub(newText, "^•%s*", "")    -- Remove bullet at start
+                    newText = string.gsub(newText, "^–%s*", "")    -- Remove en-dash
+                    newText = string.gsub(newText, "^—%s*", "")    -- Remove em-dash
+                    
+                    -- THIRD: Remove dashes after color codes
+                    newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)%s*%-+%s*", "%1")
+                    newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)%s*•%s*", "%1")
+                    newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)%s*–%s*", "%1")
+                    newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)%s*—%s*", "%1")
+                    
+                    -- Remove dashes in the middle after whitespace (WoW might add them there)
+                    newText = string.gsub(newText, "^(%s*)%-+%s*", "%1")
+                    
+                    -- FINALLY: Add clean indentation
+                    newText = "  " .. newText
+                    
+                    if newText ~= text then
+                        watchLine.text:SetText(newText)
+                    end
+                    
+                    -- Hide the dash texture/element if it exists
+                    -- In WoW, WatchFrameLines have a .dash element that renders the visual dash
+                    -- We hide it to create a cleaner, indented look
+                    if watchLine.dash then
+                        watchLine.dash:Hide()
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Show quest levels in tracker (legacy function, now uses unified approach)
+function Module:ShowQuestLevels()
+    -- Just call the unified function that handles both levels and colors
+    self:ApplyAllTextEnhancements()
 end
 
 -- Show progress percentages
 function Module:ShowProgressPercentages()
     -- Implementation for showing progress percentages
     -- This would calculate and display completion percentages for objectives
-    self:Debug("Showing progress percentages")
 end
 
--- Apply difficulty-based color coding
+-- Apply difficulty-based color coding (legacy function, now uses unified approach)
 function Module:ApplyDifficultyColors()
-    if not self.db.colorCodeByDifficulty or not questTrackerFrame then return end
-    
-    self:Debug("Applying difficulty colors to quest titles")
-    
-    local numWatched = GetNumQuestWatches()
-    local playerLevel = UnitLevel("player")
-    
-    for i = 1, numWatched do
-        local questIndex = GetQuestIndexForWatch(i)
-        if questIndex then
-            local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(questIndex)
-            
-            if title and level and not isHeader then
-                -- Calculate difficulty color based on level difference
-                local levelDiff = level - playerLevel
-                local color
-                
-                if levelDiff >= 5 then
-                    color = "|cffff0000" -- Red (very hard)
-                elseif levelDiff >= 3 then
-                    color = "|cffff8000" -- Orange (hard)
-                elseif levelDiff >= -2 then
-                    color = "|cffffff00" -- Yellow (normal)
-                elseif levelDiff >= -7 then
-                    color = "|cff00ff00" -- Green (easy)
-                else
-                    color = "|cff808080" -- Gray (trivial)
-                end
-                
-                -- Find the quest title line in WatchFrame and apply color
-                for lineNum = 1, 50 do
-                    local watchLine = _G["WatchFrameLine" .. lineNum]
-                    if watchLine and watchLine.text then
-                        local currentText = watchLine.text:GetText()
-                        if currentText then
-                            -- Check if this line contains the quest title and is not an objective
-                            if string.find(currentText, title, 1, true) and 
-                               not string.find(currentText, "^[•%-]") and
-                               not string.find(currentText, "%d+/%d+") then
-                                
-                                -- Remove existing color codes and apply new color
-                                local cleanText = string.gsub(currentText, "|c%x%x%x%x%x%x%x%x", "")
-                                cleanText = string.gsub(cleanText, "|r", "")
-                                
-                                -- Apply new color
-                                local coloredText = color .. cleanText .. "|r"
-                                watchLine.text:SetText(coloredText)
-                                self:Debug("Applied " .. color .. " color to quest: " .. title .. " (level " .. level .. " vs player " .. playerLevel .. ")")
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
+    -- Just call the unified function that handles both levels and colors
+    self:ApplyAllTextEnhancements()
 end
 
 -- Remove difficulty colors from quest titles
 function Module:RemoveDifficultyColors()
     if not questTrackerFrame then return end
-    
-    self:Debug("Removing difficulty colors from quest titles")
     
     for lineNum = 1, 50 do
         local watchLine = _G["WatchFrameLine" .. lineNum]
@@ -556,7 +756,6 @@ function Module:RemoveDifficultyColors()
                 local cleanText = string.gsub(currentText, "|c%x%x%x%x%x%x%x%x", "")
                 cleanText = string.gsub(cleanText, "|r", "")
                 watchLine.text:SetText(cleanText)
-                self:Debug("Removed color from: " .. cleanText)
             end
         end
     end
@@ -678,7 +877,7 @@ function Module:OnEnable()
     
     -- Start maintenance timer to periodically check and re-apply enhancements
     if not maintenanceTimer then
-        maintenanceTimer = self:ScheduleRepeatingTimer("MaintenanceCheck", 5) -- Check every 5 seconds (less aggressive)
+        maintenanceTimer = self:ScheduleRepeatingTimer("MaintenanceCheck", 10) -- Check every 10 seconds (less frequent to avoid duplicates)
         self:Debug("Started maintenance timer")
     end
     
@@ -723,66 +922,24 @@ function Module:OnDisable()
 end
 
 -- Maintenance function to check and re-apply enhancements periodically
+-- Maintenance function to check and re-apply enhancements periodically
 function Module:MaintenanceCheck()
     -- Enhanced display is always enabled now
     if not self.db.enabled then return end
     
-    local needsReapply = false
+    -- Only do very light maintenance checks to avoid constant reapplication
+    local numWatched = GetNumQuestWatches()
     
-    -- Check if quest levels are missing and re-apply if needed
-    if self.db.showQuestLevels then
-        local numWatched = GetNumQuestWatches()
+    -- Very light check - only verify basic frame properties
+    if numWatched > 0 and questTrackerFrame and questTrackerFrame:IsVisible() then
+        -- Simple scale/alpha check only (these don't interfere with text content)
+        if questTrackerFrame:GetScale() ~= self.db.trackerScale then
+            questTrackerFrame:SetScale(self.db.trackerScale)
+        end
         
-        for i = 1, numWatched do
-            local questIndex = GetQuestIndexForWatch(i)
-            if questIndex then
-                local title, level = GetQuestLogTitle(questIndex)
-                if title and level then
-                    -- Check if any WatchFrame line has this quest title without level prefix
-                    for lineNum = 1, 50 do
-                        local watchLine = _G["WatchFrameLine" .. lineNum]
-                        if watchLine and watchLine.text then
-                            local currentText = watchLine.text:GetText()
-                            if currentText and 
-                               string.find(currentText, title, 1, true) and 
-                               not string.find(currentText, "^[•%-]") and
-                               not string.find(currentText, "%d+/%d+") and
-                               not string.find(currentText, "^%[%d+%] ") then
-                                needsReapply = true
-                                break
-                            end
-                        end
-                    end
-                    if needsReapply then break end
-                end
-            end
+        if questTrackerFrame:GetAlpha() ~= self.db.trackerAlpha then
+            questTrackerFrame:SetAlpha(self.db.trackerAlpha)
         end
-    end
-    
-    -- Check if text outline is missing
-    if self.db.textOutline and not needsReapply then
-        local watchLine = _G["WatchFrameLine1"]
-        if watchLine and watchLine.text then
-            local font, size, flags = watchLine.text:GetFont()
-            local expectedFlags = self.db.outlineThickness == 2 and "THICKOUTLINE" or "OUTLINE"
-            if flags ~= expectedFlags then
-                needsReapply = true
-                self:Debug("Maintenance: Text outline missing")
-            end
-        end
-    end
-    
-    -- Check if custom width is missing
-    if self.db.customWidth and not needsReapply then
-        if WatchFrame and WatchFrame:GetWidth() ~= self.db.frameWidth then
-            needsReapply = true
-            self:Debug("Maintenance: Custom width missing")
-        end
-    end
-    
-    if needsReapply then
-        self:Debug("Maintenance: Re-applying quest tracker enhancements")
-        self:ReapplyAllEnhancements()
     end
 end
 
@@ -824,17 +981,12 @@ function Module:ReapplyAllEnhancements()
     -- Enhanced display is always enabled now
     if not self.db.enabled then return end
     
-    self:Debug("Re-applying all quest tracker enhancements")
-    
-    if self.db.showQuestLevels then
-        self:ShowQuestLevels()
+    -- Apply text enhancements (levels and colors) in one unified pass
+    if self.db.showQuestLevels or self.db.colorCodeByDifficulty then
+        self:ApplyAllTextEnhancements()
     end
     
-    if self.db.colorCodeByDifficulty then
-        self:ApplyDifficultyColors()
-    end
-    
-    -- Apply visual enhancements including new features
+    -- Apply visual enhancements (these don't conflict with text)
     if self.db.textOutline then
         self:ApplyTextOutline()
     end
@@ -847,12 +999,11 @@ end
 function Module:OnUIInfoMessage(event, messageType, message)
     -- Handle quest completion messages and other UI info
     if self.db.progressNotifications then
-        self:Debug("UI Info message: " .. tostring(message))
+        -- Process quest notifications here
     end
 end
 
 function Module:OnQuestAbandoned()
-    self:Debug("Quest abandoned, updating tracker")
     self:UpdateTrackedQuests()
 end
 
@@ -867,7 +1018,6 @@ function Module:BuildOptions()
     local set = function(info, val)
         local key = info[#info]
         self.db[key] = val
-        self:Debug("Setting " .. key .. " to " .. tostring(val))
         
         if key == "enabled" then
             if val then 
@@ -915,6 +1065,17 @@ function Module:BuildOptions()
             if self:IsEnabled() then
                 HookQuestTracker(self)
             end
+        elseif key == "indentObjectives" then
+            -- Apply or remove objective formatting immediately
+            if self:IsEnabled() then
+                if val then
+                    self:FormatQuestObjectives()
+                else
+                    -- Refresh the display to restore original formatting
+                    self:UpdateTrackedQuests()
+                    self:EnhanceQuestDisplay()
+                end
+            end
         end
     end
 
@@ -944,6 +1105,12 @@ function Module:BuildOptions()
                         type = "toggle", order = 2,
                         name = L["Color Code by Difficulty"] or "Color Code by Difficulty",
                         desc = L["Color quest titles based on difficulty level."] or "Color quest titles based on difficulty level.",
+                        get=get, set=set,
+                    },
+                    indentObjectives = {
+                        type = "toggle", order = 3,
+                        name = L["Indent Objectives"] or "Indent Objectives",
+                        desc = L["Remove dash from objectives and add indentation for cleaner look."] or "Remove dash from objectives and add indentation for cleaner look.",
                         get=get, set=set,
                     },
                 }
@@ -1150,7 +1317,68 @@ SLASH_YATPQTCLEAN1 = "/qtclean"
 SlashCmdList["YATPQTCLEAN"] = function()
     if YATP.modules.QuestTracker then
         YATP.modules.QuestTracker:RemoveQuestLevels()
-        print("Removed all quest levels from tracker")
+        YATP.modules.QuestTracker:CleanupDuplicateLevels()
+        print("Removed all quest levels from tracker and cleaned duplicates")
+    else
+        print("Quest Tracker module not found")
+    end
+end
+
+-- Register fix command to clean duplicates and reapply
+SLASH_YATPQTFIX1 = "/qtfix"
+SlashCmdList["YATPQTFIX"] = function()
+    if YATP.modules.QuestTracker then
+        local module = YATP.modules.QuestTracker
+        module:RemoveQuestLevels()
+        module:CleanupDuplicateLevels()
+        if module.db.showQuestLevels then
+            module:ShowQuestLevels()
+        end
+        if module.db.colorCodeByDifficulty then
+            module:ApplyDifficultyColors()
+        end
+        print("Fixed quest tracker duplicates and reapplied settings")
+    else
+        print("Quest Tracker module not found")
+    end
+end
+
+-- Register debug command to see quest info
+SLASH_YATPQTDEBUG1 = "/qtdebug"
+SlashCmdList["YATPQTDEBUG"] = function()
+    if YATP.modules.QuestTracker then
+        local module = YATP.modules.QuestTracker
+        print("=== Quest Tracker Debug Info ===")
+        print("Show Levels: " .. tostring(module.db.showQuestLevels))
+        print("Color by Difficulty: " .. tostring(module.db.colorCodeByDifficulty))
+        
+        local numWatched = GetNumQuestWatches()
+        print("Watched Quests: " .. numWatched)
+        
+        for i = 1, numWatched do
+            local questIndex = GetQuestIndexForWatch(i)
+            if questIndex then
+                local title, level = GetQuestLogTitle(questIndex)
+                if title then
+                    print(string.format("Quest %d: Level %s - %s", i, level or "nil", title))
+                end
+            end
+        end
+        
+        print("\n=== WatchFrame Lines ===")
+        for lineNum = 1, 20 do
+            local watchLine = _G["WatchFrameLine" .. lineNum]
+            if watchLine and watchLine.text and watchLine:IsVisible() then
+                local text = watchLine.text:GetText()
+                if text and text ~= "" then
+                    local cleanText = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
+                    cleanText = string.gsub(cleanText, "|r", "")
+                    local indent = string.match(text, "^(%s+)") or ""
+                    print(string.format("Line %d [%d spaces]: %s", lineNum, string.len(indent), cleanText))
+                end
+            end
+        end
+        print("=== End Debug Info ===")
     else
         print("Quest Tracker module not found")
     end
