@@ -274,6 +274,7 @@ L["Cannot enable NamePlates Integration:"] = "No se puede activar la integració
 L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] = "El addon Ascension NamePlates no está cargado. Por favor, cárgalo primero usando el botón de abajo."
 
 -- Quest Tracker Module
+L["QuestTracker"] = "Rastreador de Misiones"
 L["Quest Tracker"] = "Rastreador de Misiones"
 L["Enable or disable the Quest Tracker module."] = "Activar o desactivar el módulo de Rastreador de Misiones."
 L["Display Options"] = "Opciones de Visualización"

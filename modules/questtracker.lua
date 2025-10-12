@@ -18,7 +18,7 @@ if not YATP then
 end
 
 -- Create the module
-local Module = YATP:NewModule("QuestTracker", "AceEvent-3.0", "AceConsole-3.0")
+local Module = YATP:NewModule("QuestTracker", "AceEvent-3.0", "AceConsole-3.0", "AceTimer-3.0")
 
 -------------------------------------------------
 -- Debug helper
@@ -96,14 +96,14 @@ end
 local function HookQuestTracker(self)
     if not self.db.enabled then return end
     
-    -- Get the quest tracker frame
-    questTrackerFrame = ObjectiveTrackerFrame or QuestMapFrame.DetailsFrame.ScrollFrame.Child
+    -- Get the quest tracker frame for WoW 3.3.5
+    questTrackerFrame = QuestWatchFrame or WatchFrame
     
     if questTrackerFrame then
         self:Debug("Quest tracker frame found and hooked")
         
         -- Hook the update function if we haven't already
-        if not originalUpdateFunction then
+        if not originalUpdateFunction and questTrackerFrame.Update then
             originalUpdateFunction = questTrackerFrame.Update
             questTrackerFrame.Update = function(...)
                 originalUpdateFunction(...)
@@ -113,6 +113,8 @@ local function HookQuestTracker(self)
         
         -- Apply visual enhancements
         self:ApplyVisualEnhancements()
+    else
+        self:Debug("Quest tracker frame not found")
     end
 end
 
@@ -143,17 +145,35 @@ end
 function Module:UpdateTrackedQuests()
     wipe(trackedQuests)
     
-    -- Get all tracked quests
-    for i = 1, C_QuestLog.GetNumQuestLogEntries() do
-        local info = C_QuestLog.GetInfo(i)
-        if info and not info.isHeader and info.isOnMap then
-            trackedQuests[info.questID] = {
-                title = info.title,
-                level = info.level,
-                difficultyLevel = info.difficultyLevel,
-                isComplete = C_QuestLog.IsComplete(info.questID),
-                objectives = C_QuestLog.GetQuestObjectives(info.questID) or {}
+    -- Get all tracked quests using WoW 3.3.5 API
+    local numEntries = GetNumQuestLogEntries()
+    for i = 1, numEntries do
+        local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
+        if questTitle and not isHeader and IsQuestWatched(i) then
+            -- For 3.3.5, questID might be nil, so we use the index
+            local id = questID or i
+            trackedQuests[id] = {
+                title = questTitle,
+                level = level,
+                questTag = questTag,
+                isComplete = isComplete,
+                isDaily = isDaily,
+                questIndex = i,
+                objectives = {}
             }
+            
+            -- Get quest objectives
+            local numObjectives = GetNumQuestLeaderBoards(i)
+            for j = 1, numObjectives do
+                local description, objectiveType, finished = GetQuestLogLeaderBoard(j, i)
+                if description then
+                    table.insert(trackedQuests[id].objectives, {
+                        text = description,
+                        type = objectiveType,
+                        finished = finished
+                    })
+                end
+            end
         end
     end
 end
@@ -205,15 +225,15 @@ function Module:OnQuestComplete(questID)
     if questInfo then
         -- Play completion sound
         if self.db.completionSound then
-            PlaySound(SOUNDKIT.UI_QUEST_COMPLETE)
+            PlaySound("QuestCompleted")
         end
         
         -- Show completion message
         self:Debug("Quest completed: " .. (questInfo.title or "Unknown"))
         
-        -- Auto-untrack if enabled
-        if self.db.autoUntrackComplete then
-            C_QuestLog.RemoveQuestWatch(questID)
+        -- Auto-untrack if enabled (for 3.3.5, we need to find the quest index)
+        if self.db.autoUntrackComplete and questInfo.questIndex then
+            RemoveQuestWatch(questInfo.questIndex)
         end
     end
 end
@@ -256,17 +276,18 @@ end
 function Module:OnEnable()
     if not self.db.enabled then return end
     
-    -- Register quest-related events
+    -- Register quest-related events for WoW 3.3.5
     self:RegisterEvent("QUEST_WATCH_UPDATE", "OnQuestWatchUpdate")
     self:RegisterEvent("QUEST_LOG_UPDATE", "OnQuestLogUpdate")
     self:RegisterEvent("UI_INFO_MESSAGE", "OnUIInfoMessage")
     self:RegisterEvent("QUEST_COMPLETE", "OnQuestComplete")
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnPlayerEnteringWorld")
+    self:RegisterEvent("QUEST_ABANDONED", "OnQuestAbandoned")
     
     self:Debug("Quest Tracker module enabled")
     
     -- Hook quest tracker after a short delay to ensure UI is loaded
-    C_Timer.After(1, function() HookQuestTracker(self) end)
+    self:ScheduleTimer(function() HookQuestTracker(self) end, 1)
 end
 
 -------------------------------------------------
@@ -289,7 +310,7 @@ end
 -------------------------------------------------
 function Module:OnPlayerEnteringWorld()
     -- Initialize quest tracker hooks
-    C_Timer.After(2, function() HookQuestTracker(self) end)
+    self:ScheduleTimer(function() HookQuestTracker(self) end, 2)
 end
 
 function Module:OnQuestWatchUpdate(event, questID)
@@ -307,6 +328,11 @@ function Module:OnUIInfoMessage(event, messageType, message)
     if self.db.progressNotifications then
         self:Debug("UI Info message: " .. tostring(message))
     end
+end
+
+function Module:OnQuestAbandoned()
+    self:Debug("Quest abandoned, updating tracker")
+    self:UpdateTrackedQuests()
 end
 
 -------------------------------------------------

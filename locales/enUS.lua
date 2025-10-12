@@ -445,6 +445,7 @@ L["Cannot enable NamePlates Integration:"] = true
 L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] = true
 
 -- Quest Tracker Module
+L["QuestTracker"] = "Quest Tracker"
 L["Quest Tracker"] = true
 L["Enable or disable the Quest Tracker module."] = true
 L["Display Options"] = true

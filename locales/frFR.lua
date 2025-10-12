@@ -265,6 +265,7 @@ if not L["Cannot enable NamePlates Integration:"] then L["Cannot enable NamePlat
 if not L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] then L["Ascension NamePlates addon is not loaded. Please load it first using the button below."] = "Ascension NamePlates addon is not loaded. Please load it first using the button below." end
 
 -- Quest Tracker Module
+if not L["QuestTracker"] then L["QuestTracker"] = "Suivi des Quêtes" end
 if not L["Quest Tracker"] then L["Quest Tracker"] = "Suivi des Quêtes" end
 if not L["Enable or disable the Quest Tracker module."] then L["Enable or disable the Quest Tracker module."] = "Activer ou désactiver le module de Suivi des Quêtes." end
 if not L["Display Options"] then L["Display Options"] = "Options d'Affichage" end
