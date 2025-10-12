@@ -67,6 +67,14 @@ Module.defaults = {
     colorCodeByDifficulty = true,
     highlightNearbyObjectives = true,
     showQuestIcons = true,
+    
+    -- Text appearance
+    textOutline = false,
+    outlineThickness = 1, -- 1 = normal, 2 = thick
+    
+    -- Frame dimensions
+    customWidth = false,
+    frameWidth = 300,
 }
 
 -------------------------------------------------
@@ -184,6 +192,81 @@ function Module:RestoreWatchFrameContent()
     
     self:Debug("Restored WatchFrame content")
     return true
+end
+
+-- Apply text outline to WatchFrame text
+function Module:ApplyTextOutline()
+    if not questTrackerFrame then 
+        questTrackerFrame = WatchFrame
+    end
+    
+    if not questTrackerFrame then 
+        self:Debug("Cannot apply text outline: WatchFrame not found")
+        return 
+    end
+    
+    self:Debug("Applying text outline - Enabled: " .. tostring(self.db.textOutline) .. ", Thickness: " .. self.db.outlineThickness)
+    
+    -- Apply outline to all visible WatchFrame lines
+    for lineNum = 1, 50 do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine.text then
+            if self.db.textOutline then
+                -- Apply outline based on thickness setting
+                if self.db.outlineThickness == 2 then
+                    watchLine.text:SetFont(watchLine.text:GetFont(), select(2, watchLine.text:GetFont()), "THICKOUTLINE")
+                else
+                    watchLine.text:SetFont(watchLine.text:GetFont(), select(2, watchLine.text:GetFont()), "OUTLINE")
+                end
+                self:Debug("Applied outline to WatchFrameLine" .. lineNum)
+            else
+                -- Remove outline
+                watchLine.text:SetFont(watchLine.text:GetFont(), select(2, watchLine.text:GetFont()), "")
+                self:Debug("Removed outline from WatchFrameLine" .. lineNum)
+            end
+        end
+    end
+end
+
+-- Apply custom width to WatchFrame
+function Module:ApplyCustomWidth()
+    if not questTrackerFrame then 
+        questTrackerFrame = WatchFrame
+    end
+    
+    if not questTrackerFrame then 
+        self:Debug("Cannot apply custom width: WatchFrame not found")
+        return 
+    end
+    
+    if self.db.customWidth then
+        local newWidth = self.db.frameWidth
+        self:Debug("Applying custom width: " .. newWidth)
+        
+        questTrackerFrame:SetWidth(newWidth)
+        
+        -- Also adjust the text regions to fit the new width
+        for lineNum = 1, 50 do
+            local watchLine = _G["WatchFrameLine" .. lineNum]
+            if watchLine and watchLine.text then
+                -- Set text width to be slightly less than frame width to prevent overflow
+                watchLine.text:SetWidth(newWidth - 20)
+                self:Debug("Adjusted text width for WatchFrameLine" .. lineNum)
+            end
+        end
+    else
+        self:Debug("Restoring default WatchFrame width")
+        -- Restore default width (WatchFrame default is usually around 204)
+        questTrackerFrame:SetWidth(204)
+        
+        -- Restore default text widths
+        for lineNum = 1, 50 do
+            local watchLine = _G["WatchFrameLine" .. lineNum]
+            if watchLine and watchLine.text then
+                watchLine.text:SetWidth(184) -- Default WatchFrame text width
+            end
+        end
+    end
 end
 
 -- Enhanced quest display with flash prevention
@@ -350,6 +433,12 @@ function Module:ApplyVisualEnhancements()
     
     -- Apply alpha
     questTrackerFrame:SetAlpha(self.db.trackerAlpha)
+    
+    -- Apply custom width
+    self:ApplyCustomWidth()
+    
+    -- Apply text outline
+    self:ApplyTextOutline()
     
     -- Handle position locking
     if self.db.lockPosition then
@@ -576,6 +665,15 @@ function Module:ReapplyAllEnhancements()
     if self.db.colorCodeByDifficulty then
         self:ApplyDifficultyColors()
     end
+    
+    -- Apply visual enhancements including new features
+    if self.db.textOutline then
+        self:ApplyTextOutline()
+    end
+    
+    if self.db.customWidth then
+        self:ApplyCustomWidth()
+    end
 end
 
 function Module:OnUIInfoMessage(event, messageType, message)
@@ -612,6 +710,16 @@ function Module:BuildOptions()
         elseif key == "trackerScale" or key == "trackerAlpha" or key == "lockPosition" then
             -- Apply visual changes immediately
             self:ApplyVisualEnhancements()
+        elseif key == "textOutline" or key == "outlineThickness" then
+            -- Apply text outline immediately
+            if self:IsEnabled() then
+                self:ApplyTextOutline()
+            end
+        elseif key == "customWidth" or key == "frameWidth" then
+            -- Apply width changes immediately
+            if self:IsEnabled() then
+                self:ApplyCustomWidth()
+            end
         elseif key == "showQuestLevels" then
             -- Apply quest levels immediately
             if self:IsEnabled() then
@@ -712,6 +820,37 @@ function Module:BuildOptions()
                         desc = L["Prevent the quest tracker from being moved."] or "Prevent the quest tracker from being moved.",
                         get=get, set=set,
                     },
+                    textOutline = {
+                        type = "toggle", order = 4,
+                        name = L["Text Outline"] or "Text Outline",
+                        desc = L["Add outline to quest tracker text for better readability."] or "Add outline to quest tracker text for better readability.",
+                        get=get, set=set,
+                    },
+                    outlineThickness = {
+                        type = "select", order = 5,
+                        name = L["Outline Thickness"] or "Outline Thickness",
+                        desc = L["Choose the thickness of the text outline."] or "Choose the thickness of the text outline.",
+                        values = {
+                            [1] = L["Normal"] or "Normal",
+                            [2] = L["Thick"] or "Thick",
+                        },
+                        get=get, set=set,
+                        disabled = function() return not self.db.textOutline end,
+                    },
+                    customWidth = {
+                        type = "toggle", order = 6,
+                        name = L["Custom Width"] or "Custom Width",
+                        desc = L["Enable custom width for the quest tracker frame."] or "Enable custom width for the quest tracker frame.",
+                        get=get, set=set,
+                    },
+                    frameWidth = {
+                        type = "range", order = 7,
+                        name = L["Frame Width"] or "Frame Width",
+                        desc = L["Set the width of the quest tracker frame in pixels."] or "Set the width of the quest tracker frame in pixels.",
+                        min = 200, max = 500, step = 10,
+                        get=get, set=set,
+                        disabled = function() return not self.db.customWidth end,
+                    },
                 }
             },
             
@@ -802,6 +941,10 @@ function Module:TestFunction()
     self:Debug("Config alpha: " .. tostring(self.db.trackerAlpha))
     self:Debug("Enhanced display: " .. tostring(self.db.enhancedDisplay))
     self:Debug("Show quest levels: " .. tostring(self.db.showQuestLevels))
+    self:Debug("Text outline: " .. tostring(self.db.textOutline))
+    self:Debug("Outline thickness: " .. tostring(self.db.outlineThickness))
+    self:Debug("Custom width: " .. tostring(self.db.customWidth))
+    self:Debug("Frame width: " .. tostring(self.db.frameWidth))
     
     -- Test quest tracking
     local numWatched = GetNumQuestWatches()
