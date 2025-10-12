@@ -91,6 +91,20 @@ local savedWatchFrameContent = {}
 -- Version migrations
 -------------------------------------------------
 local function RunMigrations(self)
+    -- Ensure new settings have default values for existing configurations
+    if self.db.textOutline == nil then
+        self.db.textOutline = false
+    end
+    if self.db.outlineThickness == nil then
+        self.db.outlineThickness = 1
+    end
+    if self.db.customWidth == nil then
+        self.db.customWidth = false
+    end
+    if self.db.frameWidth == nil then
+        self.db.frameWidth = 300
+    end
+    
     -- Future version migrations will go here
     -- Example:
     -- if self.db.oldKey ~= nil and self.db.newKey == nil then
@@ -205,7 +219,12 @@ function Module:ApplyTextOutline()
         return 
     end
     
-    self:Debug("Applying text outline - Enabled: " .. tostring(self.db.textOutline) .. ", Thickness: " .. self.db.outlineThickness)
+    -- Ensure outlineThickness has a default value
+    if not self.db.outlineThickness then
+        self.db.outlineThickness = 1
+    end
+    
+    self:Debug("Applying text outline - Enabled: " .. tostring(self.db.textOutline) .. ", Thickness: " .. tostring(self.db.outlineThickness))
     
     -- Apply outline to all visible WatchFrame lines
     for lineNum = 1, 50 do
@@ -239,9 +258,14 @@ function Module:ApplyCustomWidth()
         return 
     end
     
+    -- Ensure frameWidth has a default value
+    if not self.db.frameWidth then
+        self.db.frameWidth = 300
+    end
+    
     if self.db.customWidth then
         local newWidth = self.db.frameWidth
-        self:Debug("Applying custom width: " .. newWidth)
+        self:Debug("Applying custom width: " .. tostring(newWidth))
         
         questTrackerFrame:SetWidth(newWidth)
         
@@ -942,9 +966,9 @@ function Module:TestFunction()
     self:Debug("Enhanced display: " .. tostring(self.db.enhancedDisplay))
     self:Debug("Show quest levels: " .. tostring(self.db.showQuestLevels))
     self:Debug("Text outline: " .. tostring(self.db.textOutline))
-    self:Debug("Outline thickness: " .. tostring(self.db.outlineThickness))
+    self:Debug("Outline thickness: " .. tostring(self.db.outlineThickness or "nil"))
     self:Debug("Custom width: " .. tostring(self.db.customWidth))
-    self:Debug("Frame width: " .. tostring(self.db.frameWidth))
+    self:Debug("Frame width: " .. tostring(self.db.frameWidth or "nil"))
     
     -- Test quest tracking
     local numWatched = GetNumQuestWatches()
