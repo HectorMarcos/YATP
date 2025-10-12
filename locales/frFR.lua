@@ -324,7 +324,7 @@ if not L["Maximum number of quests to track simultaneously."] then L["Maximum nu
 if not L["Force Track All Quests"] then L["Force Track All Quests"] = "Forcer le Suivi de Toutes les Quêtes" end
 if not L["Automatically track all quests in your quest log."] then L["Automatically track all quests in your quest log."] = "Suivre automatiquement toutes les quêtes dans votre journal de quêtes." end
 if not L["Auto-track by Zone"] then L["Auto-track by Zone"] = "Suivi Automatique par Zone" end
-if not L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest category."] then L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest category."] = "Suivre automatiquement uniquement les quêtes de votre zone actuelle. Suit toujours la catégorie Ascension Main Quest." end
+if not L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories."] then L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories."] = "Suivre automatiquement uniquement les quêtes de votre zone actuelle. Suit toujours les catégories Ascension Main Quest et Path to Ascension." end
 if not L["Filter by Zone"] then L["Filter by Zone"] = "Filtrer par Zone" end
 if not L["Only show quests for the current zone."] then L["Only show quests for the current zone."] = "Afficher uniquement les quêtes de la zone actuelle." end
 if not L["Quest Sorting"] then L["Quest Sorting"] = "Tri des Quêtes" end

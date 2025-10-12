@@ -30,6 +30,10 @@ function Module:Debug(msg)
     -- end
 end
 
+function Module:Print(msg)
+    print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
+end
+
 -------------------------------------------------
 -- Defaults
 -------------------------------------------------
@@ -1322,6 +1326,7 @@ end
 -- Track all quests in quest log
 function Module:TrackAllQuests()
     local numEntries = GetNumQuestLogEntries()
+    local trackedCount = 0
     
     for i = 1, numEntries do
         local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
@@ -1340,9 +1345,16 @@ function Module:TrackAllQuests()
             -- Add to tracker if not already tracked
             if not isTracked then
                 AddQuestWatch(i)
+                trackedCount = trackedCount + 1
                 self:Debug("Auto-tracked quest: " .. (questTitle or "Unknown"))
             end
         end
+    end
+    
+    if trackedCount > 0 then
+        self:Print("Force Track All: Added " .. trackedCount .. " quests to tracker")
+    else
+        self:Print("Force Track All: All quests already tracked")
     end
 end
 
@@ -1362,8 +1374,8 @@ function Module:AutoTrackByCurrentZone()
         local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
         
         if not isHeader and questTitle then
-            -- Always track "Ascension Main Quest" category quests
-            local shouldTrack = (questTag and questTag == "Ascension Main Quest")
+            -- Always track "Ascension Main Quest" category quests and "Path to Ascension" quests
+            local shouldTrack = (questTag and (questTag == "Ascension Main Quest" or questTag == "Path to Ascension"))
             
             -- Also track quests for current zone
             if not shouldTrack then
@@ -1402,6 +1414,20 @@ function Module:AutoTrackByCurrentZone()
         RemoveQuestWatch(questIndex)
         local title = GetQuestLogTitle(questIndex)
         self:Debug("Auto-untracked quest (wrong zone): " .. (title or "Unknown"))
+    end
+    
+    -- Provide user feedback
+    if #questsToTrack > 0 or #questsToUntrack > 0 then
+        local message = "Auto-track by Zone: "
+        if #questsToTrack > 0 then
+            message = message .. "Added " .. #questsToTrack .. " quest(s)"
+        end
+        if #questsToUntrack > 0 then
+            if #questsToTrack > 0 then message = message .. ", " end
+            message = message .. "Removed " .. #questsToUntrack .. " quest(s)"
+        end
+        message = message .. " (Zone: " .. currentZone .. ")"
+        self:Print(message)
     end
 end
 
@@ -1675,15 +1701,23 @@ function Module:BuildOptions()
                         get=get, set=function(info, val) 
                             if val then self.db.autoTrackByZone = false end
                             set(info, val)
+                            -- Apply changes immediately
+                            if val and self:IsEnabled() then
+                                self:TrackAllQuests()
+                            end
                         end,
                     },
                     autoTrackByZone = {
                         type = "toggle", order = 6,
                         name = L["Auto-track by Zone"] or "Auto-track by Zone",
-                        desc = L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest category."] or "Automatically track quests for your current zone only. Always tracks Ascension Main Quest category.",
+                        desc = L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories."] or "Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories.",
                         get=get, set=function(info, val) 
                             if val then self.db.forceTrackAll = false end
                             set(info, val)
+                            -- Apply changes immediately
+                            if val and self:IsEnabled() then
+                                self:AutoTrackByCurrentZone()
+                            end
                         end,
                     },
                 }
