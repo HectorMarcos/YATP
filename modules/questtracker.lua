@@ -314,6 +314,14 @@ local function HookQuestTracker(self)
                     if self.db.customWidth then
                         self:ApplyCustomWidth()
                     end
+                    if self.db.customHeight then
+                        self:ApplyCustomHeight()
+                    end
+                    
+                    -- Apply background toggle immediately after frame update to prevent flash
+                    if self.db.hideBackground then
+                        self:ApplyBackgroundToggle()
+                    end
                 end
             end
         end
@@ -527,10 +535,18 @@ function Module:ApplyBackgroundToggle()
     end
     
     if self.db.hideBackground then
-        self:Debug("Hiding quest tracker background")
+        self:Debug("Hiding quest tracker background (aggressive mode)")
         
         -- Clear previous hidden textures list
         self.hiddenTextures = {}
+        
+        -- Set background to completely transparent as backup method
+        if questTrackerFrame.SetBackdropColor then
+            questTrackerFrame:SetBackdropColor(0, 0, 0, 0)
+        end
+        if questTrackerFrame.SetBackdropBorderColor then
+            questTrackerFrame:SetBackdropBorderColor(0, 0, 0, 0)
+        end
         
         -- Hide background textures
         if questTrackerFrame.background then
@@ -1657,8 +1673,11 @@ function Module:OnQuestWatchUpdate(event, questID)
     self:Debug("Quest watch updated: " .. tostring(questID))
     self:UpdateTrackedQuests()
     
-    -- Re-apply quest enhancements immediately to prevent flash
-    self:ReapplyAllEnhancements()
+    -- Re-apply quest enhancements with small delay to allow frame update to complete
+    -- This prevents the "flash" of default background when tracker updates
+    self:ScheduleTimer(function()
+        self:ReapplyAllEnhancements()
+    end, 0.1) -- Very small delay, just enough for frame to finish updating
 end
 
 function Module:OnQuestLogUpdate()
@@ -1668,8 +1687,10 @@ function Module:OnQuestLogUpdate()
     -- Auto-tracking functionality
     self:ManageAutoTracking()
     
-    -- Re-apply enhancements immediately
-    self:ReapplyAllEnhancements()
+    -- Re-apply enhancements with small delay to prevent flash
+    self:ScheduleTimer(function()
+        self:ReapplyAllEnhancements()
+    end, 0.1)
 end
 
 -- New function to handle automatic quest tracking
@@ -1862,8 +1883,13 @@ function Module:ReapplyAllEnhancements()
         self:ApplyCustomHeight()
     end
     
-    -- Apply background toggle
+    -- Apply background toggle with multiple attempts to fight frame regeneration
     self:ApplyBackgroundToggle()
+    if self.db.hideBackground then
+        -- Apply background toggle multiple times to ensure it sticks during frame updates
+        self:ScheduleTimer(function() self:ApplyBackgroundToggle() end, 0.2)
+        self:ScheduleTimer(function() self:ApplyBackgroundToggle() end, 0.5)
+    end
     
     -- Apply movable tracker
     self:ApplyMovableTracker()
