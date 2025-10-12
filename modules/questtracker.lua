@@ -77,6 +77,7 @@ local originalUpdateFunction
 local trackedQuests = {}
 local nearbyObjectives = {}
 local maintenanceTimer
+local savedWatchFrameContent = {}
 
 -------------------------------------------------
 -- Version migrations
@@ -112,21 +113,32 @@ local function HookQuestTracker(self)
             if WatchFrame_Update then
                 originalUpdateFunction = WatchFrame_Update
                 WatchFrame_Update = function(...)
+                    -- Save our current modifications before the update
+                    if self.db.showQuestLevels then
+                        self:SaveWatchFrameContent()
+                    end
+                    
+                    -- Call the original update function
                     originalUpdateFunction(...)
-                    -- Re-apply our enhancements after the original update
-                    self:ScheduleTimer(function()
-                        if self.db.showQuestLevels then
+                    
+                    -- Try to restore immediately without delay to prevent flash
+                    if self.db.showQuestLevels then
+                        local restored = self:RestoreWatchFrameContent()
+                        if not restored then
+                            -- If restoration failed, apply fresh (this will be instant since frame just updated)
                             self:ShowQuestLevels()
                         end
-                        if self.db.showProgressPercent then
-                            self:ShowProgressPercentages()
-                        end
-                        if self.db.colorCodeByDifficulty then
-                            self:ApplyDifficultyColors()
-                        end
-                    end, 0.05) -- Very short delay to let WatchFrame finish updating
+                    end
+                    
+                    -- Apply other enhancements immediately
+                    if self.db.showProgressPercent then
+                        self:ShowProgressPercentages()
+                    end
+                    if self.db.colorCodeByDifficulty then
+                        self:ApplyDifficultyColors()
+                    end
                 end
-                self:Debug("Hooked WatchFrame_Update function")
+                self:Debug("Hooked WatchFrame_Update function with flash prevention")
             else
                 self:Debug("WatchFrame_Update function not found")
             end
@@ -136,7 +148,45 @@ local function HookQuestTracker(self)
     end
 end
 
--- Enhance quest display
+-- Save current WatchFrame content with our modifications
+function Module:SaveWatchFrameContent()
+    wipe(savedWatchFrameContent)
+    
+    for lineNum = 1, 50 do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine.text and watchLine:IsVisible() then
+            local text = watchLine.text:GetText()
+            if text and text ~= "" then
+                savedWatchFrameContent[lineNum] = text
+            end
+        end
+    end
+    
+    self:Debug("Saved " .. #savedWatchFrameContent .. " WatchFrame lines")
+end
+
+-- Restore WatchFrame content seamlessly
+function Module:RestoreWatchFrameContent()
+    if not savedWatchFrameContent or next(savedWatchFrameContent) == nil then
+        return false
+    end
+    
+    for lineNum, savedText in pairs(savedWatchFrameContent) do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine.text and watchLine:IsVisible() then
+            local currentText = watchLine.text:GetText()
+            -- Only restore if the content differs and our modification exists in saved version
+            if currentText ~= savedText and string.find(savedText, "^%[%d+%] ") then
+                watchLine.text:SetText(savedText)
+            end
+        end
+    end
+    
+    self:Debug("Restored WatchFrame content")
+    return true
+end
+
+-- Enhanced quest display with flash prevention
 function Module:EnhanceQuestDisplay()
     if not self.db.enhancedDisplay then return end
     
@@ -392,7 +442,7 @@ function Module:OnEnable()
     
     -- Start maintenance timer to periodically check and re-apply enhancements
     if not maintenanceTimer then
-        maintenanceTimer = self:ScheduleRepeatingTimer("MaintenanceCheck", 2) -- Check every 2 seconds
+        maintenanceTimer = self:ScheduleRepeatingTimer("MaintenanceCheck", 5) -- Check every 5 seconds (less aggressive)
         self:Debug("Started maintenance timer")
     end
     
@@ -428,6 +478,9 @@ function Module:OnDisable()
     
     -- Clean up any existing modifications
     self:RemoveQuestLevels()
+    
+    -- Clear saved content
+    wipe(savedWatchFrameContent)
     
     self:Debug("Quest Tracker module disabled")
 end
@@ -485,29 +538,25 @@ function Module:OnQuestWatchUpdate(event, questID)
     self:Debug("Quest watch updated: " .. tostring(questID))
     self:UpdateTrackedQuests()
     
-    -- Re-apply quest enhancements after a brief delay to ensure WatchFrame is updated
-    self:ScheduleTimer(function() 
-        self:ReapplyAllEnhancements()
-    end, 0.1)
+    -- Re-apply quest enhancements immediately to prevent flash
+    self:ReapplyAllEnhancements()
 end
 
 function Module:OnQuestLogUpdate()
     self:Debug("Quest log updated")
     self:UpdateTrackedQuests()
     
-    -- Re-apply enhancements
-    self:ScheduleTimer(function() 
-        self:ReapplyAllEnhancements()
-    end, 0.1)
+    -- Re-apply enhancements immediately
+    self:ReapplyAllEnhancements()
 end
 
 function Module:OnZoneChanged()
     self:Debug("Zone changed, re-applying quest tracker enhancements")
     
-    -- Re-apply enhancements after zone change
+    -- Re-apply enhancements after zone change with slight delay for loading
     self:ScheduleTimer(function() 
         self:ReapplyAllEnhancements()
-    end, 0.5)
+    end, 0.3)
 end
 
 -- New function to re-apply all active enhancements
