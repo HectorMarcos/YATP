@@ -24,6 +24,10 @@ local Module = YATP:NewModule("QuestTracker", "AceEvent-3.0", "AceConsole-3.0", 
 -- Debug helper - Disabled for production
 -------------------------------------------------
 function Module:Debug(msg)
+    -- Temporarily enable debug for POI testing
+    if string.find(msg, "POI") or string.find(msg, "child") or string.find(msg, "quest") then
+        print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
+    end
     -- Debug disabled for cleaner output
     -- if YATP.db and YATP.db.profile and YATP.db.profile.debugMode then
     --     print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
@@ -44,10 +48,111 @@ function Module:ForceQuestTrackerUpdate()
         end
     end
     
+    -- Force POI (Point of Interest) icon updates
+    if QuestMapUpdateAllQuests then
+        QuestMapUpdateAllQuests()
+    end
+    
+    -- Force quest POI frame updates (the arrow icons)
+    if QuestPOIUpdateIcons then
+        QuestPOIUpdateIcons()
+    end
+    
+    -- Alternative POI update methods for different client versions
+    if QuestMapFrame and QuestMapFrame.DetailsFrame and QuestMapFrame.DetailsFrame.BackButton then
+        -- Force a quest map refresh which also updates POIs
+        C_Timer.After(0.05, function()
+            if GetNumQuestWatches() > 0 then
+                local questID = GetQuestIDFromLogIndex(GetQuestIndexForWatch(1))
+                if questID then
+                    QuestMapFrame_ShowQuestDetails(questID)
+                    QuestMapFrame_CloseQuestDetails()
+                end
+            end
+        end)
+    end
+    
+    -- Update world map quest POIs if visible
+    if WorldMapFrame and WorldMapFrame:IsVisible() then
+        if WorldMapQuestFrame_Update then
+            WorldMapQuestFrame_Update()
+        end
+    end
+    
     -- Also trigger our own enhancement update
     self:ScheduleTimer(function()
         self:ReapplyAllEnhancements()
+        
+        -- Final POI refresh after enhancements are applied
+        if WatchFrame_Update then
+            WatchFrame_Update()
+        end
+        
+        -- Trigger quest log update event to refresh POIs
+        if QuestLog_Update then
+            QuestLog_Update()
+        end
+        
     end, 0.1)
+    
+    -- Additional delayed POI update for stubborn icons
+    self:ScheduleTimer(function()
+        if QuestPOIUpdateIcons then
+            QuestPOIUpdateIcons()
+        end
+        -- Simulate quest watch update to refresh POIs
+        if WatchFrame_Update then
+            WatchFrame_Update()
+        end
+        -- Call our comprehensive POI update function
+        self:UpdateQuestPOIIcons()
+    end, 0.2)
+end
+
+function Module:UpdateQuestPOIIcons()
+    -- Method 1: Direct POI function calls
+    if QuestPOIUpdateIcons then
+        QuestPOIUpdateIcons()
+        self:Debug("Called QuestPOIUpdateIcons()")
+    end
+    
+    -- Method 2: Update quest map POIs
+    if QuestMapUpdateAllQuests then
+        QuestMapUpdateAllQuests()
+        self:Debug("Called QuestMapUpdateAllQuests()")
+    end
+    
+    -- Method 3: Force WatchFrame children update (POI icons are often children)
+    if WatchFrame then
+        local children = {WatchFrame:GetChildren()}
+        self:Debug("Found " .. #children .. " WatchFrame children")
+        for i, child in ipairs(children) do
+            if child and child.Update then
+                child:Update()
+                self:Debug("Updated child " .. i .. " with Update method")
+            elseif child and child.IsVisible and child:IsVisible() then
+                child:Hide()
+                child:Show()
+                self:Debug("Refreshed child " .. i .. " with hide/show")
+            end
+        end
+    end
+    
+    -- Method 4: Update individual quest POI frames
+    local watchCount = GetNumQuestWatches()
+    self:Debug("Updating POI for " .. watchCount .. " watched quests")
+    for i = 1, watchCount do
+        local questIndex = GetQuestIndexForWatch(i)
+        if questIndex then
+            local questID = GetQuestIDFromLogIndex and GetQuestIDFromLogIndex(questIndex)
+            if questID and QuestPOI_UpdateIcon then
+                QuestPOI_UpdateIcon(questID)
+                self:Debug("Updated POI for quest ID " .. questID)
+            end
+        end
+    end
+    
+    self:Debug("Completed quest POI icons update")
 end
 
 -------------------------------------------------
