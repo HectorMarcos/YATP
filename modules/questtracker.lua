@@ -43,10 +43,11 @@ Module.defaults = {
     compactMode = false,           -- Removed from UI, disabled by default
     
     -- Sorting options
-    customSorting = false,
-    sortByLevel = false,
-    sortByZone = false,
+    customSorting = true,      -- Enable custom sorting by default
+    sortByLevel = true,        -- Sort by level by default
+    sortByZone = false,        -- Keep zone sorting disabled
     sortByDistance = false,
+    filterByZone = false,      -- Zone filtering option
     
     -- Position and size
     customPosition = false,
@@ -63,6 +64,8 @@ Module.defaults = {
     autoTrackNew = true,
     autoUntrackComplete = false,
     maxTrackedQuests = 25,
+    forceTrackAll = false,     -- Force tracking of all quests
+    autoTrackByZone = false,   -- Auto-track quests by current zone
     
     -- Visual enhancements
     colorCodeByDifficulty = true,
@@ -341,16 +344,40 @@ function Module:EnhanceQuestDisplay()
     -- Enhanced display is always enabled now
     if not self.db.enabled then return end
     
+    print("|cff00ff00[YATP - DEBUG]|r EnhanceQuestDisplay: Starting")
+    print("|cff00ff00[YATP - DEBUG]|r  customSorting: " .. tostring(self.db.customSorting))
+    print("|cff00ff00[YATP - DEBUG]|r  sortByLevel: " .. tostring(self.db.sortByLevel))
+    print("|cff00ff00[YATP - DEBUG]|r  filterByZone: " .. tostring(self.db.filterByZone))
+    
     -- Update tracked quests table
     self:UpdateTrackedQuests()
     
-    -- Apply text enhancements (levels and colors) in one pass
+    -- FIRST: Apply text enhancements (levels and colors) so they're there for reordering
     if self.db.showQuestLevels or self.db.colorCodeByDifficulty then
+        print("|cff00ff00[YATP - DEBUG]|r Applying text enhancements first")
         self:ApplyAllTextEnhancements()
     else
         self:RemoveQuestLevels()
         self:RemoveDifficultyColors()
     end
+    
+    -- THEN: Apply custom sorting if enabled (now with levels already applied)
+    if self.db.customSorting and self.db.sortByLevel then
+        print("|cff00ff00[YATP - DEBUG]|r Calling SortQuestsByLevel")
+        self:SortQuestsByLevel()
+    else
+        print("|cff00ff00[YATP - DEBUG]|r Skipping SortQuestsByLevel (not enabled)")
+    end
+    
+    -- FINALLY: Apply zone filtering if enabled
+    if self.db.filterByZone then
+        print("|cff00ff00[YATP - DEBUG]|r Calling ApplyZoneFilter")
+        self:ApplyZoneFilter()
+    else
+        print("|cff00ff00[YATP - DEBUG]|r Skipping ApplyZoneFilter (not enabled)")
+    end
+    
+    print("|cff00ff00[YATP - DEBUG]|r EnhanceQuestDisplay: Finished")
 end
 
 -- Update tracked quests information
@@ -388,6 +415,286 @@ function Module:UpdateTrackedQuests()
             end
         end
     end
+end
+
+-- Sort quests by level with completed quests at bottom
+function Module:SortQuestsByLevel()
+    if GetNumQuestWatches() == 0 then 
+        print("|cff00ff00[YATP - DEBUG]|r SortQuestsByLevel: No watched quests")
+        return 
+    end
+    
+    print("|cff00ff00[YATP - DEBUG]|r SortQuestsByLevel: Starting with " .. GetNumQuestWatches() .. " watched quests")
+    
+    local questsToSort = {}
+    local playerLevel = UnitLevel("player")
+    
+    -- Collect quest information for sorting
+    for i = 1, GetNumQuestWatches() do
+        local questIndex = GetQuestIndexForWatch(i)
+        if questIndex then
+            local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(questIndex)
+            if title and not isHeader then
+                print(string.format("|cff00ff00[YATP - DEBUG]|r Quest %d: [%d] %s (Complete: %s)", i, level or 1, title, tostring(isComplete == 1 or isComplete == -1)))
+                table.insert(questsToSort, {
+                    questIndex = questIndex,
+                    title = title,
+                    level = level or 1,
+                    isComplete = isComplete == 1 or isComplete == -1,
+                    watchIndex = i
+                })
+            end
+        end
+    end
+    
+    print("|cff00ff00[YATP - DEBUG]|r Collected " .. #questsToSort .. " quests for sorting")
+    
+    -- Sort: incomplete quests by level first, then completed quests at bottom
+    table.sort(questsToSort, function(a, b)
+        -- Completed quests go to bottom
+        if a.isComplete ~= b.isComplete then
+            return not a.isComplete -- Non-complete (false) comes before complete (true)
+        end
+        
+        -- Among quests of same completion status:
+        -- Special handling for Path to Ascension quests (they show level 22/23 but appear without [XX])
+        local aIsPathToAscension = string.find(a.title, "Path to Ascension", 1, true)
+        local bIsPathToAscension = string.find(b.title, "Path to Ascension", 1, true)
+        
+        if aIsPathToAscension ~= bIsPathToAscension then
+            -- Path to Ascension quests go after regular leveled quests but before completed
+            if not a.isComplete and not b.isComplete then
+                return not aIsPathToAscension -- Regular quests (false) come before Path to Ascension (true)
+            end
+        end
+        
+        -- For regular quests of same type, sort by level
+        return a.level < b.level
+    end)
+    
+    print("|cff00ff00[YATP - DEBUG]|r After sorting:")
+    for i, questInfo in ipairs(questsToSort) do
+        local status = questInfo.isComplete and "COMPLETE" or "INCOMPLETE"
+        local questType = string.find(questInfo.title, "Path to Ascension", 1, true) and " (PATH)" or ""
+        print(string.format("|cff00ff00[YATP - DEBUG]|r  %d. [%d] %s (%s)%s", i, questInfo.level, questInfo.title, status, questType))
+    end
+    
+    -- For WoW 3.3.5, we need to reorder visually instead of using API
+    print("|cff00ff00[YATP - DEBUG]|r Using visual reordering approach...")
+    self:ReorderWatchFrameLines(questsToSort)
+    
+    print("|cff00ff00[YATP - DEBUG]|r SortQuestsByLevel: Finished")
+end
+
+-- Reorder WatchFrame lines visually to match desired quest order
+function Module:ReorderWatchFrameLines(questsToSort)
+    if not WatchFrame then 
+        print("|cff00ff00[YATP - DEBUG]|r WatchFrame not found")
+        return 
+    end
+    
+    -- Store all line contents with their quest associations
+    local questBlocks = {}
+    local currentQuestTitle = nil
+    local currentBlock = {}
+    local allLines = {}
+    
+    -- First, collect all lines and show what we have
+    for i = 1, 50 do
+        local line = _G["WatchFrameLine" .. i]
+        if line and line.text then
+            local text = line.text:GetText()
+            if text and text ~= "" then
+                table.insert(allLines, {lineNum = i, text = text, line = line})
+                print("|cff00ff00[YATP - DEBUG]|r Line " .. i .. ": '" .. text .. "'")
+            end
+        end
+    end
+    
+    print("|cff00ff00[YATP - DEBUG]|r Found " .. #allLines .. " total lines")
+    
+    -- Now try to group them by quest
+    for _, lineData in ipairs(allLines) do
+        local text = lineData.text
+        
+        -- Check if this is a quest title line (more flexible pattern)
+        -- Look for level brackets anywhere in the line, or known quest patterns
+        local hasLevel = string.match(text, "%[%d+%]")
+        local isIndented = string.match(text, "^%s+") -- starts with spaces (objective)
+        
+        if hasLevel and not isIndented then
+            -- Save previous block if exists
+            if currentQuestTitle and #currentBlock > 0 then
+                questBlocks[currentQuestTitle] = currentBlock
+                print("|cff00ff00[YATP - DEBUG]|r Saved block for: " .. currentQuestTitle .. " (" .. #currentBlock .. " lines)")
+            end
+            -- Start new block - use the CLEAN title as key
+            local cleanTitle = self:ExtractQuestTitle(text)
+            currentQuestTitle = cleanTitle
+            currentBlock = {lineData}
+            print("|cff00ff00[YATP - DEBUG]|r Starting new block for: " .. cleanTitle .. " (from line: '" .. text .. "')")
+        else
+            -- This is likely an objective line, add to current block
+            if currentQuestTitle then
+                table.insert(currentBlock, lineData)
+            else
+                -- Orphaned line, try to match it to a quest
+                local foundQuest = false
+                for _, questInfo in ipairs(questsToSort) do
+                    if string.find(text, questInfo.title, 1, true) then
+                        currentQuestTitle = questInfo.title
+                        currentBlock = {lineData}
+                        print("|cff00ff00[YATP - DEBUG]|r Found orphaned quest line: " .. currentQuestTitle)
+                        foundQuest = true
+                        break
+                    end
+                end
+                if not foundQuest then
+                    print("|cff00ff00[YATP - DEBUG]|r Orphaned line: " .. text)
+                end
+            end
+        end
+    end
+    
+    -- Save the last block
+    if currentQuestTitle and #currentBlock > 0 then
+        questBlocks[currentQuestTitle] = currentBlock
+        print("|cff00ff00[YATP - DEBUG]|r Saved final block for: " .. currentQuestTitle .. " (" .. #currentBlock .. " lines)")
+    end
+    
+    print("|cff00ff00[YATP - DEBUG]|r Found " .. self:TableCount(questBlocks) .. " quest blocks")
+    
+    -- If we still have no blocks, abort to avoid clearing everything
+    if self:TableCount(questBlocks) == 0 then
+        print("|cff00ff00[YATP - ERROR]|r No quest blocks found, aborting reorder to prevent data loss")
+        return
+    end
+    
+    -- Clear all lines first
+    for i = 1, 50 do
+        local line = _G["WatchFrameLine" .. i]
+        if line and line.text then
+            line.text:SetText("")
+            line:Hide()
+        end
+    end
+    
+    -- Reassign in sorted order
+    local lineIndex = 1
+    for _, questInfo in ipairs(questsToSort) do
+        local questTitle = questInfo.title  -- Use the original title from quest data
+        local questBlock = questBlocks[questTitle]
+        
+        -- If not found, try alternative keys
+        if not questBlock then
+            -- Try with level prefix
+            local titleWithLevel = "[" .. questInfo.level .. "] " .. questTitle
+            questBlock = questBlocks[titleWithLevel]
+            
+            -- Try finding by partial match
+            if not questBlock then
+                for blockKey, block in pairs(questBlocks) do
+                    if string.find(blockKey, questTitle, 1, true) then
+                        questBlock = block
+                        print("|cff00ff00[YATP - DEBUG]|r Found block by partial match: '" .. blockKey .. "' for quest '" .. questTitle .. "'")
+                        break
+                    end
+                end
+            end
+        end
+        
+        if questBlock then
+            print("|cff00ff00[YATP - DEBUG]|r Placing quest: " .. questInfo.title .. " (Complete: " .. tostring(questInfo.isComplete) .. ")")
+            for _, lineData in ipairs(questBlock) do
+                local line = _G["WatchFrameLine" .. lineIndex]
+                if line and line.text then
+                    line.text:SetText(lineData.text)
+                    line:Show()
+                    print("|cff00ff00[YATP - DEBUG]|r  Line " .. lineIndex .. ": " .. lineData.text)
+                    lineIndex = lineIndex + 1
+                end
+            end
+        else
+            print("|cff00ff00[YATP - DEBUG]|r Warning: No block found for quest: " .. questInfo.title)
+            -- Debug: show what blocks we DO have
+            print("|cff00ff00[YATP - DEBUG]|r Available blocks:")
+            for blockKey, _ in pairs(questBlocks) do
+                print("|cff00ff00[YATP - DEBUG]|r   '" .. blockKey .. "'")
+            end
+        end
+    end
+    
+    print("|cff00ff00[YATP - DEBUG]|r Reordered " .. (lineIndex - 1) .. " lines")
+end
+
+-- Helper function to count table entries
+function Module:TableCount(t)
+    local count = 0
+    for _ in pairs(t) do count = count + 1 end
+    return count
+end
+
+-- Extract quest title from WatchFrame line text
+function Module:ExtractQuestTitle(text)
+    if not text then return "" end
+    
+    -- Remove level prefix like "[18] " 
+    local title = string.gsub(text, "^%[%d+%]%s*", "")
+    
+    -- Remove completion symbols like "!! " or "~ "
+    title = string.gsub(title, "^[!~]+%s*", "")
+    
+    return title
+end
+
+-- Filter quests to show only current zone
+function Module:ApplyZoneFilter()
+    local currentZone = GetRealZoneText()
+    if not currentZone or currentZone == "" then
+        currentZone = GetZoneText() -- Fallback to subzone
+    end
+    
+    if not currentZone or currentZone == "" then return end
+    
+    local questsToHide = {}
+    
+    -- Check each watched quest
+    for i = 1, GetNumQuestWatches() do
+        local questIndex = GetQuestIndexForWatch(i)
+        if questIndex then
+            local questZone = self:GetQuestZone(questIndex)
+            
+            -- If quest zone doesn't match current zone, mark for hiding
+            if questZone and questZone ~= currentZone then
+                table.insert(questsToHide, questIndex)
+            end
+        end
+    end
+    
+    -- Hide quests not in current zone
+    for _, questIndex in ipairs(questsToHide) do
+        RemoveQuestWatch(questIndex)
+    end
+end
+
+-- Get the zone for a specific quest
+function Module:GetQuestZone(questIndex)
+    -- This is tricky in 3.3.5 as quest zone info isn't readily available
+    -- We'll use a simple approach: check quest log for zone headers
+    local numEntries = GetNumQuestLogEntries()
+    local currentZone = nil
+    
+    for i = 1, numEntries do
+        local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
+        
+        if isHeader then
+            currentZone = questTitle
+        elseif i == questIndex then
+            return currentZone
+        end
+    end
+    
+    return nil
 end
 
 -- Remove quest levels from tracker
@@ -850,6 +1157,37 @@ function Module:OnInitialize()
     -- Register slash command
     self:RegisterChatCommand("questtracker", function() self:OpenConfig() end)
     self:RegisterChatCommand("qt", function() self:OpenConfig() end)
+    
+    -- Debug commands
+    self:RegisterChatCommand("qtsort", function() 
+        print("|cff00ff00[YATP]|r Testing quest sorting...")
+        self:EnhanceQuestDisplay() 
+    end)
+    self:RegisterChatCommand("qtdebug", function() 
+        print("|cff00ff00[YATP]|r Quest Tracker Debug Info:")
+        print("  Module enabled: " .. tostring(self:IsEnabled()))
+        print("  customSorting: " .. tostring(self.db.customSorting))
+        print("  sortByLevel: " .. tostring(self.db.sortByLevel))
+        print("  filterByZone: " .. tostring(self.db.filterByZone))
+        print("  Watched quests: " .. GetNumQuestWatches())
+    end)
+    self:RegisterChatCommand("qtrestore", function()
+        print("|cff00ff00[YATP]|r Restoring quest tracker...")
+        -- Force refresh the watch frame
+        if WatchFrame and WatchFrame.Update then
+            WatchFrame:Update()
+        else
+            -- Alternative method for 3.3.5
+            for i = 1, GetNumQuestWatches() do
+                local questIndex = GetQuestIndexForWatch(i)
+                if questIndex then
+                    RemoveQuestWatch(questIndex)
+                    AddQuestWatch(questIndex)
+                end
+            end
+        end
+        print("|cff00ff00[YATP]|r Quest tracker restored!")
+    end)
 
     -- Register options in Interface Hub
     if YATP.AddModuleOptions then
@@ -963,12 +1301,117 @@ function Module:OnQuestLogUpdate()
     self:Debug("Quest log updated")
     self:UpdateTrackedQuests()
     
+    -- Auto-tracking functionality
+    self:ManageAutoTracking()
+    
     -- Re-apply enhancements immediately
     self:ReapplyAllEnhancements()
 end
 
+-- New function to handle automatic quest tracking
+function Module:ManageAutoTracking()
+    if not self.db.enabled then return end
+    
+    if self.db.forceTrackAll then
+        self:TrackAllQuests()
+    elseif self.db.autoTrackByZone then
+        self:AutoTrackByCurrentZone()
+    end
+end
+
+-- Track all quests in quest log
+function Module:TrackAllQuests()
+    local numEntries = GetNumQuestLogEntries()
+    
+    for i = 1, numEntries do
+        local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
+        
+        if not isHeader and questTitle then
+            -- Check if quest is already being tracked
+            local isTracked = false
+            for j = 1, GetNumQuestWatches() do
+                local watchedIndex = GetQuestIndexForWatch(j)
+                if watchedIndex == i then
+                    isTracked = true
+                    break
+                end
+            end
+            
+            -- Add to tracker if not already tracked
+            if not isTracked then
+                AddQuestWatch(i)
+                self:Debug("Auto-tracked quest: " .. (questTitle or "Unknown"))
+            end
+        end
+    end
+end
+
+-- Track quests only for current zone (and always track Ascension Main Quest)
+function Module:AutoTrackByCurrentZone()
+    local currentZone = GetRealZoneText() or GetZoneText()
+    if not currentZone or currentZone == "" then
+        return
+    end
+    
+    local numEntries = GetNumQuestLogEntries()
+    local questsToTrack = {}
+    local questsToUntrack = {}
+    
+    -- First, collect all quests and their zones
+    for i = 1, numEntries do
+        local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
+        
+        if not isHeader and questTitle then
+            -- Always track "Ascension Main Quest" category quests
+            local shouldTrack = (questTag and questTag == "Ascension Main Quest")
+            
+            -- Also track quests for current zone
+            if not shouldTrack then
+                local questZone = self:GetQuestZone(i)
+                if questZone and questZone == currentZone then
+                    shouldTrack = true
+                end
+            end
+            
+            -- Check current tracking status
+            local isTracked = false
+            for j = 1, GetNumQuestWatches() do
+                local watchedIndex = GetQuestIndexForWatch(j)
+                if watchedIndex == i then
+                    isTracked = true
+                    break
+                end
+            end
+            
+            if shouldTrack and not isTracked then
+                table.insert(questsToTrack, i)
+            elseif not shouldTrack and isTracked then
+                table.insert(questsToUntrack, i)
+            end
+        end
+    end
+    
+    -- Apply tracking changes
+    for _, questIndex in ipairs(questsToTrack) do
+        AddQuestWatch(questIndex)
+        local title = GetQuestLogTitle(questIndex)
+        self:Debug("Auto-tracked quest for zone: " .. (title or "Unknown"))
+    end
+    
+    for _, questIndex in ipairs(questsToUntrack) do
+        RemoveQuestWatch(questIndex)
+        local title = GetQuestLogTitle(questIndex)
+        self:Debug("Auto-untracked quest (wrong zone): " .. (title or "Unknown"))
+    end
+end
+
 function Module:OnZoneChanged()
     self:Debug("Zone changed, re-applying quest tracker enhancements")
+    
+    -- Auto-tracking by zone when zone changes
+    if self.db.autoTrackByZone then
+        self:AutoTrackByCurrentZone()
+    end
     
     -- Re-apply enhancements after zone change with slight delay for loading
     self:ScheduleTimer(function() 
@@ -1223,6 +1666,66 @@ function Module:BuildOptions()
                         desc = L["Maximum number of quests to track simultaneously."] or "Maximum number of quests to track simultaneously.",
                         min = 5, max = 50, step = 1,
                         get=get, set=set,
+                    },
+                    spacer1 = { type = "description", order = 4, name = "", fontSize = "small" },
+                    forceTrackAll = {
+                        type = "toggle", order = 5,
+                        name = L["Force Track All Quests"] or "Force Track All Quests",
+                        desc = L["Automatically track all quests in your quest log."] or "Automatically track all quests in your quest log.",
+                        get=get, set=function(info, val) 
+                            if val then self.db.autoTrackByZone = false end
+                            set(info, val)
+                        end,
+                    },
+                    autoTrackByZone = {
+                        type = "toggle", order = 6,
+                        name = L["Auto-track by Zone"] or "Auto-track by Zone",
+                        desc = L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest category."] or "Automatically track quests for your current zone only. Always tracks Ascension Main Quest category.",
+                        get=get, set=function(info, val) 
+                            if val then self.db.forceTrackAll = false end
+                            set(info, val)
+                        end,
+                    },
+                }
+            },
+            
+            sortingGroup = {
+                type = "group", inline = true, order = 50,
+                name = L["Quest Sorting"] or "Quest Sorting",
+                args = {
+                    customSorting = {
+                        type = "toggle", order = 1,
+                        name = L["Custom Quest Sorting"] or "Custom Quest Sorting",
+                        desc = L["Enable custom sorting of tracked quests."] or "Enable custom sorting of tracked quests.",
+                        get=get, set=function(info,val) 
+                            set(info,val)
+                            if self:IsEnabled() then
+                                self:EnhanceQuestDisplay()
+                            end
+                        end,
+                    },
+                    sortByLevel = {
+                        type = "toggle", order = 2,
+                        name = L["Sort by Level"] or "Sort by Level",
+                        desc = L["Sort quests by level with completed quests at the bottom."] or "Sort quests by level with completed quests at the bottom.",
+                        get=get, set=function(info,val) 
+                            set(info,val)
+                            if self:IsEnabled() then
+                                self:EnhanceQuestDisplay()
+                            end
+                        end,
+                        disabled = function() return not self.db.customSorting end,
+                    },
+                    filterByZone = {
+                        type = "toggle", order = 3,
+                        name = L["Filter by Zone"] or "Filter by Zone",
+                        desc = L["Only show quests for the current zone."] or "Only show quests for the current zone.",
+                        get=get, set=function(info,val) 
+                            set(info,val)
+                            if self:IsEnabled() then
+                                self:EnhanceQuestDisplay()
+                            end
+                        end,
                     },
                 }
             },
