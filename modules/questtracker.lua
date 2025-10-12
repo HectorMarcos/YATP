@@ -76,6 +76,7 @@ local questTrackerFrame
 local originalUpdateFunction
 local trackedQuests = {}
 local nearbyObjectives = {}
+local maintenanceTimer
 
 -------------------------------------------------
 -- Version migrations
@@ -105,14 +106,30 @@ local function HookQuestTracker(self)
         -- Apply visual enhancements immediately
         self:ApplyVisualEnhancements()
         
-        -- Hook the update function if we haven't already
-        if not originalUpdateFunction and questTrackerFrame.Update then
-            originalUpdateFunction = questTrackerFrame.Update
-            questTrackerFrame.Update = function(...)
-                originalUpdateFunction(...)
-                self:EnhanceQuestDisplay()
+        -- Hook the update function if we haven't already to maintain our modifications
+        if not originalUpdateFunction then
+            -- Try to hook WatchFrame_Update if it exists
+            if WatchFrame_Update then
+                originalUpdateFunction = WatchFrame_Update
+                WatchFrame_Update = function(...)
+                    originalUpdateFunction(...)
+                    -- Re-apply our enhancements after the original update
+                    self:ScheduleTimer(function()
+                        if self.db.showQuestLevels then
+                            self:ShowQuestLevels()
+                        end
+                        if self.db.showProgressPercent then
+                            self:ShowProgressPercentages()
+                        end
+                        if self.db.colorCodeByDifficulty then
+                            self:ApplyDifficultyColors()
+                        end
+                    end, 0.05) -- Very short delay to let WatchFrame finish updating
+                end
+                self:Debug("Hooked WatchFrame_Update function")
+            else
+                self:Debug("WatchFrame_Update function not found")
             end
-            self:Debug("Hooked WatchFrame.Update function")
         end
     else
         self:Debug("WatchFrame not found")
@@ -368,8 +385,16 @@ function Module:OnEnable()
     self:RegisterEvent("QUEST_COMPLETE", "OnQuestComplete")
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnPlayerEnteringWorld")
     self:RegisterEvent("QUEST_ABANDONED", "OnQuestAbandoned")
+    self:RegisterEvent("ZONE_CHANGED", "OnZoneChanged")
+    self:RegisterEvent("ZONE_CHANGED_NEW_AREA", "OnZoneChanged")
     
     self:Debug("Quest Tracker module enabled")
+    
+    -- Start maintenance timer to periodically check and re-apply enhancements
+    if not maintenanceTimer then
+        maintenanceTimer = self:ScheduleRepeatingTimer("MaintenanceCheck", 2) -- Check every 2 seconds
+        self:Debug("Started maintenance timer")
+    end
     
     -- Try to hook immediately if WatchFrame exists
     if WatchFrame then
@@ -387,12 +412,65 @@ function Module:OnDisable()
     -- Unregister events
     self:UnregisterAllEvents()
     
-    -- Restore original quest tracker functionality
-    if questTrackerFrame and originalUpdateFunction then
-        questTrackerFrame.Update = originalUpdateFunction
+    -- Cancel maintenance timer
+    if maintenanceTimer then
+        self:CancelTimer(maintenanceTimer)
+        maintenanceTimer = nil
+        self:Debug("Cancelled maintenance timer")
     end
     
+    -- Restore original quest tracker functionality
+    if questTrackerFrame and originalUpdateFunction then
+        if WatchFrame_Update then
+            WatchFrame_Update = originalUpdateFunction
+        end
+    end
+    
+    -- Clean up any existing modifications
+    self:RemoveQuestLevels()
+    
     self:Debug("Quest Tracker module disabled")
+end
+
+-- Maintenance function to check and re-apply enhancements periodically
+function Module:MaintenanceCheck()
+    if not self.db.enabled or not self.db.enhancedDisplay then return end
+    
+    -- Check if quest levels are missing and re-apply if needed
+    if self.db.showQuestLevels then
+        local needsReapply = false
+        local numWatched = GetNumQuestWatches()
+        
+        for i = 1, numWatched do
+            local questIndex = GetQuestIndexForWatch(i)
+            if questIndex then
+                local title, level = GetQuestLogTitle(questIndex)
+                if title and level then
+                    -- Check if any WatchFrame line has this quest title without level prefix
+                    for lineNum = 1, 50 do
+                        local watchLine = _G["WatchFrameLine" .. lineNum]
+                        if watchLine and watchLine.text then
+                            local currentText = watchLine.text:GetText()
+                            if currentText and 
+                               string.find(currentText, title, 1, true) and 
+                               not string.find(currentText, "^[•%-]") and
+                               not string.find(currentText, "%d+/%d+") and
+                               not string.find(currentText, "^%[%d+%] ") then
+                                needsReapply = true
+                                break
+                            end
+                        end
+                    end
+                    if needsReapply then break end
+                end
+            end
+        end
+        
+        if needsReapply then
+            self:Debug("Maintenance: Re-applying quest levels")
+            self:ShowQuestLevels()
+        end
+    end
 end
 
 -------------------------------------------------
@@ -407,17 +485,48 @@ function Module:OnQuestWatchUpdate(event, questID)
     self:Debug("Quest watch updated: " .. tostring(questID))
     self:UpdateTrackedQuests()
     
-    -- Re-apply quest levels after a brief delay to ensure WatchFrame is updated
-    if self.db.showQuestLevels then
-        self:ScheduleTimer(function() 
-            self:ShowQuestLevels() 
-        end, 0.1)
-    end
+    -- Re-apply quest enhancements after a brief delay to ensure WatchFrame is updated
+    self:ScheduleTimer(function() 
+        self:ReapplyAllEnhancements()
+    end, 0.1)
 end
 
 function Module:OnQuestLogUpdate()
     self:Debug("Quest log updated")
     self:UpdateTrackedQuests()
+    
+    -- Re-apply enhancements
+    self:ScheduleTimer(function() 
+        self:ReapplyAllEnhancements()
+    end, 0.1)
+end
+
+function Module:OnZoneChanged()
+    self:Debug("Zone changed, re-applying quest tracker enhancements")
+    
+    -- Re-apply enhancements after zone change
+    self:ScheduleTimer(function() 
+        self:ReapplyAllEnhancements()
+    end, 0.5)
+end
+
+-- New function to re-apply all active enhancements
+function Module:ReapplyAllEnhancements()
+    if not self.db.enabled or not self.db.enhancedDisplay then return end
+    
+    self:Debug("Re-applying all quest tracker enhancements")
+    
+    if self.db.showQuestLevels then
+        self:ShowQuestLevels()
+    end
+    
+    if self.db.showProgressPercent then
+        self:ShowProgressPercentages()
+    end
+    
+    if self.db.colorCodeByDifficulty then
+        self:ApplyDifficultyColors()
+    end
 end
 
 function Module:OnUIInfoMessage(event, messageType, message)
