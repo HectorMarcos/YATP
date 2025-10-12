@@ -284,15 +284,55 @@ local function HookQuestTracker(self)
         -- Apply visual enhancements immediately
         self:ApplyVisualEnhancements()
         
+        -- Hook SetPoint to prevent position changes when we have custom position
+        if not questTrackerFrame.originalSetPoint then
+            questTrackerFrame.originalSetPoint = questTrackerFrame.SetPoint
+            questTrackerFrame.SetPoint = function(frame, point, relativeTo, relativePoint, x, y, ...)
+                -- Check if this looks like a default position (typical default positions)
+                local isDefaultPosition = false
+                if point == "TOPRIGHT" and relativeTo == UIParent and relativePoint == "TOPRIGHT" then
+                    isDefaultPosition = true
+                elseif point == "TOP" and relativeTo == UIParent and relativePoint == "TOP" then
+                    isDefaultPosition = true
+                end
+                
+                -- If we have custom position and this looks like a default positioning attempt, use ours instead
+                if self.db.positionX and self.db.positionY and isDefaultPosition then
+                    frame.originalSetPoint(frame, "TOPLEFT", UIParent, "TOPLEFT", self.db.positionX, self.db.positionY)
+                else
+                    -- Allow normal positioning for non-default positions
+                    frame.originalSetPoint(frame, point, relativeTo, relativePoint, x, y, ...)
+                end
+            end
+        end
+        
         -- Hook the update function if we haven't already to maintain our modifications
         if not originalUpdateFunction then
             -- Try to hook WatchFrame_Update if it exists
             if WatchFrame_Update then
                 originalUpdateFunction = WatchFrame_Update
                 WatchFrame_Update = function(...)
-                    -- Call the original update function first
-                    -- This will reset the WatchFrame to its clean state
+                    -- Store our custom position before calling original function
+                    local savedCustomX, savedCustomY = self.db.positionX, self.db.positionY
+                    
+                    -- IMMEDIATELY set custom position BEFORE calling original function to prevent flash
+                    if savedCustomX and savedCustomY then
+                        questTrackerFrame:ClearAllPoints()
+                        questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", savedCustomX, savedCustomY)
+                    end
+                    
+                    -- Call the original update function
+                    -- This will reset the WatchFrame to its clean state but position should stay
                     originalUpdateFunction(...)
+                    
+                    -- Double-check and restore custom position if it was changed
+                    if savedCustomX and savedCustomY then
+                        local currentX = questTrackerFrame:GetLeft()
+                        if not currentX or math.abs(currentX - savedCustomX) > 1 then
+                            questTrackerFrame:ClearAllPoints()
+                            questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", savedCustomX, savedCustomY)
+                        end
+                    end
                     
                     -- IMPORTANT: After WatchFrame_Update, the frame is CLEAN (no modifications)
                     -- We can now safely apply our enhancements without worrying about duplicates
@@ -321,12 +361,6 @@ local function HookQuestTracker(self)
                     -- Apply background toggle immediately after frame update to prevent flash
                     if self.db.hideBackground then
                         self:ApplyBackgroundToggle()
-                    end
-                    
-                    -- Apply custom position immediately after frame update to prevent reset
-                    if self.db.positionX and self.db.positionY then
-                        questTrackerFrame:ClearAllPoints()
-                        questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", self.db.positionX, self.db.positionY)
                     end
                     
                     -- Apply movable state
@@ -1613,6 +1647,11 @@ function Module:OnDisable()
     if questTrackerFrame and originalUpdateFunction then
         if WatchFrame_Update then
             WatchFrame_Update = originalUpdateFunction
+        end
+        -- Restore original SetPoint if we hooked it
+        if questTrackerFrame.originalSetPoint then
+            questTrackerFrame.SetPoint = questTrackerFrame.originalSetPoint
+            questTrackerFrame.originalSetPoint = nil
         end
     end
     
