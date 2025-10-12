@@ -34,6 +34,22 @@ function Module:Print(msg)
     print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
 end
 
+function Module:ForceQuestTrackerUpdate()
+    -- Force update the quest tracker display
+    if WatchFrame and WatchFrame:IsVisible() then
+        WatchFrame_Update()
+        if WatchFrameHeader then
+            WatchFrameHeader:Hide()
+            WatchFrameHeader:Show()
+        end
+    end
+    
+    -- Also trigger our own enhancement update
+    self:ScheduleTimer(function()
+        self:ReapplyAllEnhancements()
+    end, 0.1)
+end
+
 -------------------------------------------------
 -- Defaults
 -------------------------------------------------
@@ -1377,6 +1393,9 @@ function Module:TrackAllQuests()
         message = message .. "No changes needed"
     end
     self:Print(message)
+    
+    -- Force quest tracker update to show changes immediately
+    self:ForceQuestTrackerUpdate()
 end
 
 -- Track quests only for current zone (and always track Ascension Main Quest)
@@ -1455,6 +1474,9 @@ function Module:AutoTrackByCurrentZone()
         message = message .. " (Zone: " .. currentZone .. ")"
         self:Print(message)
     end
+    
+    -- Force quest tracker update to show changes immediately
+    self:ForceQuestTrackerUpdate()
 end
 
 function Module:OnZoneChanged()
@@ -1718,6 +1740,33 @@ function Module:BuildOptions()
                                     self:TrackAllQuests()
                                 elseif self.db.autoTrackByZone then
                                     self:AutoTrackByCurrentZone()
+                                else
+                                    -- If no auto-tracking mode is active, just clean completed quests
+                                    if val then
+                                        local numEntries = GetNumQuestLogEntries()
+                                        local untrackedCount = 0
+                                        
+                                        for i = 1, numEntries do
+                                            local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
+                                            
+                                            if not isHeader and questTitle and (isComplete == 1 or isComplete == -1) then
+                                                -- Check if quest is being tracked
+                                                for j = 1, GetNumQuestWatches() do
+                                                    local watchedIndex = GetQuestIndexForWatch(j)
+                                                    if watchedIndex == i then
+                                                        RemoveQuestWatch(i)
+                                                        untrackedCount = untrackedCount + 1
+                                                        break
+                                                    end
+                                                end
+                                            end
+                                        end
+                                        
+                                        if untrackedCount > 0 then
+                                            self:Print("Auto-untrack Complete: Removed " .. untrackedCount .. " completed quest(s)")
+                                            self:ForceQuestTrackerUpdate()
+                                        end
+                                    end
                                 end
                             end
                         end,
@@ -1740,6 +1789,9 @@ function Module:BuildOptions()
                             -- Apply changes immediately
                             if val and self:IsEnabled() then
                                 self:TrackAllQuests()
+                            elseif not val then
+                                -- When disabling, just show a message
+                                self:Print("Force Track All: Disabled")
                             end
                         end,
                     },
@@ -1753,6 +1805,9 @@ function Module:BuildOptions()
                             -- Apply changes immediately
                             if val and self:IsEnabled() then
                                 self:AutoTrackByCurrentZone()
+                            elseif not val then
+                                -- When disabling, just show a message
+                                self:Print("Auto-track by Zone: Disabled")
                             end
                         end,
                     },
