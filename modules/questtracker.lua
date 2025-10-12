@@ -189,16 +189,20 @@ function Module:RemoveQuestLevels()
     
     self:Debug("Removing quest levels from WatchFrame")
     
-    local numWatched = GetNumQuestWatches()
-    for i = 1, numWatched do
-        local watchLine = _G["WatchFrameLine" .. i]
+    -- Search through all WatchFrame lines to find ones with level prefixes
+    for lineNum = 1, 50 do -- Check up to 50 lines
+        local watchLine = _G["WatchFrameLine" .. lineNum]
         if watchLine and watchLine.text then
             local currentText = watchLine.text:GetText()
             if currentText and string.find(currentText, "^%[%d+%] ") then
-                -- Remove the level prefix
-                local newText = string.gsub(currentText, "^%[%d+%] ", "")
-                watchLine.text:SetText(newText)
-                self:Debug("Removed level from: " .. newText)
+                -- This line has a level prefix, check if it's a quest title (not an objective)
+                -- Quest titles typically don't have progress counters
+                if not string.find(currentText, "%d+/%d+") then
+                    -- Remove the level prefix
+                    local newText = string.gsub(currentText, "^%[%d+%] ", "")
+                    watchLine.text:SetText(newText)
+                    self:Debug("Removed level from quest title: " .. newText)
+                end
             end
         end
     end
@@ -220,16 +224,25 @@ function Module:ShowQuestLevels()
             local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(questIndex)
             
             if title and level and not isHeader then
-                -- Find the corresponding watch line in WatchFrame
-                local watchLine = _G["WatchFrameLine" .. i]
-                if watchLine and watchLine.text then
-                    local currentText = watchLine.text:GetText()
-                    if currentText then
-                        -- Check if level is already added to avoid duplicates
-                        local levelPrefix = "[" .. level .. "] "
-                        if not string.find(currentText, "^%[%d+%] ") then
-                            watchLine.text:SetText(levelPrefix .. currentText)
-                            self:Debug("Added level [" .. level .. "] to quest: " .. title)
+                -- Find the quest title line in WatchFrame (quest titles don't start with bullet points or dashes)
+                -- We need to search through WatchFrame lines to find the one that matches this quest title
+                for lineNum = 1, 50 do -- Check up to 50 lines
+                    local watchLine = _G["WatchFrameLine" .. lineNum]
+                    if watchLine and watchLine.text then
+                        local currentText = watchLine.text:GetText()
+                        if currentText then
+                            -- Check if this line contains the quest title and is not an objective
+                            -- Quest titles usually don't start with bullet points, dashes, or have progress counters
+                            if string.find(currentText, title, 1, true) and 
+                               not string.find(currentText, "^[•%-]") and  -- Not starting with bullet or dash
+                               not string.find(currentText, "%d+/%d+") and  -- Not containing progress counters like "0/4"
+                               not string.find(currentText, "^%[%d+%] ") then -- Not already having level prefix
+                                
+                                local levelPrefix = "[" .. level .. "] "
+                                watchLine.text:SetText(levelPrefix .. currentText)
+                                self:Debug("Added level [" .. level .. "] to quest title: " .. title)
+                                break -- Found and modified this quest, move to next
+                            end
                         end
                     end
                 end
@@ -641,15 +654,24 @@ function Module:TestFunction()
         if questIndex then
             local title, level = GetQuestLogTitle(questIndex)
             self:Debug("Quest " .. i .. ": [" .. (level or "?") .. "] " .. (title or "Unknown"))
-            
-            local watchLine = _G["WatchFrameLine" .. i]
-            if watchLine and watchLine.text then
-                self:Debug("  WatchLine text: " .. (watchLine.text:GetText() or "nil"))
-            else
-                self:Debug("  WatchLine not found: WatchFrameLine" .. i)
+        end
+    end
+    
+    -- Show WatchFrame line structure
+    self:Debug("--- WatchFrame Lines Analysis ---")
+    for lineNum = 1, 20 do -- Check first 20 lines
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine.text then
+            local text = watchLine.text:GetText()
+            if text and text ~= "" then
+                local hasProgress = string.find(text, "%d+/%d+") and "HAS_PROGRESS" or "NO_PROGRESS"
+                local hasLevel = string.find(text, "^%[%d+%] ") and "HAS_LEVEL" or "NO_LEVEL"
+                local startsWithBullet = string.find(text, "^[•%-]") and "BULLET/DASH" or "NO_BULLET"
+                self:Debug("Line " .. lineNum .. ": " .. hasProgress .. " | " .. hasLevel .. " | " .. startsWithBullet .. " | " .. text)
             end
         end
     end
+    self:Debug("--- End Lines Analysis ---")
     
     -- Apply settings manually
     self:ApplyVisualEnhancements()
@@ -664,6 +686,17 @@ SLASH_YATPQTTEST1 = "/qttest"
 SlashCmdList["YATPQTTEST"] = function()
     if YATP.modules.QuestTracker then
         YATP.modules.QuestTracker:TestFunction()
+    else
+        print("Quest Tracker module not found")
+    end
+end
+
+-- Register clean command to remove all levels manually
+SLASH_YATPQTCLEAN1 = "/qtclean"
+SlashCmdList["YATPQTCLEAN"] = function()
+    if YATP.modules.QuestTracker then
+        YATP.modules.QuestTracker:RemoveQuestLevels()
+        print("Removed all quest levels from tracker")
     else
         print("Quest Tracker module not found")
     end
