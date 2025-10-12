@@ -521,17 +521,27 @@ function Module:ApplyBackgroundToggle()
         return 
     end
     
+    -- Initialize hidden textures table if it doesn't exist
+    if not self.hiddenTextures then
+        self.hiddenTextures = {}
+    end
+    
     if self.db.hideBackground then
         self:Debug("Hiding quest tracker background")
+        
+        -- Clear previous hidden textures list
+        self.hiddenTextures = {}
         
         -- Hide background textures
         if questTrackerFrame.background then
             questTrackerFrame.background:Hide()
+            table.insert(self.hiddenTextures, questTrackerFrame.background)
         end
         
         -- Hide border textures
         if questTrackerFrame.border then
             questTrackerFrame.border:Hide()
+            table.insert(self.hiddenTextures, questTrackerFrame.border)
         end
         
         -- Look for common background texture names
@@ -545,6 +555,7 @@ function Module:ApplyBackgroundToggle()
             local texture = _G[textureName]
             if texture and texture.Hide then
                 texture:Hide()
+                table.insert(self.hiddenTextures, texture)
                 self:Debug("Hid texture: " .. textureName)
             end
         end
@@ -562,6 +573,7 @@ function Module:ApplyBackgroundToggle()
                         string.find(string.lower(texturePath or ""), "frame")
                     ) then
                         region:Hide()
+                        table.insert(self.hiddenTextures, region)
                         self:Debug("Hid background texture region")
                     end
                 end
@@ -571,7 +583,17 @@ function Module:ApplyBackgroundToggle()
     else
         self:Debug("Showing quest tracker background")
         
-        -- Show background textures
+        -- Show all previously hidden textures
+        if self.hiddenTextures then
+            for _, texture in ipairs(self.hiddenTextures) do
+                if texture and texture.Show then
+                    texture:Show()
+                end
+            end
+            self.hiddenTextures = {}
+        end
+        
+        -- Also show background textures directly
         if questTrackerFrame.background then
             questTrackerFrame.background:Show()
         end
@@ -595,7 +617,7 @@ function Module:ApplyBackgroundToggle()
             end
         end
         
-        -- Show textures that are children of WatchFrame
+        -- Show all textures that are children of WatchFrame
         if questTrackerFrame.GetNumRegions then
             for i = 1, questTrackerFrame:GetNumRegions() do
                 local region = select(i, questTrackerFrame:GetRegions())
@@ -1524,6 +1546,7 @@ function Module:OnEnable()
     self:RegisterEvent("QUEST_ABANDONED", "OnQuestAbandoned")
     self:RegisterEvent("ZONE_CHANGED", "OnZoneChanged")
     self:RegisterEvent("ZONE_CHANGED_NEW_AREA", "OnZoneChanged")
+    self:RegisterEvent("ADDON_LOADED", "OnAddonLoaded")
     
     self:Debug("Quest Tracker module enabled")
     
@@ -1597,6 +1620,19 @@ function Module:MaintenanceCheck()
         if questTrackerFrame:GetAlpha() ~= self.db.trackerAlpha then
             questTrackerFrame:SetAlpha(self.db.trackerAlpha)
         end
+        
+        -- Check if background setting needs to be reapplied
+        if self.db.hideBackground then
+            -- Check if any background textures are visible when they shouldn't be
+            local backgroundTextures = {"WatchFrameBackground", "WatchFrameBorder", "WatchFrameBackgroundOverlay"}
+            for _, textureName in ipairs(backgroundTextures) do
+                local texture = _G[textureName]
+                if texture and texture:IsVisible() then
+                    self:ApplyBackgroundToggle() -- Reapply if background is showing when it shouldn't
+                    break
+                end
+            end
+        end
     end
 end
 
@@ -1606,6 +1642,15 @@ end
 function Module:OnPlayerEnteringWorld()
     -- Initialize quest tracker hooks
     self:ScheduleTimer(function() HookQuestTracker(self) end, 2)
+end
+
+function Module:OnAddonLoaded(event, addonName)
+    -- Re-apply background settings when other addons load (they might interfere with quest tracker)
+    if self.db.hideBackground then
+        self:ScheduleTimer(function()
+            self:ApplyBackgroundToggle()
+        end, 1)
+    end
 end
 
 function Module:OnQuestWatchUpdate(event, questID)
@@ -1797,6 +1842,8 @@ function Module:ReapplyAllEnhancements()
     -- Enhanced display is always enabled now
     if not self.db.enabled then return end
     
+    self:Debug("ReapplyAllEnhancements called - hideBackground: " .. tostring(self.db.hideBackground))
+    
     -- Apply text enhancements (levels and colors) in one unified pass
     if self.db.showQuestLevels or self.db.colorCodeByDifficulty then
         self:ApplyAllTextEnhancements()
@@ -1820,6 +1867,8 @@ function Module:ReapplyAllEnhancements()
     
     -- Apply movable tracker
     self:ApplyMovableTracker()
+    
+    self:Debug("All enhancements reapplied")
 end
 
 function Module:OnUIInfoMessage(event, messageType, message)
