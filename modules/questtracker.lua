@@ -36,10 +36,10 @@ Module.defaults = {
     enabled = true,
     
     -- Display options
-    enhancedDisplay = true,
+    enhancedDisplay = true,        -- Always enabled, not shown in UI
     showQuestLevels = true,
-    showProgressPercent = true,
-    compactMode = false,
+    showProgressPercent = false,   -- Removed from UI, disabled by default
+    compactMode = false,           -- Removed from UI, disabled by default
     
     -- Sorting options
     customSorting = false,
@@ -137,7 +137,7 @@ local function HookQuestTracker(self)
                 originalUpdateFunction = WatchFrame_Update
                 WatchFrame_Update = function(...)
                     -- Save our current modifications before the update
-                    if self.db.showQuestLevels or self.db.textOutline or self.db.customWidth then
+                    if self.db.showQuestLevels or self.db.textOutline or self.db.customWidth or self.db.colorCodeByDifficulty then
                         self:SaveWatchFrameContent()
                     end
                     
@@ -146,7 +146,7 @@ local function HookQuestTracker(self)
                     
                     -- Try to restore immediately without delay to prevent flash
                     local restored = false
-                    if self.db.showQuestLevels or self.db.textOutline or self.db.customWidth then
+                    if self.db.showQuestLevels or self.db.textOutline or self.db.customWidth or self.db.colorCodeByDifficulty then
                         restored = self:RestoreWatchFrameContent()
                     end
                     
@@ -161,14 +161,9 @@ local function HookQuestTracker(self)
                         if self.db.customWidth then
                             self:ApplyCustomWidth()
                         end
-                    end
-                    
-                    -- Apply other enhancements immediately
-                    if self.db.showProgressPercent then
-                        self:ShowProgressPercentages()
-                    end
-                    if self.db.colorCodeByDifficulty then
-                        self:ApplyDifficultyColors()
+                        if self.db.colorCodeByDifficulty then
+                            self:ApplyDifficultyColors()
+                        end
                     end
                 end
                 self:Debug("Hooked WatchFrame_Update function with flash prevention")
@@ -205,7 +200,9 @@ function Module:SaveWatchFrameContent()
                     font = font,
                     size = size,
                     flags = flags,
-                    width = watchLine.text:GetWidth()
+                    width = watchLine.text:GetWidth(),
+                    hasLevel = string.find(text, "^%[%d+%] ") ~= nil,
+                    hasColor = string.find(text, "|c%x%x%x%x%x%x%x%x") ~= nil,
                 }
             end
         end
@@ -239,7 +236,7 @@ function Module:RestoreWatchFrameContent()
         if watchLine and watchLine.text and watchLine:IsVisible() then
             local currentText = watchLine.text:GetText()
             -- Only restore if the content differs and our modification exists in saved version
-            if currentText ~= savedData.text and string.find(savedData.text, "^%[%d+%] ") then
+            if currentText ~= savedData.text and (savedData.hasLevel or savedData.hasColor) then
                 watchLine.text:SetText(savedData.text)
             end
             
@@ -349,7 +346,8 @@ end
 
 -- Enhanced quest display with flash prevention
 function Module:EnhanceQuestDisplay()
-    if not self.db.enhancedDisplay then return end
+    -- Enhanced display is always enabled now
+    if not self.db.enabled then return end
     
     self:Debug("Enhancing quest display")
     
@@ -363,14 +361,11 @@ function Module:EnhanceQuestDisplay()
         self:RemoveQuestLevels()
     end
     
-    -- Apply progress percentages
-    if self.db.showProgressPercent then
-        self:ShowProgressPercentages()
-    end
-    
     -- Apply color coding
     if self.db.colorCodeByDifficulty then
         self:ApplyDifficultyColors()
+    else
+        self:RemoveDifficultyColors()
     end
 end
 
@@ -488,9 +483,83 @@ end
 
 -- Apply difficulty-based color coding
 function Module:ApplyDifficultyColors()
-    -- Implementation for difficulty color coding
-    -- This would color quest titles based on difficulty relative to player level
-    self:Debug("Applying difficulty colors")
+    if not self.db.colorCodeByDifficulty or not questTrackerFrame then return end
+    
+    self:Debug("Applying difficulty colors to quest titles")
+    
+    local numWatched = GetNumQuestWatches()
+    local playerLevel = UnitLevel("player")
+    
+    for i = 1, numWatched do
+        local questIndex = GetQuestIndexForWatch(i)
+        if questIndex then
+            local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(questIndex)
+            
+            if title and level and not isHeader then
+                -- Calculate difficulty color based on level difference
+                local levelDiff = level - playerLevel
+                local color
+                
+                if levelDiff >= 5 then
+                    color = "|cffff0000" -- Red (very hard)
+                elseif levelDiff >= 3 then
+                    color = "|cffff8000" -- Orange (hard)
+                elseif levelDiff >= -2 then
+                    color = "|cffffff00" -- Yellow (normal)
+                elseif levelDiff >= -7 then
+                    color = "|cff00ff00" -- Green (easy)
+                else
+                    color = "|cff808080" -- Gray (trivial)
+                end
+                
+                -- Find the quest title line in WatchFrame and apply color
+                for lineNum = 1, 50 do
+                    local watchLine = _G["WatchFrameLine" .. lineNum]
+                    if watchLine and watchLine.text then
+                        local currentText = watchLine.text:GetText()
+                        if currentText then
+                            -- Check if this line contains the quest title and is not an objective
+                            if string.find(currentText, title, 1, true) and 
+                               not string.find(currentText, "^[•%-]") and
+                               not string.find(currentText, "%d+/%d+") then
+                                
+                                -- Remove existing color codes and apply new color
+                                local cleanText = string.gsub(currentText, "|c%x%x%x%x%x%x%x%x", "")
+                                cleanText = string.gsub(cleanText, "|r", "")
+                                
+                                -- Apply new color
+                                local coloredText = color .. cleanText .. "|r"
+                                watchLine.text:SetText(coloredText)
+                                self:Debug("Applied " .. color .. " color to quest: " .. title .. " (level " .. level .. " vs player " .. playerLevel .. ")")
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Remove difficulty colors from quest titles
+function Module:RemoveDifficultyColors()
+    if not questTrackerFrame then return end
+    
+    self:Debug("Removing difficulty colors from quest titles")
+    
+    for lineNum = 1, 50 do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine.text then
+            local currentText = watchLine.text:GetText()
+            if currentText and (string.find(currentText, "|c%x%x%x%x%x%x%x%x") or string.find(currentText, "|r")) then
+                -- Remove color codes
+                local cleanText = string.gsub(currentText, "|c%x%x%x%x%x%x%x%x", "")
+                cleanText = string.gsub(cleanText, "|r", "")
+                watchLine.text:SetText(cleanText)
+                self:Debug("Removed color from: " .. cleanText)
+            end
+        end
+    end
 end
 
 -- Apply visual enhancements to the tracker
@@ -655,7 +724,8 @@ end
 
 -- Maintenance function to check and re-apply enhancements periodically
 function Module:MaintenanceCheck()
-    if not self.db.enabled or not self.db.enhancedDisplay then return end
+    -- Enhanced display is always enabled now
+    if not self.db.enabled then return end
     
     local needsReapply = false
     
@@ -751,16 +821,13 @@ end
 
 -- New function to re-apply all active enhancements
 function Module:ReapplyAllEnhancements()
-    if not self.db.enabled or not self.db.enhancedDisplay then return end
+    -- Enhanced display is always enabled now
+    if not self.db.enabled then return end
     
     self:Debug("Re-applying all quest tracker enhancements")
     
     if self.db.showQuestLevels then
         self:ShowQuestLevels()
-    end
-    
-    if self.db.showProgressPercent then
-        self:ShowProgressPercentages()
     end
     
     if self.db.colorCodeByDifficulty then
@@ -830,13 +897,20 @@ function Module:BuildOptions()
                     self:RemoveQuestLevels()
                 end
             end
-        elseif key == "enhancedDisplay" or key == "showProgressPercent" or key == "colorCodeByDifficulty" then
+        elseif key == "colorCodeByDifficulty" then
+            -- Apply difficulty colors immediately
+            if self:IsEnabled() then
+                if val then
+                    self:ApplyDifficultyColors()
+                else
+                    self:RemoveDifficultyColors()
+                end
+            end
             -- Update quest display immediately
             if self:IsEnabled() then
                 self:UpdateTrackedQuests()
                 self:EnhanceQuestDisplay()
             end
-        else
             -- Apply other reactive settings
             if self:IsEnabled() then
                 HookQuestTracker(self)
@@ -860,39 +934,17 @@ function Module:BuildOptions()
                 type = "group", inline = true, order = 10,
                 name = L["Display Options"] or "Display Options",
                 args = {
-                    enhancedDisplay = {
-                        type = "toggle", order = 1,
-                        name = L["Enhanced Display"] or "Enhanced Display",
-                        desc = L["Enable enhanced quest tracker display features."] or "Enable enhanced quest tracker display features.",
-                        get=get, set=set,
-                    },
                     showQuestLevels = {
-                        type = "toggle", order = 2,
+                        type = "toggle", order = 1,
                         name = L["Show Quest Levels"] or "Show Quest Levels",
                         desc = L["Display quest levels in the tracker."] or "Display quest levels in the tracker.",
                         get=get, set=set,
-                        disabled = function() return not self.db.enhancedDisplay end,
-                    },
-                    showProgressPercent = {
-                        type = "toggle", order = 3,
-                        name = L["Show Progress Percentage"] or "Show Progress Percentage",
-                        desc = L["Display completion percentages for quest objectives."] or "Display completion percentages for quest objectives.",
-                        get=get, set=set,
-                        disabled = function() return not self.db.enhancedDisplay end,
-                    },
-                    compactMode = {
-                        type = "toggle", order = 4,
-                        name = L["Compact Mode"] or "Compact Mode",
-                        desc = L["Use a more compact display for quest information."] or "Use a more compact display for quest information.",
-                        get=get, set=set,
-                        disabled = function() return not self.db.enhancedDisplay end,
                     },
                     colorCodeByDifficulty = {
-                        type = "toggle", order = 5,
+                        type = "toggle", order = 2,
                         name = L["Color Code by Difficulty"] or "Color Code by Difficulty",
                         desc = L["Color quest titles based on difficulty level."] or "Color quest titles based on difficulty level.",
                         get=get, set=set,
-                        disabled = function() return not self.db.enhancedDisplay end,
                     },
                 }
             },
