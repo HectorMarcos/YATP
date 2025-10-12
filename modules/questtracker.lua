@@ -24,11 +24,11 @@ local Module = YATP:NewModule("QuestTracker", "AceEvent-3.0", "AceConsole-3.0", 
 -- Debug helper - Disabled for production
 -------------------------------------------------
 function Module:Debug(msg)
-    -- Temporarily enable debug for POI testing
-    if string.find(msg, "POI") or string.find(msg, "child") or string.find(msg, "quest") then
-        print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
-    end
     -- Debug disabled for cleaner output
+    -- Temporarily enable debug for POI testing
+    -- if string.find(msg, "POI") or string.find(msg, "child") or string.find(msg, "quest") then
+    --     print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
+    -- end
     -- if YATP.db and YATP.db.profile and YATP.db.profile.debugMode then
     --     print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
     -- end
@@ -176,6 +176,8 @@ Module.defaults = {
     
     -- Position and size
     customPosition = false,
+    positionX = 0,
+    positionY = 0,
     trackerScale = 1.0,
     trackerAlpha = 1.0,
     lockPosition = false,
@@ -205,6 +207,11 @@ Module.defaults = {
     -- Frame dimensions
     customWidth = false,
     frameWidth = 300,
+    customHeight = false,
+    frameHeight = 600,
+    
+    -- Frame appearance
+    hideBackground = false,    -- Hide quest tracker background art
 }
 
 -------------------------------------------------
@@ -239,6 +246,21 @@ local function RunMigrations(self)
     end
     if self.db.indentObjectives == nil then
         self.db.indentObjectives = true
+    end
+    if self.db.customHeight == nil then
+        self.db.customHeight = false
+    end
+    if self.db.frameHeight == nil then
+        self.db.frameHeight = 600
+    end
+    if self.db.hideBackground == nil then
+        self.db.hideBackground = false
+    end
+    if self.db.positionX == nil then
+        self.db.positionX = 0
+    end
+    if self.db.positionY == nil then
+        self.db.positionY = 0
     end
     
     -- Future version migrations will go here
@@ -461,6 +483,182 @@ function Module:ApplyCustomWidth()
                 watchLine.text:SetWidth(184) -- Default WatchFrame text width
             end
         end
+    end
+end
+
+function Module:ApplyCustomHeight()
+    if not questTrackerFrame then 
+        questTrackerFrame = WatchFrame
+    end
+    
+    if not questTrackerFrame then 
+        self:Debug("Cannot apply custom height: WatchFrame not found")
+        return 
+    end
+    
+    -- Ensure frameHeight has a default value
+    if not self.db.frameHeight then
+        self.db.frameHeight = 600
+    end
+    
+    if self.db.customHeight then
+        local newHeight = self.db.frameHeight
+        self:Debug("Applying custom height: " .. tostring(newHeight))
+        questTrackerFrame:SetHeight(newHeight)
+    else
+        self:Debug("Restoring default WatchFrame height")
+        -- Restore default height (WatchFrame default varies, but around 500-600)
+        questTrackerFrame:SetHeight(600)
+    end
+end
+
+function Module:ApplyBackgroundToggle()
+    if not questTrackerFrame then 
+        questTrackerFrame = WatchFrame
+    end
+    
+    if not questTrackerFrame then 
+        self:Debug("Cannot apply background toggle: WatchFrame not found")
+        return 
+    end
+    
+    if self.db.hideBackground then
+        self:Debug("Hiding quest tracker background")
+        
+        -- Hide background textures
+        if questTrackerFrame.background then
+            questTrackerFrame.background:Hide()
+        end
+        
+        -- Hide border textures
+        if questTrackerFrame.border then
+            questTrackerFrame.border:Hide()
+        end
+        
+        -- Look for common background texture names
+        local backgroundTextures = {
+            "WatchFrameBackground",
+            "WatchFrameBorder",
+            "WatchFrameBackgroundOverlay"
+        }
+        
+        for _, textureName in ipairs(backgroundTextures) do
+            local texture = _G[textureName]
+            if texture and texture.Hide then
+                texture:Hide()
+                self:Debug("Hid texture: " .. textureName)
+            end
+        end
+        
+        -- Hide textures that are children of WatchFrame
+        if questTrackerFrame.GetNumRegions then
+            for i = 1, questTrackerFrame:GetNumRegions() do
+                local region = select(i, questTrackerFrame:GetRegions())
+                if region and region:GetObjectType() == "Texture" then
+                    local texturePath = region:GetTexture()
+                    -- Hide decorative textures (but keep quest icons)
+                    if texturePath and (
+                        string.find(string.lower(texturePath or ""), "background") or
+                        string.find(string.lower(texturePath or ""), "border") or
+                        string.find(string.lower(texturePath or ""), "frame")
+                    ) then
+                        region:Hide()
+                        self:Debug("Hid background texture region")
+                    end
+                end
+            end
+        end
+        
+    else
+        self:Debug("Showing quest tracker background")
+        
+        -- Show background textures
+        if questTrackerFrame.background then
+            questTrackerFrame.background:Show()
+        end
+        
+        if questTrackerFrame.border then
+            questTrackerFrame.border:Show()
+        end
+        
+        -- Show common background texture names
+        local backgroundTextures = {
+            "WatchFrameBackground",
+            "WatchFrameBorder", 
+            "WatchFrameBackgroundOverlay"
+        }
+        
+        for _, textureName in ipairs(backgroundTextures) do
+            local texture = _G[textureName]
+            if texture and texture.Show then
+                texture:Show()
+                self:Debug("Showed texture: " .. textureName)
+            end
+        end
+        
+        -- Show textures that are children of WatchFrame
+        if questTrackerFrame.GetNumRegions then
+            for i = 1, questTrackerFrame:GetNumRegions() do
+                local region = select(i, questTrackerFrame:GetRegions())
+                if region and region:GetObjectType() == "Texture" then
+                    region:Show()
+                end
+            end
+        end
+    end
+end
+
+function Module:ApplyCustomPosition()
+    if not questTrackerFrame then 
+        questTrackerFrame = WatchFrame
+    end
+    
+    if not questTrackerFrame then 
+        self:Debug("Cannot apply custom position: WatchFrame not found")
+        return 
+    end
+    
+    if self.db.customPosition then
+        local x, y = self.db.positionX, self.db.positionY
+        self:Debug("Applying custom position: " .. x .. ", " .. y)
+        
+        questTrackerFrame:ClearAllPoints()
+        questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", x, y)
+        
+        -- Make it movable if not locked
+        if not self.db.lockPosition then
+            questTrackerFrame:SetMovable(true)
+            questTrackerFrame:EnableMouse(true)
+            questTrackerFrame:RegisterForDrag("LeftButton")
+            questTrackerFrame:SetScript("OnDragStart", function(self)
+                self:StartMoving()
+            end)
+            questTrackerFrame:SetScript("OnDragStop", function(self)
+                self:StopMovingOrSizing()
+                -- Save new position
+                local x, y = self:GetLeft(), self:GetTop()
+                if x and y then
+                    Module.db.positionX = x
+                    Module.db.positionY = y - GetScreenHeight()
+                    Module:Debug("Saved new position: " .. Module.db.positionX .. ", " .. Module.db.positionY)
+                end
+            end)
+            self:Debug("Quest tracker is now movable")
+        else
+            questTrackerFrame:SetMovable(false)
+            questTrackerFrame:EnableMouse(false)
+            questTrackerFrame:SetScript("OnDragStart", nil)
+            questTrackerFrame:SetScript("OnDragStop", nil)
+            self:Debug("Quest tracker is locked")
+        end
+    else
+        self:Debug("Restoring default quest tracker position")
+        questTrackerFrame:ClearAllPoints()
+        questTrackerFrame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -300) -- Default position
+        questTrackerFrame:SetMovable(false)
+        questTrackerFrame:EnableMouse(false) 
+        questTrackerFrame:SetScript("OnDragStart", nil)
+        questTrackerFrame:SetScript("OnDragStop", nil)
     end
 end
 
@@ -1616,6 +1814,18 @@ function Module:ReapplyAllEnhancements()
     if self.db.customWidth then
         self:ApplyCustomWidth()
     end
+    
+    if self.db.customHeight then
+        self:ApplyCustomHeight()
+    end
+    
+    -- Apply background toggle
+    self:ApplyBackgroundToggle()
+    
+    -- Apply position settings
+    if self.db.customPosition then
+        self:ApplyCustomPosition()
+    end
 end
 
 function Module:OnUIInfoMessage(event, messageType, message)
@@ -1759,17 +1969,60 @@ function Module:BuildOptions()
                     lockPosition = {
                         type = "toggle", order = 3,
                         name = L["Lock Position"] or "Lock Position",
-                        desc = L["Prevent the quest tracker from being moved."] or "Prevent the quest tracker from being moved.",
-                        get=get, set=set,
+                        desc = L["Prevent the quest tracker from being moved. Enable 'Custom Position' to make it movable."] or "Prevent the quest tracker from being moved. Enable 'Custom Position' to make it movable.",
+                        get=get, set=function(info, val)
+                            set(info, val)
+                            if self:IsEnabled() and self.db.customPosition then
+                                self:ApplyCustomPosition()
+                            end
+                        end,
+                        disabled = function() return not self.db.customPosition end,
+                    },
+                    customPosition = {
+                        type = "toggle", order = 4,
+                        name = L["Custom Position"] or "Custom Position",
+                        desc = L["Enable custom positioning for the quest tracker. Allows moving and position saving."] or "Enable custom positioning for the quest tracker. Allows moving and position saving.",
+                        get=get, set=function(info, val)
+                            set(info, val)
+                            if self:IsEnabled() then
+                                self:ApplyCustomPosition()
+                            end
+                        end,
+                    },
+                    positionX = {
+                        type = "range", order = 5,
+                        name = L["Position X"] or "Position X",
+                        desc = L["Horizontal position of the quest tracker."] or "Horizontal position of the quest tracker.",
+                        min = 0, max = 2000, step = 1,
+                        get=get, set=function(info, val)
+                            set(info, val)
+                            if self:IsEnabled() and self.db.customPosition then
+                                self:ApplyCustomPosition()
+                            end
+                        end,
+                        disabled = function() return not self.db.customPosition end,
+                    },
+                    positionY = {
+                        type = "range", order = 6,
+                        name = L["Position Y"] or "Position Y",
+                        desc = L["Vertical position of the quest tracker."] or "Vertical position of the quest tracker.",
+                        min = -2000, max = 0, step = 1,
+                        get=get, set=function(info, val)
+                            set(info, val)
+                            if self:IsEnabled() and self.db.customPosition then
+                                self:ApplyCustomPosition()
+                            end
+                        end,
+                        disabled = function() return not self.db.customPosition end,
                     },
                     textOutline = {
-                        type = "toggle", order = 4,
+                        type = "toggle", order = 7,
                         name = L["Text Outline"] or "Text Outline",
                         desc = L["Add outline to quest tracker text for better readability."] or "Add outline to quest tracker text for better readability.",
                         get=get, set=set,
                     },
                     outlineThickness = {
-                        type = "select", order = 5,
+                        type = "select", order = 8,
                         name = L["Outline Thickness"] or "Outline Thickness",
                         desc = L["Choose the thickness of the text outline."] or "Choose the thickness of the text outline.",
                         values = {
@@ -1780,18 +2033,53 @@ function Module:BuildOptions()
                         disabled = function() return not self.db.textOutline end,
                     },
                     customWidth = {
-                        type = "toggle", order = 6,
+                        type = "toggle", order = 9,
                         name = L["Custom Width"] or "Custom Width",
                         desc = L["Enable custom width for the quest tracker frame."] or "Enable custom width for the quest tracker frame.",
                         get=get, set=set,
                     },
                     frameWidth = {
-                        type = "range", order = 7,
+                        type = "range", order = 10,
                         name = L["Frame Width"] or "Frame Width",
                         desc = L["Set the width of the quest tracker frame in pixels."] or "Set the width of the quest tracker frame in pixels.",
                         min = 200, max = 500, step = 10,
                         get=get, set=set,
                         disabled = function() return not self.db.customWidth end,
+                    },
+                    customHeight = {
+                        type = "toggle", order = 11,
+                        name = L["Custom Height"] or "Custom Height",
+                        desc = L["Enable custom height for the quest tracker frame."] or "Enable custom height for the quest tracker frame.",
+                        get=get, set=function(info, val)
+                            set(info, val)
+                            if self:IsEnabled() then
+                                self:ApplyCustomHeight()
+                            end
+                        end,
+                    },
+                    frameHeight = {
+                        type = "range", order = 12,
+                        name = L["Frame Height"] or "Frame Height",
+                        desc = L["Set the height of the quest tracker frame in pixels."] or "Set the height of the quest tracker frame in pixels.",
+                        min = 300, max = 1000, step = 50,
+                        get=get, set=function(info, val)
+                            set(info, val)
+                            if self:IsEnabled() then
+                                self:ApplyCustomHeight()
+                            end
+                        end,
+                        disabled = function() return not self.db.customHeight end,
+                    },
+                    hideBackground = {
+                        type = "toggle", order = 13,
+                        name = L["Hide Background"] or "Hide Background",
+                        desc = L["Hide the quest tracker background and border artwork."] or "Hide the quest tracker background and border artwork.",
+                        get=get, set=function(info, val)
+                            set(info, val)
+                            if self:IsEnabled() then
+                                self:ApplyBackgroundToggle()
+                            end
+                        end,
                     },
                 }
             },
