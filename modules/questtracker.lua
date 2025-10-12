@@ -86,6 +86,7 @@ local trackedQuests = {}
 local nearbyObjectives = {}
 local maintenanceTimer
 local savedWatchFrameContent = {}
+local savedFrameProperties = {}
 
 -------------------------------------------------
 -- Version migrations
@@ -136,7 +137,7 @@ local function HookQuestTracker(self)
                 originalUpdateFunction = WatchFrame_Update
                 WatchFrame_Update = function(...)
                     -- Save our current modifications before the update
-                    if self.db.showQuestLevels then
+                    if self.db.showQuestLevels or self.db.textOutline or self.db.customWidth then
                         self:SaveWatchFrameContent()
                     end
                     
@@ -144,11 +145,21 @@ local function HookQuestTracker(self)
                     originalUpdateFunction(...)
                     
                     -- Try to restore immediately without delay to prevent flash
-                    if self.db.showQuestLevels then
-                        local restored = self:RestoreWatchFrameContent()
-                        if not restored then
-                            -- If restoration failed, apply fresh (this will be instant since frame just updated)
+                    local restored = false
+                    if self.db.showQuestLevels or self.db.textOutline or self.db.customWidth then
+                        restored = self:RestoreWatchFrameContent()
+                    end
+                    
+                    if not restored then
+                        -- If restoration failed, apply fresh (this will be instant since frame just updated)
+                        if self.db.showQuestLevels then
                             self:ShowQuestLevels()
+                        end
+                        if self.db.textOutline then
+                            self:ApplyTextOutline()
+                        end
+                        if self.db.customWidth then
+                            self:ApplyCustomWidth()
                         end
                     end
                     
@@ -170,41 +181,84 @@ local function HookQuestTracker(self)
     end
 end
 
--- Save current WatchFrame content with our modifications
+-- Save current WatchFrame content and properties
 function Module:SaveWatchFrameContent()
     wipe(savedWatchFrameContent)
+    wipe(savedFrameProperties)
     
+    -- Save frame properties
+    if WatchFrame then
+        savedFrameProperties.width = WatchFrame:GetWidth()
+        savedFrameProperties.scale = WatchFrame:GetScale()
+        savedFrameProperties.alpha = WatchFrame:GetAlpha()
+    end
+    
+    -- Save text content and font properties
     for lineNum = 1, 50 do
         local watchLine = _G["WatchFrameLine" .. lineNum]
         if watchLine and watchLine.text and watchLine:IsVisible() then
             local text = watchLine.text:GetText()
             if text and text ~= "" then
-                savedWatchFrameContent[lineNum] = text
+                local font, size, flags = watchLine.text:GetFont()
+                savedWatchFrameContent[lineNum] = {
+                    text = text,
+                    font = font,
+                    size = size,
+                    flags = flags,
+                    width = watchLine.text:GetWidth()
+                }
             end
         end
     end
     
-    self:Debug("Saved " .. #savedWatchFrameContent .. " WatchFrame lines")
+    self:Debug("Saved " .. #savedWatchFrameContent .. " WatchFrame lines and properties")
 end
 
--- Restore WatchFrame content seamlessly
+-- Restore WatchFrame content and properties seamlessly
 function Module:RestoreWatchFrameContent()
     if not savedWatchFrameContent or next(savedWatchFrameContent) == nil then
         return false
     end
     
-    for lineNum, savedText in pairs(savedWatchFrameContent) do
+    -- Restore frame properties
+    if savedFrameProperties and WatchFrame then
+        if savedFrameProperties.width then
+            WatchFrame:SetWidth(savedFrameProperties.width)
+        end
+        if savedFrameProperties.scale then
+            WatchFrame:SetScale(savedFrameProperties.scale)
+        end
+        if savedFrameProperties.alpha then
+            WatchFrame:SetAlpha(savedFrameProperties.alpha)
+        end
+    end
+    
+    -- Restore text content and properties
+    for lineNum, savedData in pairs(savedWatchFrameContent) do
         local watchLine = _G["WatchFrameLine" .. lineNum]
         if watchLine and watchLine.text and watchLine:IsVisible() then
             local currentText = watchLine.text:GetText()
             -- Only restore if the content differs and our modification exists in saved version
-            if currentText ~= savedText and string.find(savedText, "^%[%d+%] ") then
-                watchLine.text:SetText(savedText)
+            if currentText ~= savedData.text and string.find(savedData.text, "^%[%d+%] ") then
+                watchLine.text:SetText(savedData.text)
+            end
+            
+            -- Restore font properties if they were modified
+            if savedData.font and savedData.size and savedData.flags then
+                local currentFont, currentSize, currentFlags = watchLine.text:GetFont()
+                if currentFlags ~= savedData.flags then
+                    watchLine.text:SetFont(savedData.font, savedData.size, savedData.flags)
+                end
+            end
+            
+            -- Restore text width if it was modified
+            if savedData.width and watchLine.text:GetWidth() ~= savedData.width then
+                watchLine.text:SetWidth(savedData.width)
             end
         end
     end
     
-    self:Debug("Restored WatchFrame content")
+    self:Debug("Restored WatchFrame content and properties")
     return true
 end
 
@@ -594,6 +648,7 @@ function Module:OnDisable()
     
     -- Clear saved content
     wipe(savedWatchFrameContent)
+    wipe(savedFrameProperties)
     
     self:Debug("Quest Tracker module disabled")
 end
@@ -602,9 +657,10 @@ end
 function Module:MaintenanceCheck()
     if not self.db.enabled or not self.db.enhancedDisplay then return end
     
+    local needsReapply = false
+    
     -- Check if quest levels are missing and re-apply if needed
     if self.db.showQuestLevels then
-        local needsReapply = false
         local numWatched = GetNumQuestWatches()
         
         for i = 1, numWatched do
@@ -631,11 +687,32 @@ function Module:MaintenanceCheck()
                 end
             end
         end
-        
-        if needsReapply then
-            self:Debug("Maintenance: Re-applying quest levels")
-            self:ShowQuestLevels()
+    end
+    
+    -- Check if text outline is missing
+    if self.db.textOutline and not needsReapply then
+        local watchLine = _G["WatchFrameLine1"]
+        if watchLine and watchLine.text then
+            local font, size, flags = watchLine.text:GetFont()
+            local expectedFlags = self.db.outlineThickness == 2 and "THICKOUTLINE" or "OUTLINE"
+            if flags ~= expectedFlags then
+                needsReapply = true
+                self:Debug("Maintenance: Text outline missing")
+            end
         end
+    end
+    
+    -- Check if custom width is missing
+    if self.db.customWidth and not needsReapply then
+        if WatchFrame and WatchFrame:GetWidth() ~= self.db.frameWidth then
+            needsReapply = true
+            self:Debug("Maintenance: Custom width missing")
+        end
+    end
+    
+    if needsReapply then
+        self:Debug("Maintenance: Re-applying quest tracker enhancements")
+        self:ReapplyAllEnhancements()
     end
 end
 
