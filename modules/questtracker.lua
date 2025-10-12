@@ -123,12 +123,16 @@ end
 function Module:EnhanceQuestDisplay()
     if not self.db.enhancedDisplay then return end
     
+    self:Debug("Enhancing quest display")
+    
     -- Update tracked quests table
     self:UpdateTrackedQuests()
     
     -- Apply quest level display
     if self.db.showQuestLevels then
         self:ShowQuestLevels()
+    else
+        self:RemoveQuestLevels()
     end
     
     -- Apply progress percentages
@@ -179,11 +183,59 @@ function Module:UpdateTrackedQuests()
     end
 end
 
+-- Remove quest levels from tracker
+function Module:RemoveQuestLevels()
+    if not questTrackerFrame then return end
+    
+    self:Debug("Removing quest levels from WatchFrame")
+    
+    local numWatched = GetNumQuestWatches()
+    for i = 1, numWatched do
+        local watchLine = _G["WatchFrameLine" .. i]
+        if watchLine and watchLine.text then
+            local currentText = watchLine.text:GetText()
+            if currentText and string.find(currentText, "^%[%d+%] ") then
+                -- Remove the level prefix
+                local newText = string.gsub(currentText, "^%[%d+%] ", "")
+                watchLine.text:SetText(newText)
+                self:Debug("Removed level from: " .. newText)
+            end
+        end
+    end
+end
+
 -- Show quest levels in tracker
 function Module:ShowQuestLevels()
-    -- Implementation for showing quest levels
-    -- This would modify the quest text to include level information
-    self:Debug("Showing quest levels")
+    if not self.db.showQuestLevels or not questTrackerFrame then return end
+    
+    self:Debug("Applying quest levels to WatchFrame")
+    
+    -- Get all quest entries in WatchFrame
+    local numWatched = GetNumQuestWatches()
+    self:Debug("Number of watched quests: " .. numWatched)
+    
+    for i = 1, numWatched do
+        local questIndex = GetQuestIndexForWatch(i)
+        if questIndex then
+            local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(questIndex)
+            
+            if title and level and not isHeader then
+                -- Find the corresponding watch line in WatchFrame
+                local watchLine = _G["WatchFrameLine" .. i]
+                if watchLine and watchLine.text then
+                    local currentText = watchLine.text:GetText()
+                    if currentText then
+                        -- Check if level is already added to avoid duplicates
+                        local levelPrefix = "[" .. level .. "] "
+                        if not string.find(currentText, "^%[%d+%] ") then
+                            watchLine.text:SetText(levelPrefix .. currentText)
+                            self:Debug("Added level [" .. level .. "] to quest: " .. title)
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 -- Show progress percentages
@@ -341,6 +393,13 @@ end
 function Module:OnQuestWatchUpdate(event, questID)
     self:Debug("Quest watch updated: " .. tostring(questID))
     self:UpdateTrackedQuests()
+    
+    -- Re-apply quest levels after a brief delay to ensure WatchFrame is updated
+    if self.db.showQuestLevels then
+        self:ScheduleTimer(function() 
+            self:ShowQuestLevels() 
+        end, 0.1)
+    end
 end
 
 function Module:OnQuestLogUpdate()
@@ -382,7 +441,16 @@ function Module:BuildOptions()
         elseif key == "trackerScale" or key == "trackerAlpha" or key == "lockPosition" then
             -- Apply visual changes immediately
             self:ApplyVisualEnhancements()
-        elseif key == "enhancedDisplay" or key == "showQuestLevels" or key == "showProgressPercent" or key == "colorCodeByDifficulty" then
+        elseif key == "showQuestLevels" then
+            -- Apply quest levels immediately
+            if self:IsEnabled() then
+                if val then
+                    self:ShowQuestLevels()
+                else
+                    self:RemoveQuestLevels()
+                end
+            end
+        elseif key == "enhancedDisplay" or key == "showProgressPercent" or key == "colorCodeByDifficulty" then
             -- Update quest display immediately
             if self:IsEnabled() then
                 self:UpdateTrackedQuests()
@@ -562,9 +630,32 @@ function Module:TestFunction()
     self:Debug("Config scale: " .. tostring(self.db.trackerScale))
     self:Debug("Config alpha: " .. tostring(self.db.trackerAlpha))
     self:Debug("Enhanced display: " .. tostring(self.db.enhancedDisplay))
+    self:Debug("Show quest levels: " .. tostring(self.db.showQuestLevels))
+    
+    -- Test quest tracking
+    local numWatched = GetNumQuestWatches()
+    self:Debug("Number of watched quests: " .. numWatched)
+    
+    for i = 1, numWatched do
+        local questIndex = GetQuestIndexForWatch(i)
+        if questIndex then
+            local title, level = GetQuestLogTitle(questIndex)
+            self:Debug("Quest " .. i .. ": [" .. (level or "?") .. "] " .. (title or "Unknown"))
+            
+            local watchLine = _G["WatchFrameLine" .. i]
+            if watchLine and watchLine.text then
+                self:Debug("  WatchLine text: " .. (watchLine.text:GetText() or "nil"))
+            else
+                self:Debug("  WatchLine not found: WatchFrameLine" .. i)
+            end
+        end
+    end
     
     -- Apply settings manually
     self:ApplyVisualEnhancements()
+    if self.db.showQuestLevels then
+        self:ShowQuestLevels()
+    end
     self:Debug("=== Test Complete ===")
 end
 
