@@ -97,10 +97,13 @@ local function HookQuestTracker(self)
     if not self.db.enabled then return end
     
     -- Get the quest tracker frame for WoW 3.3.5
-    questTrackerFrame = QuestWatchFrame or WatchFrame
+    questTrackerFrame = WatchFrame
     
     if questTrackerFrame then
-        self:Debug("Quest tracker frame found and hooked")
+        self:Debug("Quest tracker frame found: " .. (questTrackerFrame:GetName() or "unnamed"))
+        
+        -- Apply visual enhancements immediately
+        self:ApplyVisualEnhancements()
         
         -- Hook the update function if we haven't already
         if not originalUpdateFunction and questTrackerFrame.Update then
@@ -109,12 +112,10 @@ local function HookQuestTracker(self)
                 originalUpdateFunction(...)
                 self:EnhanceQuestDisplay()
             end
+            self:Debug("Hooked WatchFrame.Update function")
         end
-        
-        -- Apply visual enhancements
-        self:ApplyVisualEnhancements()
     else
-        self:Debug("Quest tracker frame not found")
+        self:Debug("WatchFrame not found")
     end
 end
 
@@ -201,7 +202,16 @@ end
 
 -- Apply visual enhancements to the tracker
 function Module:ApplyVisualEnhancements()
-    if not questTrackerFrame then return end
+    if not questTrackerFrame then 
+        questTrackerFrame = WatchFrame
+    end
+    
+    if not questTrackerFrame then 
+        self:Debug("Cannot apply visual enhancements: WatchFrame not found")
+        return 
+    end
+    
+    self:Debug("Applying visual enhancements - Scale: " .. self.db.trackerScale .. ", Alpha: " .. self.db.trackerAlpha)
     
     -- Apply scale
     questTrackerFrame:SetScale(self.db.trackerScale)
@@ -212,8 +222,18 @@ function Module:ApplyVisualEnhancements()
     -- Handle position locking
     if self.db.lockPosition then
         questTrackerFrame:SetMovable(false)
+        questTrackerFrame:EnableMouse(false)
+        self:Debug("Position locked")
     else
         questTrackerFrame:SetMovable(true)
+        questTrackerFrame:EnableMouse(true)
+        self:Debug("Position unlocked")
+    end
+    
+    -- Force a visual update
+    if questTrackerFrame:IsVisible() then
+        questTrackerFrame:Hide()
+        questTrackerFrame:Show()
     end
 end
 
@@ -286,8 +306,13 @@ function Module:OnEnable()
     
     self:Debug("Quest Tracker module enabled")
     
-    -- Hook quest tracker after a short delay to ensure UI is loaded
-    self:ScheduleTimer(function() HookQuestTracker(self) end, 1)
+    -- Try to hook immediately if WatchFrame exists
+    if WatchFrame then
+        HookQuestTracker(self)
+    else
+        -- Hook quest tracker after a short delay to ensure UI is loaded
+        self:ScheduleTimer(function() HookQuestTracker(self) end, 1)
+    end
 end
 
 -------------------------------------------------
@@ -346,10 +371,23 @@ function Module:BuildOptions()
     local set = function(info, val)
         local key = info[#info]
         self.db[key] = val
+        self:Debug("Setting " .. key .. " to " .. tostring(val))
+        
         if key == "enabled" then
-            if val then self:Enable() else self:Disable() end
-        elseif key == "trackerScale" or key == "trackerAlpha" then
+            if val then 
+                self:Enable() 
+            else 
+                self:Disable() 
+            end
+        elseif key == "trackerScale" or key == "trackerAlpha" or key == "lockPosition" then
+            -- Apply visual changes immediately
             self:ApplyVisualEnhancements()
+        elseif key == "enhancedDisplay" or key == "showQuestLevels" or key == "showProgressPercent" or key == "colorCodeByDifficulty" then
+            -- Update quest display immediately
+            if self:IsEnabled() then
+                self:UpdateTrackedQuests()
+                self:EnhanceQuestDisplay()
+            end
         else
             -- Apply other reactive settings
             if self:IsEnabled() then
@@ -505,6 +543,38 @@ end
 function Module:OpenConfig()
     if YATP.OpenConfig then
         YATP:OpenConfig("QuestTracker")
+    end
+end
+
+-------------------------------------------------
+-- Test function for debugging
+-------------------------------------------------
+function Module:TestFunction()
+    self:Debug("=== Quest Tracker Test Function ===")
+    self:Debug("Module enabled: " .. tostring(self:IsEnabled()))
+    self:Debug("WatchFrame exists: " .. tostring(WatchFrame ~= nil))
+    if WatchFrame then
+        self:Debug("WatchFrame name: " .. (WatchFrame:GetName() or "unnamed"))
+        self:Debug("WatchFrame visible: " .. tostring(WatchFrame:IsVisible()))
+        self:Debug("Current scale: " .. tostring(WatchFrame:GetScale()))
+        self:Debug("Current alpha: " .. tostring(WatchFrame:GetAlpha()))
+    end
+    self:Debug("Config scale: " .. tostring(self.db.trackerScale))
+    self:Debug("Config alpha: " .. tostring(self.db.trackerAlpha))
+    self:Debug("Enhanced display: " .. tostring(self.db.enhancedDisplay))
+    
+    -- Apply settings manually
+    self:ApplyVisualEnhancements()
+    self:Debug("=== Test Complete ===")
+end
+
+-- Register test command
+SLASH_YATPQTTEST1 = "/qttest"
+SlashCmdList["YATPQTTEST"] = function()
+    if YATP.modules.QuestTracker then
+        YATP.modules.QuestTracker:TestFunction()
+    else
+        print("Quest Tracker module not found")
     end
 end
 
