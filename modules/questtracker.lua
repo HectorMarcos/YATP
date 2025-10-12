@@ -284,24 +284,27 @@ local function HookQuestTracker(self)
         -- Apply visual enhancements immediately
         self:ApplyVisualEnhancements()
         
-        -- Hook SetPoint to prevent position changes when we have custom position
-        if not questTrackerFrame.originalSetPoint then
-            questTrackerFrame.originalSetPoint = questTrackerFrame.SetPoint
-            questTrackerFrame.SetPoint = function(frame, point, relativeTo, relativePoint, x, y, ...)
-                -- Check if this looks like a default position (typical default positions)
-                local isDefaultPosition = false
-                if point == "TOPRIGHT" and relativeTo == UIParent and relativePoint == "TOPRIGHT" then
-                    isDefaultPosition = true
-                elseif point == "TOP" and relativeTo == UIParent and relativePoint == "TOP" then
-                    isDefaultPosition = true
-                end
-                
-                -- If we have custom position and this looks like a default positioning attempt, use ours instead
-                if self.db.positionX and self.db.positionY and isDefaultPosition then
-                    frame.originalSetPoint(frame, "TOPLEFT", UIParent, "TOPLEFT", self.db.positionX, self.db.positionY)
-                else
-                    -- Allow normal positioning for non-default positions
-                    frame.originalSetPoint(frame, point, relativeTo, relativePoint, x, y, ...)
+        -- Only hook SetPoint if we have custom position and no other addon is managing it
+        if not questTrackerFrame.originalSetPoint and self.db.positionX and self.db.positionY then
+            -- Check if frame is already managed by another addon (like SexyMap)
+            if not questTrackerFrame.GetUserPlaced or not questTrackerFrame:GetUserPlaced() then
+                questTrackerFrame.originalSetPoint = questTrackerFrame.SetPoint
+                questTrackerFrame.SetPoint = function(frame, point, relativeTo, relativePoint, x, y, ...)
+                    -- Check if this looks like a default position (typical default positions)
+                    local isDefaultPosition = false
+                    if point == "TOPRIGHT" and relativeTo == UIParent and relativePoint == "TOPRIGHT" then
+                        isDefaultPosition = true
+                    elseif point == "TOP" and relativeTo == UIParent and relativePoint == "TOP" then
+                        isDefaultPosition = true
+                    end
+                    
+                    -- If we have custom position and this looks like a default positioning attempt, use ours instead
+                    if self.db.positionX and self.db.positionY and isDefaultPosition then
+                        frame.originalSetPoint(frame, "TOPLEFT", UIParent, "TOPLEFT", self.db.positionX, self.db.positionY)
+                    else
+                        -- Allow normal positioning for non-default positions
+                        frame.originalSetPoint(frame, point, relativeTo, relativePoint, x, y, ...)
+                    end
                 end
             end
         end
@@ -312,11 +315,14 @@ local function HookQuestTracker(self)
             if WatchFrame_Update then
                 originalUpdateFunction = WatchFrame_Update
                 WatchFrame_Update = function(...)
+                    -- Check if frame is managed by another addon
+                    local isExternallyManaged = questTrackerFrame.GetUserPlaced and questTrackerFrame:GetUserPlaced()
+                    
                     -- Store our custom position before calling original function
                     local savedCustomX, savedCustomY = self.db.positionX, self.db.positionY
                     
-                    -- IMMEDIATELY set custom position BEFORE calling original function to prevent flash
-                    if savedCustomX and savedCustomY then
+                    -- Only apply position if we have custom position and it's not externally managed
+                    if savedCustomX and savedCustomY and not isExternallyManaged then
                         questTrackerFrame:ClearAllPoints()
                         questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", savedCustomX, savedCustomY)
                     end
@@ -325,8 +331,8 @@ local function HookQuestTracker(self)
                     -- This will reset the WatchFrame to its clean state but position should stay
                     originalUpdateFunction(...)
                     
-                    -- Double-check and restore custom position if it was changed
-                    if savedCustomX and savedCustomY then
+                    -- Double-check and restore custom position if it was changed (only if not externally managed)
+                    if savedCustomX and savedCustomY and not isExternallyManaged then
                         local currentX = questTrackerFrame:GetLeft()
                         if not currentX or math.abs(currentX - savedCustomX) > 1 then
                             questTrackerFrame:ClearAllPoints()
@@ -696,6 +702,18 @@ function Module:ApplyMovableTracker()
     if not questTrackerFrame then 
         self:Debug("Cannot apply movable tracker: WatchFrame not found")
         return 
+    end
+    
+    -- Check if another addon is managing this frame (like SexyMap)
+    local isExternallyManaged = questTrackerFrame.GetUserPlaced and questTrackerFrame:GetUserPlaced()
+    
+    if isExternallyManaged then
+        if not self.warnedAboutExternalManagement then
+            print("|cff00ff00[YATP Quest Tracker]|r Detected another addon (like SexyMap) managing WatchFrame position. Position features disabled to avoid conflicts.")
+            self.warnedAboutExternalManagement = true
+        end
+        self:Debug("Quest tracker is managed by another addon, position management disabled")
+        return
     end
     
     if self.db.lockPosition then
