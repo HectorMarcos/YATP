@@ -1489,86 +1489,126 @@ function Module:ApplyAllTextEnhancements()
     isApplyingLevels = false
 end
 
--- Format quest objectives by adding indentation
+-- Format quest objectives by adding indentation - improved version
 function Module:FormatQuestObjectives()
     if not questTrackerFrame then return end
     
-    -- Track which lines are quest titles (so we can indent everything else)
-    local titleLines = {}
+    -- Cache quest titles for comparison
+    local questTitles = {}
+    for i = 1, GetNumQuestWatches() do
+        local questIndex = GetQuestIndexForWatch(i)
+        if questIndex then
+            local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily = GetQuestLogTitle(questIndex)
+            if title then
+                questTitles[string.lower(title)] = true
+            end
+        end
+    end
     
-    -- First pass: identify all quest title lines
+    -- Process each visible line
     for lineNum = 1, 50 do
         local watchLine = _G["WatchFrameLine" .. lineNum]
         if watchLine and watchLine.text and watchLine:IsVisible() then
             local text = watchLine.text:GetText()
             if text and text ~= "" then
-                local cleanText = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
-                cleanText = string.gsub(cleanText, "|r", "")
-                cleanText = string.gsub(cleanText, "^%s+", "")
-                cleanText = string.gsub(cleanText, "%s+$", "")
+                local isQuestTitle = self:IsQuestTitle(text, questTitles)
                 
-                -- Remove level prefixes for checking
-                cleanText = string.gsub(cleanText, "^%[%d+%]%s*", "")
-                
-                -- Check if this matches any tracked quest title
-                for i = 1, GetNumQuestWatches() do
-                    local questIndex = GetQuestIndexForWatch(i)
-                    if questIndex then
-                        local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily = GetQuestLogTitle(questIndex)
-                        if title and string.lower(cleanText) == string.lower(title) then
-                            titleLines[lineNum] = true
-                            break
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- Second pass: indent all non-title lines and remove dashes
-    for lineNum = 1, 50 do
-        if not titleLines[lineNum] then
-            local watchLine = _G["WatchFrameLine" .. lineNum]
-            if watchLine and watchLine.text and watchLine:IsVisible() then
-                local text = watchLine.text:GetText()
-                if text and text ~= "" then
-                    local newText = text
+                if not isQuestTitle then
+                    -- This is an objective line - apply indentation
+                    local cleanedText = self:CleanObjectiveText(text)
+                    local indentedText = "    " .. cleanedText  -- 4 spaces for better readability
                     
-                    -- FIRST: Remove any existing indentation to start clean
-                    newText = string.gsub(newText, "^%s+", "")
-                    
-                    -- SECOND: Remove leading dashes and bullets (multiple patterns for safety)
-                    newText = string.gsub(newText, "^%-+%s*", "")  -- Remove - at start
-                    newText = string.gsub(newText, "^•%s*", "")    -- Remove bullet at start
-                    newText = string.gsub(newText, "^–%s*", "")    -- Remove en-dash
-                    newText = string.gsub(newText, "^—%s*", "")    -- Remove em-dash
-                    
-                    -- THIRD: Remove dashes after color codes
-                    newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)%s*%-+%s*", "%1")
-                    newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)%s*•%s*", "%1")
-                    newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)%s*–%s*", "%1")
-                    newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)%s*—%s*", "%1")
-                    
-                    -- Remove dashes in the middle after whitespace (WoW might add them there)
-                    newText = string.gsub(newText, "^(%s*)%-+%s*", "%1")
-                    
-                    -- FINALLY: Add clean indentation
-                    newText = "  " .. newText
-                    
-                    if newText ~= text then
-                        watchLine.text:SetText(newText)
+                    if indentedText ~= text then
+                        watchLine.text:SetText(indentedText)
+                        self:Debug("Indented objective: '" .. cleanedText .. "'")
                     end
                     
-                    -- Hide the dash texture/element if it exists
-                    -- In WoW, WatchFrameLines have a .dash element that renders the visual dash
-                    -- We hide it to create a cleaner, indented look
+                    -- Hide the dash visual element if it exists
                     if watchLine.dash then
                         watchLine.dash:Hide()
                     end
+                else
+                    self:Debug("Skipped quest title: " .. self:GetCleanText(text))
                 end
             end
         end
     end
+end
+
+-- Helper function to determine if a line is a quest title
+function Module:IsQuestTitle(text, questTitles)
+    local cleanText = self:GetCleanText(text)
+    
+    -- Check against known quest titles
+    if questTitles[string.lower(cleanText)] then
+        return true
+    end
+    
+    -- Additional heuristics for quest titles:
+    -- 1. Contains quest level format like [18]
+    -- 2. Doesn't contain progress indicators (1/5, Complete, etc.)
+    -- 3. Doesn't start with common objective patterns
+    
+    local hasLevelPrefix = string.match(text, "^%[%d+%]")
+    local hasProgress = string.match(cleanText, "%d+/%d+")
+    local hasCompletion = string.match(string.lower(cleanText), "%(complete%)")
+    local startsWithDash = string.match(cleanText, "^%-")
+    local startsWithBullet = string.match(cleanText, "^[•–—]")
+    
+    -- If it has level prefix and no objective markers, likely a title
+    if hasLevelPrefix and not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet then
+        return true
+    end
+    
+    -- If no obvious objective markers and doesn't look like an objective, might be title
+    if not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet and string.len(cleanText) > 10 then
+        return true
+    end
+    
+    return false
+end
+
+-- Helper function to clean objective text by removing dashes and unnecessary whitespace
+function Module:CleanObjectiveText(text)
+    local cleaned = text
+    
+    -- Remove existing indentation
+    cleaned = string.gsub(cleaned, "^%s+", "")
+    
+    -- Remove various dash formats at the beginning
+    cleaned = string.gsub(cleaned, "^%-+%s*", "")     -- Standard dash
+    cleaned = string.gsub(cleaned, "^•%s*", "")       -- Bullet point
+    cleaned = string.gsub(cleaned, "^–%s*", "")       -- En-dash
+    cleaned = string.gsub(cleaned, "^—%s*", "")       -- Em-dash
+    
+    -- Remove dashes after color codes
+    cleaned = string.gsub(cleaned, "(|c%x%x%x%x%x%x%x%x)%s*[-•–—]+%s*", "%1")
+    
+    -- Clean up any remaining excessive whitespace
+    cleaned = string.gsub(cleaned, "^%s+", "")
+    cleaned = string.gsub(cleaned, "%s+$", "")
+    
+    return cleaned
+end
+
+-- Helper function to get clean text for comparison (removes colors and formatting)
+function Module:GetCleanText(text)
+    if not text then return "" end
+    
+    local clean = text
+    
+    -- Remove color codes
+    clean = string.gsub(clean, "|c%x%x%x%x%x%x%x%x", "")
+    clean = string.gsub(clean, "|r", "")
+    
+    -- Remove level prefix
+    clean = string.gsub(clean, "^%[%d+%]%s*", "")
+    
+    -- Clean whitespace
+    clean = string.gsub(clean, "^%s+", "")
+    clean = string.gsub(clean, "%s+$", "")
+    
+    return clean
 end
 
 -- Show quest levels in tracker (legacy function, now uses unified approach)
