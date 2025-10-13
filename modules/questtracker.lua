@@ -1499,10 +1499,21 @@ function Module:FormatQuestObjectives()
         if watchLine and watchLine.text and watchLine:IsVisible() then
             local text = watchLine.text:GetText()
             if text and text ~= "" then
+                local cleanText = self:GetCleanText(text)
                 
-                -- If this line has a .dash element, it's an objective line
-                if watchLine.dash then
-                    -- Hide the visual dash element
+                -- Enhanced debug to see what's happening
+                local hasDash = watchLine.dash and true or false
+                local dashVisible = hasDash and watchLine.dash:IsVisible() or false
+                self:Debug(string.format("Line %d: '%s' | hasDash: %s | dashVisible: %s", 
+                    lineNum, cleanText, tostring(hasDash), tostring(dashVisible)))
+                
+                -- Check if this looks like a quest title before processing
+                local looksLikeTitle = self:LooksLikeQuestTitle(text)
+                
+                if looksLikeTitle then
+                    self:Debug("SKIPPING - looks like quest title: " .. cleanText)
+                elseif watchLine.dash and watchLine.dash:IsVisible() then
+                    -- Only process if dash exists AND is visible
                     watchLine.dash:Hide()
                     
                     -- Clean and indent the text
@@ -1511,15 +1522,45 @@ function Module:FormatQuestObjectives()
                     
                     if indentedText ~= text then
                         watchLine.text:SetText(indentedText)
-                        self:Debug("Indented objective: '" .. cleanedText .. "'")
+                        self:Debug("INDENTED objective: '" .. cleanedText .. "'")
                     end
                 else
-                    -- No .dash element means this is a quest title - leave it alone
-                    self:Debug("Skipped quest title (no .dash): " .. self:GetCleanText(text))
+                    self:Debug("SKIPPED - no visible dash or is title: " .. cleanText)
                 end
             end
         end
     end
+end
+
+-- Helper function to detect if text looks like a quest title
+function Module:LooksLikeQuestTitle(text)
+    if not text then return false end
+    
+    local cleanText = self:GetCleanText(text)
+    
+    -- Quest titles typically:
+    -- 1. Have level prefix [XX] 
+    -- 2. Don't contain progress indicators (1/5, 0/3, etc.)
+    -- 3. Don't start with dash or bullet
+    -- 4. Are longer than typical objectives
+    
+    local hasLevel = string.match(text, "^%[%d+%]")
+    local hasProgress = string.match(cleanText, "%d+/%d+")
+    local hasCompletion = string.match(string.lower(cleanText), "%(complete%)")
+    local startsWithDash = string.match(cleanText, "^%-")
+    local startsWithBullet = string.match(cleanText, "^[•–—]")
+    
+    -- If it has level and no objective markers, it's likely a title
+    if hasLevel and not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet then
+        return true
+    end
+    
+    -- If it's long enough and has no objective markers, might be a title
+    if string.len(cleanText) > 15 and not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet then
+        return true
+    end
+    
+    return false
 end
 
 
