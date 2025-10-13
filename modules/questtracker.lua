@@ -25,14 +25,6 @@ local Module = YATP:NewModule("QuestTracker", "AceEvent-3.0", "AceConsole-3.0", 
 -------------------------------------------------
 function Module:Debug(msg)
     -- Debug disabled for cleaner output
-    -- Temporarily enable debug for dash analysis only
-    if string.find(msg, "hasDash") or string.find(msg, "dashVisible") then
-        print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
-    end
-    -- Exclude outline and text width messages from debug
-    -- if string.find(msg, "Applied outline") or string.find(msg, "Adjusted text width") then
-    --     return
-    -- end
     -- if YATP.db and YATP.db.profile and YATP.db.profile.debugMode then
     --     print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
     -- end
@@ -201,7 +193,7 @@ Module.defaults = {
     colorCodeByDifficulty = true,
     highlightNearbyObjectives = true,
     showQuestIcons = true,
-    indentObjectives = true, -- Remove dashes and add indentation to objectives
+
     
     -- Text appearance
     textOutline = false,
@@ -247,9 +239,7 @@ local function RunMigrations(self)
     if self.db.frameWidth == nil then
         self.db.frameWidth = 300
     end
-    if self.db.indentObjectives == nil then
-        self.db.indentObjectives = true
-    end
+
     if self.db.customHeight == nil then
         self.db.customHeight = false
     end
@@ -355,10 +345,7 @@ local function HookQuestTracker(self)
                         self:ApplyAllTextEnhancements()
                     end
                     
-                    -- Format quest objectives (indent and remove dashes)
-                    if self.db.indentObjectives then
-                        self:FormatQuestObjectives()
-                    end
+
                     
                     -- Apply visual enhancements (these are independent)
                     if self.db.textOutline then
@@ -1485,126 +1472,19 @@ function Module:ApplyAllTextEnhancements()
         end
     end
     
-    -- Format quest objectives (remove dash, add indentation)
-    if self.db.indentObjectives then
-        self:FormatQuestObjectives()
-    end
+
     
     isApplyingLevels = false
 end
 
 -- Format quest objectives by adding indentation - simplified dash-based approach
-function Module:FormatQuestObjectives()
-    if not questTrackerFrame then return end
-    
-    -- Process each visible line - much simpler approach
-    for lineNum = 1, 50 do
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine and watchLine.text and watchLine:IsVisible() then
-            local text = watchLine.text:GetText()
-            if text and text ~= "" then
-                local cleanText = self:GetCleanText(text)
-                
-                -- Debug only dash information
-                local hasDash = watchLine.dash and true or false
-                local dashVisible = hasDash and watchLine.dash:IsVisible() or false
-                self:Debug(string.format("Line %d: '%s' | hasDash: %s | dashVisible: %s", 
-                    lineNum, cleanText, tostring(hasDash), tostring(dashVisible)))
-                
-                -- Check if this looks like a quest title before processing
-                local looksLikeTitle = self:LooksLikeQuestTitle(text)
-                
-                if looksLikeTitle then
-                    -- Skip quest titles
-                else
-                    -- This looks like an objective - indent it
-                    -- Hide the dash element if it exists (regardless of visibility)
-                    if watchLine.dash then
-                        watchLine.dash:Hide()
-                    end
-                    
-                    -- Clean and indent the text
-                    local cleanedText = self:CleanObjectiveText(text)
-                    local indentedText = "    " .. cleanedText  -- 4 spaces for better readability
-                    
-                    if indentedText ~= text then
-                        watchLine.text:SetText(indentedText)
-                    end
-                end
-            end
-        end
-    end
-end
-
--- Helper function to detect if text looks like a quest title
-function Module:LooksLikeQuestTitle(text)
-    if not text then return false end
-    
-    local cleanText = self:GetCleanText(text)
-    
-    -- Based on debug analysis, quest titles are:
-    -- 1. Lines with [XX] level prefix (like "[22] Egg Hunt")
-    -- 2. Lines without progress indicators (no "0/12", "1/5", etc.)
-    -- 3. Quest names like "Betrayal from Within", "The Ashenvale Hunt"
-    -- 4. "Path to Ascension:" quests
-    -- 5. "Speak with..." instructions
-    
-    local hasLevel = string.match(text, "^%[%d+%]")
-    local hasProgress = string.match(cleanText, "%d+/%d+")
-    local hasCompletion = string.match(string.lower(cleanText), "%(complete%)")
-    local startsWithDash = string.match(cleanText, "^%-")
-    local startsWithBullet = string.match(cleanText, "^[•–—]")
-    
-    -- Definite quest titles:
-    if hasLevel then
-        return true  -- "[22] Egg Hunt", "[27] Mahren Skyseer"
-    end
-    
-    -- Path to Ascension quests
-    if string.match(cleanText, "^Path to Ascension:") then
-        return true
-    end
-    
-    -- "Speak with..." can be objectives, so don't treat as titles for now
-    -- if string.match(cleanText, "^Speak with") then
-    --     return true
-    -- end
-    
-    -- Quest names without progress indicators and not starting with symbols
-    if not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet then
-        -- Exclude short phrases that might be objectives
-        if string.len(cleanText) > 8 and not string.match(cleanText, "^%d+/%d+") then
-            return true  -- "Betrayal from Within", "The Ashenvale Hunt", etc.
-        end
-    end
-    
-    return false
-end
 
 
 
--- Helper function to clean objective text by removing dashes and unnecessary whitespace
-function Module:CleanObjectiveText(text)
-    local cleaned = text
-    
-    -- Remove existing indentation
-    cleaned = string.gsub(cleaned, "^%s+", "")
-    
-    -- Remove various dash formats at the beginning
-    cleaned = string.gsub(cleaned, "^%-+%s*", "")     -- Standard dash
-    cleaned = string.gsub(cleaned, "^•%s*", "")       -- Bullet point
-    cleaned = string.gsub(cleaned, "^–%s*", "")       -- En-dash
-    cleaned = string.gsub(cleaned, "^—%s*", "")       -- Em-dash
-    
-    -- Remove dashes after color codes
-    cleaned = string.gsub(cleaned, "(|c%x%x%x%x%x%x%x%x)%s*[-•–—]+%s*", "%1")
-    
-    -- Clean up any remaining excessive whitespace
-    cleaned = string.gsub(cleaned, "^%s+", "")
-    cleaned = string.gsub(cleaned, "%s+$", "")
-    
-    return cleaned
-end
+
+
+
+
 
 -- Helper function to get clean text for comparison (removes colors and formatting)
 function Module:GetCleanText(text)
@@ -2310,17 +2190,7 @@ function Module:BuildOptions()
             if self:IsEnabled() then
                 HookQuestTracker(self)
             end
-        elseif key == "indentObjectives" then
-            -- Apply or remove objective formatting immediately
-            if self:IsEnabled() then
-                if val then
-                    self:FormatQuestObjectives()
-                else
-                    -- Refresh the display to restore original formatting
-                    self:UpdateTrackedQuests()
-                    self:EnhanceQuestDisplay()
-                end
-            end
+
         end
     end
 
@@ -2352,12 +2222,7 @@ function Module:BuildOptions()
                         desc = L["Color quest titles based on difficulty level."] or "Color quest titles based on difficulty level.",
                         get=get, set=set,
                     },
-                    indentObjectives = {
-                        type = "toggle", order = 3,
-                        name = L["Indent Objectives"] or "Indent Objectives",
-                        desc = L["Remove dash from objectives and add indentation for cleaner look."] or "Remove dash from objectives and add indentation for cleaner look.",
-                        get=get, set=set,
-                    },
+
                 }
             },
             
@@ -2761,22 +2626,7 @@ SlashCmdList["YATPQTFIX"] = function()
     end
 end
 
--- Register command to test indentation function
-SLASH_YATPQTINDENT1 = "/qtindent"
-SlashCmdList["YATPQTINDENT"] = function()
-    if YATP.modules.QuestTracker then
-        local module = YATP.modules.QuestTracker
-        print("=== Testing Quest Indentation ===")
-        if module.db.indentObjectives then
-            module:FormatQuestObjectives()
-            print("Indentation function executed - check above for debug output")
-        else
-            print("Indent Objectives is disabled - enable it first")
-        end
-    else
-        print("Quest Tracker module not found")
-    end
-end
+
 
 -- Register debug command to see quest info
 SLASH_YATPQTDEBUG1 = "/qtdebug"
