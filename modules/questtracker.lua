@@ -1850,23 +1850,62 @@ function Module:AutoTrackByCurrentZone()
         return
     end
     
+    self:Debug("Auto-tracking by zone: " .. currentZone)
+    
     local numEntries = GetNumQuestLogEntries()
     local questsToTrack = {}
     local questsToUntrack = {}
+    local currentCategory = nil
     
     -- First, collect all quests and their zones
     for i = 1, numEntries do
         local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
         
+        -- Track current category
+        if isHeader then
+            currentCategory = questTitle
+            self:Debug("Category: " .. tostring(currentCategory))
+        end
+        
         if not isHeader and questTitle then
-            -- Always track "Ascension Main Quest" category quests and "Path to Ascension" quests
-            local shouldTrack = (questTag and (questTag == "Ascension Main Quest" or questTag == "Path to Ascension"))
+            -- Debug quest information
+            self:Debug("Quest " .. i .. ": " .. questTitle .. " | Category: " .. tostring(currentCategory) .. " | Tag: " .. tostring(questTag))
             
-            -- Also track quests for current zone
+            -- Always track Ascension-related quests
+            local shouldTrack = false
+            
+            -- Method 1: Check by category name
+            if currentCategory and (
+                currentCategory == "Ascension Main Quest" or 
+                currentCategory == "Path to Ascension" or
+                string.find(currentCategory, "Ascension") or
+                string.find(currentCategory, "Path to")
+            ) then
+                shouldTrack = true
+                self:Debug("  -> Marked for tracking: Ascension quest by category (" .. currentCategory .. ")")
+            end
+            
+            -- Method 2: Check by questTag
+            if not shouldTrack and questTag and (questTag == "Ascension Main Quest" or questTag == "Path to Ascension") then
+                shouldTrack = true
+                self:Debug("  -> Marked for tracking: Ascension quest by tag (" .. questTag .. ")")
+            end
+            
+            -- Method 3: Check by quest title patterns (backup method)
+            if not shouldTrack and questTitle then
+                local lowerTitle = string.lower(questTitle)
+                if string.find(lowerTitle, "ascension") or string.find(lowerTitle, "path to") then
+                    shouldTrack = true
+                    self:Debug("  -> Marked for tracking: Ascension quest by title pattern")
+                end
+            end
+            
+            -- Also track quests for current zone (if not already marked as Ascension)
             if not shouldTrack then
                 local questZone = self:GetQuestZone(i)
                 if questZone and questZone == currentZone then
                     shouldTrack = true
+                    self:Debug("  -> Marked for tracking: Current zone quest (" .. questZone .. ")")
                 end
             end
             
@@ -1894,10 +1933,19 @@ function Module:AutoTrackByCurrentZone()
     end
     
     -- Apply tracking changes
+    local ascensionTracked = 0
+    local zoneTracked = 0
+    
     for _, questIndex in ipairs(questsToTrack) do
         AddQuestWatch(questIndex)
         local title = GetQuestLogTitle(questIndex)
-        self:Debug("Auto-tracked quest for zone: " .. (title or "Unknown"))
+        if title and (string.find(string.lower(title), "ascension") or string.find(string.lower(title), "path to")) then
+            ascensionTracked = ascensionTracked + 1
+            self:Debug("Auto-tracked Ascension quest: " .. title)
+        else
+            zoneTracked = zoneTracked + 1
+            self:Debug("Auto-tracked zone quest: " .. (title or "Unknown"))
+        end
     end
     
     for _, questIndex in ipairs(questsToUntrack) do
@@ -1905,6 +1953,8 @@ function Module:AutoTrackByCurrentZone()
         local title = GetQuestLogTitle(questIndex)
         self:Debug("Auto-untracked quest (wrong zone): " .. (title or "Unknown"))
     end
+    
+    self:Debug("Auto-track summary: " .. ascensionTracked .. " Ascension quests, " .. zoneTracked .. " zone quests, " .. #questsToUntrack .. " untracked")
     
     -- Provide user feedback
     if #questsToTrack > 0 or #questsToUntrack > 0 then
