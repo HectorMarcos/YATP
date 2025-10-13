@@ -10,6 +10,7 @@ Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Ena
 | Hotkeys | Interface | Hotkey font + range / mana tinting. |
 | PlayerAuras | Interface | (Temporarily disabled) Buff/debuff layout: scale, rows, growth, sorting, duration styling. |
 | PlayerAuraFilter | Interface | (Temporarily disabled) Simple name-based hide list for player buffs. |
+| QuestTracker | Interface | Enhanced quest tracking: levels, colors, auto-indentation, smart tracking modes, positioning & visual customization. |
 | XPRepBar | Interface | Unified XP + Rep bar w/ mouseover text, animated spark indicator & multi-client level detection. |
 | LootRollInfo | QoL | Per-option roll counters + tooltips. |
 | InfoBar | QoL | FPS / latency / durability micro bar. |
@@ -54,6 +55,33 @@ State: single AceDB root `YATP_DB.profile.modules[ModuleName]`. Migrations pull 
 ## Contributing
 
 Open issue / PR. Keep changes module‑scoped, avoid editing vendored libs. Test with a fresh profile.
+
+## Quest Tracker Details
+
+**QuestTracker** is a comprehensive quest tracking enhancement module designed specifically for WoW 3.3.5 (Ascension). It provides a clean, unified approach to quest display and management.
+
+### Key Features
+
+- **Quest Level Display**: Show `[Level] QuestTitle` format with toggle control
+- **Difficulty Color Coding**: Standard WoW colors (Red/Orange/Yellow/Green/Gray) based on level difference
+- **Smart Objective Indentation**: Automatic 4-space indentation for better visual hierarchy
+- **Intelligent Auto-Tracking**: Two modes - "All Quests" or "By Zone" (+ always track Ascension categories)
+- **Path to Ascension Integration**: Special handling for Ascension server's unique quest chains
+- **Custom Positioning**: Drag-and-drop repositioning with position locking
+- **Visual Customization**: Text outline, background hiding, custom frame height (300-1000px)
+- **Objective Text Management**: Smart truncation for long objectives (>100 chars) with word-boundary detection
+
+### Technical Highlights
+
+- **Dash-Based Detection**: Uses `dash.text == "-"` pattern for 100% accurate quest title vs objective identification
+- **Unified Processing**: Single `ApplyAllTextEnhancements()` function eliminates race conditions and duplicate processing
+- **SexyMap Compatibility**: Comprehensive position management hooks for seamless addon interaction
+- **Production Ready**: 24% code reduction (515 lines removed) with full functionality maintained
+- **Zero Debug Overhead**: All debugging code removed for optimal performance
+
+### Configuration
+
+Access via `/yatp` → Interface Hub → Quest Tracker. All options apply immediately without requiring `/reload`.
 
 ## Credits
 

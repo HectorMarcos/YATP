@@ -3,11 +3,12 @@
 --========================================================--
 -- This module provides enhancements and customizations for the quest tracker
 -- Features:
---  * Enhanced quest objective display
---  * Quest progress tracking improvements
---  * Custom quest sorting options
---  * Quest tracker positioning and sizing
---  * Progress notifications and alerts
+--  * Quest level display and color coding by difficulty
+--  * Objective indentation for better readability
+--  * Auto-tracking by zone or force track all quests
+--  * Custom frame positioning and height
+--  * Text outline options and background toggle
+--  * Path to Ascension quest auto-positioning
 --========================================================--
 
 local L   = LibStub("AceLocale-3.0"):GetLocale("YATP", true) or setmetatable({}, { __index=function(_,k) return k end })
@@ -25,40 +26,6 @@ local Module = YATP:NewModule("QuestTracker", "AceEvent-3.0", "AceConsole-3.0", 
 -------------------------------------------------
 function Module:Debug(msg)
     -- All debug disabled
-end
-
--- Debug function specifically for dash analysis
-function Module:DebugDashAnalysis()
-    local watchFrame = _G["WatchFrame"]
-    if not watchFrame then 
-        print("|cffff0000[YATP - Dash Debug]|r WatchFrame not found")
-        return 
-    end
-    
-    print("|cff00ff00[YATP - Dash Debug]|r === Analyzing .dash elements ===")
-    
-    for lineNum = 1, 50 do
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine and watchLine.text and watchLine:IsVisible() then
-            local text = watchLine.text:GetText()
-            if text and text ~= "" then
-                -- Clean text for display
-                local cleanText = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
-                cleanText = string.gsub(cleanText, "|r", "")
-                
-                -- Check dash status
-                local hasDash = watchLine.dash and true or false
-                local dashVisible = hasDash and watchLine.dash:IsVisible() or false
-                local dashExists = hasDash and "YES" or "NO"
-                local dashVisibleText = dashVisible and "VISIBLE" or "HIDDEN"
-                
-                print(string.format("|cff00ff00[YATP - Dash Debug]|r Line %d: '%s' | Dash: %s (%s)", 
-                    lineNum, cleanText, dashExists, dashVisibleText))
-            end
-        end
-    end
-    
-    print("|cff00ff00[YATP - Dash Debug]|r === Analysis Complete ===")
 end
 
 function Module:Print(msg)
@@ -206,9 +173,6 @@ Module.defaults = {
     -- Visual enhancements
     colorCodeByDifficulty = true,
     indentObjectives = true,           -- Indent quest objectives for better readability
-    highlightNearbyObjectives = true,
-    showQuestIcons = true,
-
     
     -- Text appearance
     textOutline = false,
@@ -227,12 +191,7 @@ Module.defaults = {
 local questTrackerFrame
 local originalUpdateFunction
 local trackedQuests = {}
-local nearbyObjectives = {}
 local maintenanceTimer
-local savedWatchFrameContent = {}
-local savedFrameProperties = {}
-local isApplyingLevels = false -- Prevent multiple simultaneous level applications
-local lastProcessedQuests = {} -- Cache of quest titles to their line numbers
 
 -------------------------------------------------
 -- Version migrations
@@ -369,65 +328,7 @@ local function HookQuestTracker(self)
     end
 end
 
--- Save current WatchFrame content and properties
-function Module:SaveWatchFrameContent()
-    wipe(savedWatchFrameContent)
-    wipe(savedFrameProperties)
-    
 
-    
-    -- Save text content and font properties
-    for lineNum = 1, 50 do
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine and watchLine.text and watchLine:IsVisible() then
-            local text = watchLine.text:GetText()
-            if text and text ~= "" then
-                local font, size, flags = watchLine.text:GetFont()
-                savedWatchFrameContent[lineNum] = {
-                    text = text,
-                    font = font,
-                    size = size,
-                    flags = flags,
-                    hasLevel = string.find(text, "^%[%d+%] ") ~= nil,
-                    hasColor = string.find(text, "|c%x%x%x%x%x%x%x%x") ~= nil,
-                }
-            end
-        end
-    end
-end
-
--- Restore WatchFrame content and properties seamlessly
-function Module:RestoreWatchFrameContent()
-    if not savedWatchFrameContent or next(savedWatchFrameContent) == nil then
-        return false
-    end
-    
-
-    
-    -- Restore text content and properties
-    for lineNum, savedData in pairs(savedWatchFrameContent) do
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine and watchLine.text and watchLine:IsVisible() then
-            local currentText = watchLine.text:GetText()
-            -- Only restore if the content differs and our modification exists in saved version
-            if currentText ~= savedData.text and (savedData.hasLevel or savedData.hasColor) then
-                watchLine.text:SetText(savedData.text)
-            end
-            
-            -- Restore font properties if they were modified
-            if savedData.font and savedData.size and savedData.flags then
-                local currentFont, currentSize, currentFlags = watchLine.text:GetFont()
-                if currentFlags ~= savedData.flags then
-                    watchLine.text:SetFont(savedData.font, savedData.size, savedData.flags)
-                end
-            end
-            
-
-        end
-    end
-    self:Debug("Restored WatchFrame content and properties")
-    return true
-end
 
 -- Apply text outline to WatchFrame text
 function Module:ApplyTextOutline()
@@ -440,18 +341,16 @@ function Module:ApplyTextOutline()
         return 
     end
     
-    self:Debug("Applying text outline - Enabled: " .. tostring(self.db.textOutline) .. " (Always Normal thickness)")
+    self:Debug("Applying text outline - Enabled: " .. tostring(self.db.textOutline))
     
     -- Apply outline to quest objective lines (WatchFrameLine)
     for lineNum = 1, 50 do
         local watchLine = _G["WatchFrameLine" .. lineNum]
         if watchLine and watchLine.text then
             if self.db.textOutline then
-                -- Apply normal outline (always normal thickness)
                 watchLine.text:SetFont(watchLine.text:GetFont(), select(2, watchLine.text:GetFont()), "OUTLINE")
                 self:Debug("Applied outline to WatchFrameLine" .. lineNum)
             else
-                -- Remove outline
                 watchLine.text:SetFont(watchLine.text:GetFont(), select(2, watchLine.text:GetFont()), "")
                 self:Debug("Removed outline from WatchFrameLine" .. lineNum)
             end
@@ -563,10 +462,7 @@ function Module:ApplyOutlineToQuestHeaders()
             self:Debug("Found main objectives header: " .. text .. " (type: " .. element.type .. ")")
         end
         
-        -- Heuristics to detect individual quest headers:
-        -- 1. Font size >= 12 (headers are usually larger)
-        -- 2. Text doesn't start with numbers or common objective patterns
-        -- 3. Text doesn't contain progress indicators like "1/5", "(Complete)", etc.
+        -- Heuristics to detect individual quest headers
         if not isHeader and element.fontSize >= 12 then
             -- Check if it doesn't look like an objective
             local lowerText = string.lower(text)
@@ -589,7 +485,6 @@ function Module:ApplyOutlineToQuestHeaders()
         if isHeader then
             if self.db.textOutline then
                 local font, fontSize = element.element:GetFont()
-                -- Always use normal outline thickness
                 element.element:SetFont(font, fontSize, "OUTLINE")
                 self:Debug("Applied outline to header: '" .. text .. "' (fontSize: " .. element.fontSize .. ")")
                 headersFound = headersFound + 1
@@ -615,12 +510,10 @@ function Module:ApplyCustomHeight()
         return 
     end
     
-    -- Ensure frameHeight has a default value
     if not self.db.frameHeight then
         self.db.frameHeight = 600
     end
     
-    -- Always apply custom height (no UI toggle)
     local newHeight = self.db.frameHeight
     self:Debug("Applying custom height: " .. tostring(newHeight))
     questTrackerFrame:SetHeight(newHeight)
@@ -636,15 +529,12 @@ function Module:ApplyBackgroundToggle()
         return 
     end
     
-    -- Initialize hidden textures table if it doesn't exist
     if not self.hiddenTextures then
         self.hiddenTextures = {}
     end
     
     if self.db.hideBackground then
-        self:Debug("Hiding quest tracker background (aggressive mode)")
-        
-        -- Clear previous hidden textures list
+        self:Debug("Hiding quest tracker background")
         self.hiddenTextures = {}
         
         -- Set background to completely transparent as backup method
@@ -683,13 +573,12 @@ function Module:ApplyBackgroundToggle()
             end
         end
         
-        -- Hide textures that are children of WatchFrame
+        -- Hide decorative textures that are children of WatchFrame
         if questTrackerFrame.GetNumRegions then
             for i = 1, questTrackerFrame:GetNumRegions() do
                 local region = select(i, questTrackerFrame:GetRegions())
                 if region and region:GetObjectType() == "Texture" then
                     local texturePath = region:GetTexture()
-                    -- Hide decorative textures (but keep quest icons)
                     if texturePath and (
                         string.find(string.lower(texturePath or ""), "background") or
                         string.find(string.lower(texturePath or ""), "border") or
@@ -716,7 +605,6 @@ function Module:ApplyBackgroundToggle()
             self.hiddenTextures = {}
         end
         
-        -- Also show background textures directly
         if questTrackerFrame.background then
             questTrackerFrame.background:Show()
         end
@@ -740,7 +628,7 @@ function Module:ApplyBackgroundToggle()
             end
         end
         
-        -- Show all textures that are children of WatchFrame
+        -- Show all texture regions
         if questTrackerFrame.GetNumRegions then
             for i = 1, questTrackerFrame:GetNumRegions() do
                 local region = select(i, questTrackerFrame:GetRegions())
@@ -762,15 +650,12 @@ function Module:ApplyMovableTracker()
         return 
     end
     
-    -- Frame is always movable now (for SexyMap compatibility), but we control mouse interaction
     if self.db.lockPosition then
-        -- Tracker is locked, disable mouse interaction (but keep movable for SexyMap)
         questTrackerFrame:EnableMouse(false)
         questTrackerFrame:SetScript("OnDragStart", nil)
         questTrackerFrame:SetScript("OnDragStop", nil)
-        self:Debug("Quest tracker is locked (mouse disabled)")
+        self:Debug("Quest tracker position locked")
     else
-        -- Tracker is unlocked, enable mouse interaction for user dragging
         questTrackerFrame:EnableMouse(true)
         questTrackerFrame:RegisterForDrag("LeftButton")
         questTrackerFrame:SetScript("OnDragStart", function(self)
@@ -778,7 +663,6 @@ function Module:ApplyMovableTracker()
         end)
         questTrackerFrame:SetScript("OnDragStop", function(self)
             self:StopMovingOrSizing()
-            -- Save new position automatically
             local x, y = self:GetLeft(), self:GetTop()
             if x and y then
                 Module.db.positionX = x
@@ -786,10 +670,9 @@ function Module:ApplyMovableTracker()
                 Module:Debug("Saved new position: " .. Module.db.positionX .. ", " .. Module.db.positionY)
             end
         end)
-        self:Debug("Quest tracker is now movable by user")
+        self:Debug("Quest tracker is movable")
     end
     
-    -- Always apply our custom position (SetPoint is hooked to enforce this)
     if self.db.positionX and self.db.positionY then
         questTrackerFrame:ClearAllPoints()
         questTrackerFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", self.db.positionX, self.db.positionY)
@@ -797,20 +680,14 @@ function Module:ApplyMovableTracker()
     end
 end
 
--- Enhanced quest display (simplified - no sorting)
+-- Enhanced quest display
 function Module:EnhanceQuestDisplay()
-    -- Enhanced display is always enabled now
     if not self.db.enabled then return end
     
-    self:Debug("EnhanceQuestDisplay: Applying text enhancements only")
-    
-    -- Update tracked quests table
+    self:Debug("Applying quest display enhancements")
     self:UpdateTrackedQuests()
-    
-    -- Apply text enhancements (levels and colors)
     self:ApplyAllTextEnhancements()
-    
-    self:Debug("EnhanceQuestDisplay: Finished")
+    self:Debug("Quest display enhancements applied")
 end
 
 -- Update tracked quests information
@@ -862,63 +739,12 @@ end
 
 
 
--- Helper function to find the exact title line for a quest in WatchFrame
--- Uses WoW 3.3.5 API to map quest watch index to WatchFrame line
-local function FindQuestTitleLine(questWatchIndex, questTitle)
-    if not questWatchIndex or not questTitle then return nil end
-    
-    -- In WoW 3.3.5, quest titles in WatchFrame follow a predictable pattern
-    -- Each watched quest has its title on a specific line
-    -- We can use GetQuestIndexForWatch in reverse to find which line corresponds to this quest
-    
-    -- Build a map of all visible WatchFrame lines
-    local visibleLines = {}
-    for lineNum = 1, 50 do
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine and watchLine.text and watchLine:IsVisible() then
-            local text = watchLine.text:GetText()
-            if text and text ~= "" then
-                -- Clean the text for comparison
-                local cleanText = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
-                cleanText = string.gsub(cleanText, "|r", "")
-                cleanText = string.gsub(cleanText, "^%s+", "")
-                cleanText = string.gsub(cleanText, "%s+$", "")
-                
-                -- Remove color codes for comparison
-                cleanText = string.gsub(cleanText, "|c%x%x%x%x%x%x%x%x", "")
-                cleanText = string.gsub(cleanText, "|r", "")
-                
-                -- CRITICAL: Title must be an EXACT match (not substring)
-                -- and must NOT have any objective markers
-                local hasProgress = string.find(cleanText, "%d+/%d+")
-                local hasDash = string.find(cleanText, "^%-")
-                local hasBullet = string.find(cleanText, "^•")
-                local hasLevel = string.find(cleanText, "^%[%d+%]")
-                local hasColon = string.find(cleanText, ":")
-                
-                -- If text exactly matches the quest title (case insensitive) and has no markers
-                if string.lower(cleanText) == string.lower(questTitle) and 
-                   not hasProgress and not hasDash and not hasBullet and not hasLevel and not hasColon then
-                    return lineNum, watchLine
-                end
-            end
-        end
-    end
-    
-    return nil
-end
+
 
 -- Apply all text enhancements (levels and colors) in one pass to avoid duplicates
--- Color System Example (player level 40):
---   RED:    Quest level 45+ (5+ above player)
---   ORANGE: Quest level 43-44 (3-4 above player)
---   YELLOW: Quest level 38-42 (-2 to +2 from player)
---   GREEN:  Quest level 30-37 (3-10 below player)
---   GRAY:   Quest level 29- (11+ below player, no XP)
 function Module:ApplyAllTextEnhancements()
-    -- NEW APPROACH - Using dash.text pattern for quest detection
-    -- Based on analysis: dash.text == "-" indicates objective, otherwise it's a title
-    -- NOTE: Width alignment issue (width > 210) exists in base game, not our code
+    -- Unified approach - Using dash.text pattern for quest detection
+    -- dash.text == "-" indicates objective, otherwise it's a title
     
     if not self.db.enabled then
         return
@@ -935,13 +761,13 @@ function Module:ApplyAllTextEnhancements()
                 
                 -- Core detection logic with Path to Ascension exception
                 if lineText:match("Path to Ascension") then
-                    -- Excepción: Path to Ascension siempre es título
+                    -- Exception: Path to Ascension is always a title
                     self:ApplyQuestTitleEnhancements(watchLine, lineText, playerLevel)
                 elseif watchLine.dash and watchLine.dash:GetText() == "-" then
-                    -- Es un objetivo → aplicar indentado
+                    -- This is an objective → apply indentation
                     self:ApplyObjectiveIndentation(watchLine, lineText)
                 else
-                    -- Es un título → aplicar nivel y color
+                    -- This is a title → apply level and color
                     self:ApplyQuestTitleEnhancements(watchLine, lineText, playerLevel)
                 end
             end
@@ -950,20 +776,18 @@ function Module:ApplyAllTextEnhancements()
 end
 -- Helper function to apply indentation to quest objectives
 function Module:ApplyObjectiveIndentation(watchLine, lineText)
-    -- ALWAYS apply indentation to objectives (lines with dash.text == "-")
-    -- This is the core feature - indent all objectives for better readability
+    -- Apply indentation to all objectives for better readability
     
     -- Keep the dash invisible but present (for logic detection)
     if watchLine.dash then
-        watchLine.dash:SetAlpha(0)  -- Make dash invisible to user (0% transparency)
+        watchLine.dash:SetAlpha(0)  -- Make dash invisible to user
     end
     
     -- Smart text truncation for long objectives (>100 characters)
     local processedText = self:TruncateObjectiveText(lineText)
     
-    -- Check if line is already indented to avoid double indentation
+    -- Apply indentation if not already present
     if not processedText:match("^%s%s%s%s") then
-        -- Add 4 spaces for indentation
         local indentedText = "    " .. processedText
         watchLine.text:SetText(indentedText)
     end
@@ -984,11 +808,9 @@ function Module:TruncateObjectiveText(text)
         end
     end
     
-    -- If we found a space, truncate there and add "..."
     if truncatePoint then
         return string.sub(text, 1, truncatePoint - 1) .. "..."
     else
-        -- If no space found (very rare case), just cut at 97 and add "..."
         return string.sub(text, 1, 97) .. "..."
     end
 end
@@ -1049,192 +871,20 @@ end
 function Module:GetQuestDifficultyColor(questLevel, playerLevel)
     local levelDiff = questLevel - playerLevel
     
-    -- WoW standard difficulty colors
     if levelDiff >= 5 then
-        return "|cffff0000", "|r" -- Bright Red (5+ levels above)
+        return "|cffff0000", "|r" -- Red (5+ levels above)
     elseif levelDiff >= 3 then
-        return "|cffff6600", "|r" -- Bright Orange (3-4 levels above)
+        return "|cffff6600", "|r" -- Orange (3-4 levels above)
     elseif levelDiff >= -2 then
-        return "|cffffff00", "|r" -- Bright Yellow (-2 to +2 levels)
+        return "|cffffff00", "|r" -- Yellow (-2 to +2 levels)
     elseif levelDiff >= -10 then
-        return "|cff00ff00", "|r" -- Bright Green (-10 to -3 levels)
+        return "|cff00ff00", "|r" -- Green (-10 to -3 levels)
     else
-        return "|cff999999", "|r" -- Light Gray (more than -10 levels)
+        return "|cff999999", "|r" -- Gray (more than -10 levels)
     end
 end
 
--- Format quest objectives by adding indentation - simplified dash-based approach
 
-
-
-
-
-
-
-
--- COMPREHENSIVE WATCHFRAME DEBUGGING SYSTEM
--- This system provides detailed analysis of WatchFrame structure and content
--- to understand how quest titles are organized internally for better detection
-
-function Module:AnalyzeWatchFrameStructure()
-    print("DEBUG: AnalyzeWatchFrameStructure function called!")
-    
-    if not WatchFrame then 
-        print("ERROR: WatchFrame not found!")
-        return 
-    end
-    
-    print("=== COMPREHENSIVE WATCHFRAME ANALYSIS ===")
-    
-    -- Basic WatchFrame properties
-    print("WatchFrame Basic Properties:")
-    print("  - IsVisible: " .. tostring(WatchFrame:IsVisible()))
-    print("  - NumLines: " .. tostring(WatchFrame.numLines or "nil"))
-    print("  - Height: " .. tostring(WatchFrame:GetHeight()))
-    print("  - Width: " .. tostring(WatchFrame:GetWidth()))
-    
-    -- Analyze all child frames
-    print("\nWatchFrame Child Analysis:")
-    local children = {WatchFrame:GetChildren()}
-    for i, child in ipairs(children) do
-        if child then
-            local name = child:GetName() or "unnamed"
-            local childType = child:GetObjectType()
-            print("  Child " .. i .. ": " .. name .. " (" .. childType .. ")")
-            
-            -- If it has text, show it
-            if child.GetText and child:GetText() then
-                print("    Text: '" .. child:GetText() .. "'")
-            end
-        end
-    end
-    
-    -- Analyze all WatchFrameLine elements (WatchFrameLine1, WatchFrameLine2, etc.)
-    print("\nWatchFrameLine Analysis:")
-    for lineNum = 1, 50 do
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine then
-            print("  WatchFrameLine" .. lineNum .. ":")
-            print("    - Visible: " .. tostring(watchLine:IsVisible()))
-            
-            if watchLine.text then
-                local text = watchLine.text:GetText()
-                if text and text ~= "" then
-                    print("    - Text: '" .. text .. "'")
-                    print("    - Text Color: R=" .. string.format("%.2f", watchLine.text:GetTextColor()))
-                    print("    - Font: " .. tostring(watchLine.text:GetFont()))
-                end
-            end
-            
-            -- Check for dash element
-            if watchLine.dash then
-                print("    - Has dash element: " .. tostring(watchLine.dash:IsVisible()))
-                if watchLine.dash.GetText and watchLine.dash:GetText() then
-                    print("    - Dash text: '" .. watchLine.dash:GetText() .. "'")
-                end
-            end
-            
-            -- Check for other common elements
-            if watchLine.check then
-                print("    - Has check element: " .. tostring(watchLine.check:IsVisible()))
-            end
-            
-        else
-            -- Stop when we hit the first non-existent line
-            break
-        end
-    end
-    
-    -- Quest-specific analysis
-    print("\nQuest Data Analysis:")
-    local numWatched = GetNumQuestWatches()
-    print("  Number of watched quests: " .. numWatched)
-    
-    for i = 1, numWatched do
-        local questIndex = GetQuestIndexForWatch(i)
-        if questIndex then
-            local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(questIndex)
-            print("  Quest " .. i .. ":")
-            print("    - Title: '" .. (title or "nil") .. "'")
-            print("    - Level: " .. (level or "nil"))
-            print("    - QuestID: " .. (questID or "nil"))
-            print("    - IsHeader: " .. tostring(isHeader))
-            print("    - IsComplete: " .. tostring(isComplete))
-            
-            -- Try to find this quest in the WatchFrame lines
-            if title then
-                local foundLine = self:FindQuestTitleInWatchFrame(title)
-                if foundLine then
-                    print("    - Found in WatchFrameLine" .. foundLine)
-                else
-                    print("    - NOT FOUND in any WatchFrameLine!")
-                end
-            end
-        end
-    end
-    
-    print("=== END WATCHFRAME ANALYSIS ===")
-end
-
--- Helper to find which WatchFrameLine contains a specific quest title
-function Module:FindQuestTitleInWatchFrame(questTitle)
-    if not questTitle then return nil end
-    
-    for lineNum = 1, 50 do
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine and watchLine.text then
-            local lineText = watchLine.text:GetText()
-            if lineText then
-                -- Try exact match first
-                if lineText == questTitle then
-                    return lineNum
-                end
-                
-                -- Try partial match (in case of level prefixes or other modifications)
-                if string.find(lineText, questTitle, 1, true) then
-                    return lineNum
-                end
-                
-                -- Try clean match (remove colors and level prefixes)
-                local cleanLineText = self:GetCleanText(lineText)
-                local cleanQuestTitle = self:GetCleanText(questTitle)
-                if cleanLineText == cleanQuestTitle then
-                    return lineNum
-                end
-            end
-        else
-            break
-        end
-    end
-    
-    return nil
-end
-
--- Helper function to get clean text for comparison (removes colors and formatting)
-function Module:GetCleanText(text)
-    if not text then return "" end
-    
-    local clean = text
-    
-    -- Remove color codes
-    clean = string.gsub(clean, "|c%x%x%x%x%x%x%x%x", "")
-    clean = string.gsub(clean, "|r", "")
-    
-    -- Remove level prefix
-    clean = string.gsub(clean, "^%[%d+%]%s*", "")
-    
-    -- Clean whitespace
-    clean = string.gsub(clean, "^%s+", "")
-    clean = string.gsub(clean, "%s+$", "")
-    
-    return clean
-end
-
--- Show progress percentages
-function Module:ShowProgressPercentages()
-    -- Implementation for showing progress percentages
-    -- This would calculate and display completion percentages for objectives
-end
 
 
 
@@ -1403,12 +1053,7 @@ function Module:OnDisable()
         end
     end
     
-    -- Clean up any existing modifications
-    self:RemoveQuestLevels()
-    
-    -- Clear saved content
-    wipe(savedWatchFrameContent)
-    wipe(savedFrameProperties)
+    -- Module disabled - clean state maintained automatically
     
     self:Debug("Quest Tracker module disabled")
 end
@@ -1988,166 +1633,6 @@ function Module:OpenConfig()
     end
 end
 
--------------------------------------------------
--- Test function for debugging
--------------------------------------------------
-function Module:TestFunction()
-    self:Debug("=== Quest Tracker Test Function ===")
-    self:Debug("Module enabled: " .. tostring(self:IsEnabled()))
-    self:Debug("WatchFrame exists: " .. tostring(WatchFrame ~= nil))
-    if WatchFrame then
-        self:Debug("WatchFrame name: " .. (WatchFrame:GetName() or "unnamed"))
-        self:Debug("WatchFrame visible: " .. tostring(WatchFrame:IsVisible()))
-    end
-    self:Debug("Enhanced display: " .. tostring(self.db.enhancedDisplay))
-    self:Debug("Show quest levels: " .. tostring(self.db.showQuestLevels))
-    self:Debug("Text outline: " .. tostring(self.db.textOutline))
-    self:Debug("Using normal outline thickness (always)")
-    
-    -- Test quest tracking
-    local numWatched = GetNumQuestWatches()
-    self:Debug("Number of watched quests: " .. numWatched)
-    
-    for i = 1, numWatched do
-        local questIndex = GetQuestIndexForWatch(i)
-        if questIndex then
-            local title, level = GetQuestLogTitle(questIndex)
-            self:Debug("Quest " .. i .. ": [" .. (level or "?") .. "] " .. (title or "Unknown"))
-        end
-    end
-    
-    -- Show WatchFrame line structure
-    self:Debug("--- WatchFrame Lines Analysis ---")
-    for lineNum = 1, 20 do -- Check first 20 lines
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine and watchLine.text then
-            local text = watchLine.text:GetText()
-            if text and text ~= "" then
-                local hasProgress = string.find(text, "%d+/%d+") and "HAS_PROGRESS" or "NO_PROGRESS"
-                local hasLevel = string.find(text, "^%[%d+%] ") and "HAS_LEVEL" or "NO_LEVEL"
-                local startsWithBullet = string.find(text, "^[•%-]") and "BULLET/DASH" or "NO_BULLET"
-                self:Debug("Line " .. lineNum .. ": " .. hasProgress .. " | " .. hasLevel .. " | " .. startsWithBullet .. " | " .. text)
-            end
-        end
-    end
-    self:Debug("--- End Lines Analysis ---")
-    
-    -- Apply settings manually
-    self:ApplyVisualEnhancements()
-    self:ApplyAllTextEnhancements()
-    self:Debug("=== Test Complete ===")
-end
 
--- Register test command
-SLASH_YATPQTTEST1 = "/qttest"
-SlashCmdList["YATPQTTEST"] = function()
-    if YATP.modules.QuestTracker then
-        YATP.modules.QuestTracker:TestFunction()
-    else
-        print("Quest Tracker module not found")
-    end
-end
-
-
-
--- Register fix command to clean duplicates and reapply
-SLASH_YATPQTFIX1 = "/qtfix"
-SlashCmdList["YATPQTFIX"] = function()
-    if YATP.modules.QuestTracker then
-        local module = YATP.modules.QuestTracker
-        module:RemoveQuestLevels()
-        module:CleanupDuplicateLevels()
-        if module.db.showQuestLevels then
-            module:ShowQuestLevels()
-        end
-        if module.db.colorCodeByDifficulty then
-            module:ApplyDifficultyColors()
-        end
-        print("Fixed quest tracker duplicates and reapplied settings")
-    else
-        print("Quest Tracker module not found")
-    end
-end
-
-
-
--- Register command to analyze dash elements
-SLASH_YATPQTDASH1 = "/qtdash"
-SlashCmdList["YATPQTDASH"] = function()
-    if YATP.modules.QuestTracker then
-        YATP.modules.QuestTracker:DebugDashAnalysis()
-    else
-        print("Quest Tracker module not found")
-    end
-end
-
--- Register debug command to see quest info
-SLASH_YATPQTDEBUG1 = "/qtdebug"
-SlashCmdList["YATPQTDEBUG"] = function()
-    if YATP.modules.QuestTracker then
-        local module = YATP.modules.QuestTracker
-        print("=== Quest Tracker Debug Info ===")
-        print("Show Levels: " .. tostring(module.db.showQuestLevels))
-        print("Color by Difficulty: " .. tostring(module.db.colorCodeByDifficulty))
-        
-        local numWatched = GetNumQuestWatches()
-        print("Watched Quests: " .. numWatched)
-        
-        for i = 1, numWatched do
-            local questIndex = GetQuestIndexForWatch(i)
-            if questIndex then
-                local title, level = GetQuestLogTitle(questIndex)
-                if title then
-                    print(string.format("Quest %d: Level %s - %s", i, level or "nil", title))
-                end
-            end
-        end
-        
-        print("\n=== WatchFrame Lines ===")
-        for lineNum = 1, 20 do
-            local watchLine = _G["WatchFrameLine" .. lineNum]
-            if watchLine and watchLine.text and watchLine:IsVisible() then
-                local text = watchLine.text:GetText()
-                if text and text ~= "" then
-                    local cleanText = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
-                    cleanText = string.gsub(cleanText, "|r", "")
-                    local indent = string.match(text, "^(%s+)") or ""
-                    print(string.format("Line %d [%d spaces]: %s", lineNum, string.len(indent), cleanText))
-                end
-            end
-        end
-        print("=== End Debug Info ===")
-    else
-        print("Quest Tracker module not found")
-    end
-end
-
--- Register comprehensive WatchFrame analysis command
-SLASH_YATPQTANALYZE1 = "/qtanalyze"
-SlashCmdList["YATPQTANALYZE"] = function()
-    print("DEBUG: /qtanalyze command executed!")
-    if YATP then
-        print("DEBUG: YATP addon found")
-        if YATP.modules then
-            print("DEBUG: YATP.modules found")
-            if YATP.modules.QuestTracker then
-                print("DEBUG: QuestTracker module found")
-                local module = YATP.modules.QuestTracker
-                if module.AnalyzeWatchFrameStructure then
-                    print("DEBUG: AnalyzeWatchFrameStructure function found, calling it...")
-                    module:AnalyzeWatchFrameStructure()
-                else
-                    print("ERROR: AnalyzeWatchFrameStructure function not found!")
-                end
-            else
-                print("ERROR: Quest Tracker module not found in YATP.modules")
-            end
-        else
-            print("ERROR: YATP.modules not found")
-        end
-    else
-        print("ERROR: YATP addon not found")
-    end
-end
 
 return Module

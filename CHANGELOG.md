@@ -9,10 +9,28 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ### Added
 
+- **QuestTracker**: Complete new module for quest tracking enhancements with unified text processing system.
+- **QuestTracker**: Quest level display with configurable toggle - shows `[Level] QuestTitle` format for all tracked quests.
+- **QuestTracker**: Color coding by difficulty using WoW standard colors (Red: 5+ levels above, Orange: 3-4 above, Yellow: ±2 levels, Green: 3-10 below, Gray: 11+ below).
+- **QuestTracker**: Automatic objective indentation (4 spaces) for better visual hierarchy and readability.
+- **QuestTracker**: Smart objective text truncation for lines over 100 characters with word-boundary detection.
+- **QuestTracker**: Dash invisibility system - quest objective dashes remain functional but are visually hidden.
+- **QuestTracker**: Path to Ascension quest auto-positioning - automatically moves these special quests to the end of the tracker.
+- **QuestTracker**: Dual auto-tracking modes: "All Quests" (force track everything) and "By Zone" (current zone + always track Ascension quests).
+- **QuestTracker**: Custom frame positioning with drag-and-drop support and position locking toggle.
+- **QuestTracker**: Configurable frame height (300-1000 pixels) for accommodating different quest loads.
+- **QuestTracker**: Text outline toggle for improved readability against various backgrounds.
+- **QuestTracker**: Background hiding option to remove quest tracker artwork for minimal UI setups.
+- **QuestTracker**: Comprehensive SexyMap compatibility with position management hooks.
 - **QuickConfirm**: Integrated automatic AdiBags refresh after transmog appearance confirmations for seamless bag organization when collecting appearances.
 
 ### Improved
 
+- **QuestTracker**: Complete code architecture overhaul - eliminated all legacy dual-system approaches in favor of unified `ApplyAllTextEnhancements()` processing.
+- **QuestTracker**: Implemented dash-based quest detection system (`dash.text == "-"`) for 100% accurate distinction between quest titles and objectives.
+- **QuestTracker**: Streamlined configuration to only essential, functional options - removed 8 unused/problematic settings.
+- **QuestTracker**: Enhanced auto-tracking intelligence with zone-based filtering and special Ascension quest category detection.
+- **QuestTracker**: Optimized performance by reducing codebase by 24% (515 lines removed) while maintaining full functionality.
 - **Hotkeys**: Completely redesigned range checking system with per-button independent timers for more accurate and responsive out-of-range detection.
 - **Hotkeys**: Replaced batch/round-robin processing with individual OnUpdate handlers for each button, eliminating delay between checks.
 - **Hotkeys**: Added reactive event handlers for instant updates on target changes (`PLAYER_TARGET_CHANGED`), action slot changes (`ACTIONBAR_SLOT_CHANGED`), and binding updates (`UPDATE_BINDINGS`).
@@ -24,15 +42,41 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ### Changed
 
+- **QuestTracker**: Removed all legacy quest sorting functionality - quests now maintain natural WoW order with only Path to Ascension repositioning.
+- **QuestTracker**: Simplified auto-tracking to two clear modes: "All Quests" and "By Zone" with mutual exclusivity and auto-fallback.
+- **QuestTracker**: Configuration interface streamlined from 12+ options to 8 essential, working options.
 - **Hotkeys**: Removed user-adjustable update interval slider in favor of optimal fixed timing.
 - **Hotkeys**: Removed scheduler dependency for range checks, each button now manages its own timer independently.
 - **QuickConfirm**: Hidden advanced configuration options (retry attempts, retry interval, AdiBags refresh delay) from UI while maintaining configurable defaults internally.
 
 ### Fixed
 
+- **QuestTracker**: Resolved WatchFrame corruption issues that occurred when toggling "Show Quest Levels" and "Color Code by Difficulty" options mid-session.
+- **QuestTracker**: Fixed duplicate quest level prefixes that could appear after multiple toggle operations.
+- **QuestTracker**: Eliminated conflicting legacy cleanup functions (`RemoveQuestLevels`, `ShowQuestLevels`, etc.) that caused state management issues.
+- **QuestTracker**: Fixed text outline thickness defaulting to "Normal" consistently across all UI elements.
+- **QuestTracker**: Resolved issues with quest reordering logic interfering with native WoW quest tracking behavior.
 - **Hotkeys**: Fixed range indicator lag that occurred with many active buttons due to batching delays.
 - **Hotkeys**: Resolved delayed range updates when changing targets or switching action bars.
 - **QuickConfirm**: Fixed AdiBags refresh to use proper `SendMessage('AdiBags_FiltersChanged')` API for reliable bag updates.
+
+### Removed
+
+- **QuestTracker**: All legacy debugging commands (`/qttest`, `/qtfix`, `/qtdash`, `/qtdebug`, `/qtanalyze`) and their associated functions (`TestFunction`, `DebugDashAnalysis`, etc.).
+- **QuestTracker**: Removed unused configuration options: `showProgressPercent`, `compactMode`, `highlightNearbyObjectives`, `showQuestIcons` (never implemented or non-functional).
+- **QuestTracker**: Legacy dual-system functions: `RemoveQuestLevels()`, `ShowQuestLevels()`, `ApplyDifficultyColors()` replaced by unified processing.
+- **QuestTracker**: Complex quest sorting system including `SortQuestsByLevel()`, `ReorderWatchFrameLines()`, `ApplyZoneFilter()` and related utilities.
+- **QuestTracker**: Unused variables: `savedWatchFrameContent`, `savedFrameProperties`, `isApplyingLevels`, `lastProcessedQuests`, `nearbyObjectives`.
+- **QuestTracker**: Analysis and debugging functions: `AnalyzeWatchFrameStructure()`, `FindQuestTitleInWatchFrame()`, `GetCleanText()`, `ShowProgressPercentages()`.
+- **QuestTracker**: Text outline thickness configuration - now always uses "Normal" thickness when enabled.
+
+### Technical Improvements
+
+- **QuestTracker**: Reduced codebase from 2153 to 1638 lines (24% reduction) while maintaining all core functionality.
+- **QuestTracker**: Implemented dash-based detection system using `dash.text == "-"` pattern for 100% accurate quest title vs objective identification.
+- **QuestTracker**: Unified all text enhancements into single `ApplyAllTextEnhancements()` function eliminating race conditions and duplicate processing.
+- **QuestTracker**: Enhanced maintenance system with intelligent background/position reapplication during frame updates.
+- **QuestTracker**: Improved SexyMap compatibility with comprehensive position management hooks and intercepts.
 
 ## [0.5.0] - 2025-10-10
 
