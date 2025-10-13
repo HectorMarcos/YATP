@@ -29,6 +29,10 @@ function Module:Debug(msg)
     if string.find(msg, "hasDash") or string.find(msg, "dashVisible") then
         print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
     end
+    -- Exclude outline and text width messages from debug
+    -- if string.find(msg, "Applied outline") or string.find(msg, "Adjusted text width") then
+    --     return
+    -- end
     -- if YATP.db and YATP.db.profile and YATP.db.profile.debugMode then
     --     print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
     -- end
