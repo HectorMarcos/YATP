@@ -25,10 +25,10 @@ local Module = YATP:NewModule("QuestTracker", "AceEvent-3.0", "AceConsole-3.0", 
 -------------------------------------------------
 function Module:Debug(msg)
     -- Debug disabled for cleaner output
-    -- Temporarily enable debug for POI testing
-    -- if string.find(msg, "POI") or string.find(msg, "child") or string.find(msg, "quest") then
-    --     print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
-    -- end
+    -- Temporarily enable debug for indentation testing
+    if string.find(msg, "Line") or string.find(msg, "SKIPPING") or string.find(msg, "INDENTED") or string.find(msg, "dash") then
+        print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
+    end
     -- if YATP.db and YATP.db.profile and YATP.db.profile.debugMode then
     --     print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
     -- end
@@ -2743,6 +2743,23 @@ SlashCmdList["YATPQTFIX"] = function()
     end
 end
 
+-- Register command to test indentation function
+SLASH_YATPQTINDENT1 = "/qtindent"
+SlashCmdList["YATPQTINDENT"] = function()
+    if YATP.modules.QuestTracker then
+        local module = YATP.modules.QuestTracker
+        print("=== Testing Quest Indentation ===")
+        if module.db.indentObjectives then
+            module:FormatQuestObjectives()
+            print("Indentation function executed - check above for debug output")
+        else
+            print("Indent Objectives is disabled - enable it first")
+        end
+    else
+        print("Quest Tracker module not found")
+    end
+end
+
 -- Register debug command to see quest info
 SLASH_YATPQTDEBUG1 = "/qtdebug"
 SlashCmdList["YATPQTDEBUG"] = function()
@@ -2751,6 +2768,7 @@ SlashCmdList["YATPQTDEBUG"] = function()
         print("=== Quest Tracker Debug Info ===")
         print("Show Levels: " .. tostring(module.db.showQuestLevels))
         print("Color by Difficulty: " .. tostring(module.db.colorCodeByDifficulty))
+        print("Indent Objectives: " .. tostring(module.db.indentObjectives))
         
         local numWatched = GetNumQuestWatches()
         print("Watched Quests: " .. numWatched)
