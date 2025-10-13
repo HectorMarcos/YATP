@@ -1192,8 +1192,9 @@ function Module:ExtractQuestTitle(text)
     -- Remove level prefix like "[18] " 
     local title = string.gsub(text, "^%[%d+%]%s*", "")
     
-    -- Remove completion symbols like "!! " or "~ "
-    title = string.gsub(title, "^[!~]+%s*", "")
+    -- Remove color codes
+    title = string.gsub(title, "|c%x%x%x%x%x%x%x%x", "")
+    title = string.gsub(title, "|r", "")
     
     return title
 end
@@ -1264,15 +1265,9 @@ function Module:RemoveQuestLevels()
                 local newText = currentText
                 local modified = false
                 
-                -- Remove difficulty symbols (!! ! ~) at the start
-                newText = string.gsub(newText, "^!! ", "")
-                newText = string.gsub(newText, "^! ", "")
-                newText = string.gsub(newText, "^~ ", "")
-                
-                -- Remove difficulty symbols after color codes
-                newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)!! ", "%1")
-                newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)! ", "%1")
-                newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)~ ", "%1")
+                -- Remove color codes
+                newText = string.gsub(newText, "|c%x%x%x%x%x%x%x%x", "")
+                newText = string.gsub(newText, "|r", "")
                 
                 -- Remove ALL level prefixes (including multiple consecutive ones)
                 local maxIterations = 10 -- Prevent infinite loops
@@ -1364,10 +1359,9 @@ local function FindQuestTitleLine(questWatchIndex, questTitle)
                 cleanText = string.gsub(cleanText, "^%s+", "")
                 cleanText = string.gsub(cleanText, "%s+$", "")
                 
-                -- Remove difficulty symbols for comparison
-                cleanText = string.gsub(cleanText, "^!! ", "")
-                cleanText = string.gsub(cleanText, "^! ", "")
-                cleanText = string.gsub(cleanText, "^~ ", "")
+                -- Remove color codes for comparison
+                cleanText = string.gsub(cleanText, "|c%x%x%x%x%x%x%x%x", "")
+                cleanText = string.gsub(cleanText, "|r", "")
                 
                 -- CRITICAL: Title must be an EXACT match (not substring)
                 -- and must NOT have any objective markers
@@ -1441,10 +1435,10 @@ function Module:ApplyAllTextEnhancements()
                     -- Using more distinct colors for colorblind accessibility
                     if levelDiff >= 5 then
                         color = "|cffff0000" -- Bright Red (5+ niveles arriba)
-                        difficultySymbol = "!! " -- Very difficult indicator
+                        difficultySymbol = "" -- No symbol, only color
                     elseif levelDiff >= 3 then
                         color = "|cffff6600" -- Bright Orange (3-4 niveles arriba)
-                        difficultySymbol = "! " -- Difficult indicator
+                        difficultySymbol = "" -- No symbol, only color
                     elseif levelDiff >= -2 then
                         color = "|cffffff00" -- Bright Yellow (-2 a +2 niveles)
                         difficultySymbol = "" -- Normal, no symbol
@@ -1453,7 +1447,7 @@ function Module:ApplyAllTextEnhancements()
                         difficultySymbol = "" -- Easy, no symbol needed
                     else
                         color = "|cff999999" -- Light Gray (más de -10 niveles)
-                        difficultySymbol = "~ " -- Trivial indicator
+                        difficultySymbol = "" -- No symbol, only color
                     end
                     closeColor = "|r"
                 end
@@ -1468,15 +1462,12 @@ function Module:ApplyAllTextEnhancements()
                         -- Apply level AND color in one operation
                         local finalText = currentText
                         
-                        -- Add difficulty symbol first (for colorblind accessibility)
-                        if self.db.colorCodeByDifficulty and difficultySymbol ~= "" then
-                            finalText = difficultySymbol .. finalText
-                        end
-                        
+                        -- Add quest level if enabled
                         if self.db.showQuestLevels then
                             finalText = "[" .. level .. "] " .. finalText
                         end
                         
+                        -- Apply color coding if enabled
                         if self.db.colorCodeByDifficulty then
                             finalText = color .. finalText .. closeColor
                         end
@@ -1516,10 +1507,7 @@ function Module:FormatQuestObjectives()
                 cleanText = string.gsub(cleanText, "^%s+", "")
                 cleanText = string.gsub(cleanText, "%s+$", "")
                 
-                -- Remove difficulty symbols and level prefixes for checking
-                cleanText = string.gsub(cleanText, "^!! ", "")
-                cleanText = string.gsub(cleanText, "^! ", "")
-                cleanText = string.gsub(cleanText, "^~ ", "")
+                -- Remove level prefixes for checking
                 cleanText = string.gsub(cleanText, "^%[%d+%]%s*", "")
                 
                 -- Check if this matches any tracked quest title
