@@ -7,6 +7,8 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-10-13
+
 ### Added
 
 - **QuestTracker**: Complete new module for quest tracking enhancements with unified text processing system.
@@ -300,7 +302,9 @@ The following early commits were consolidated into this initial snapshot:
 - `8224f9a` debug clean (preparation for unified debug approach)
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
-[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/zavahcodes/YATP/releases/tag/v0.6.0
+[0.5.0]: https://github.com/zavahcodes/YATP/releases/tag/v0.5.0
 [0.4.2]: https://github.com/zavahcodes/YATP/releases/tag/v0.4.2
 [0.4.1]: https://github.com/zavahcodes/YATP/releases/tag/v0.4.1
 [0.3.3]: https://github.com/zavahcodes/YATP/releases/tag/v0.3.3
