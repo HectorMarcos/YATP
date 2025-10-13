@@ -478,7 +478,7 @@ function Module:ApplyTextOutline()
     
     self:Debug("Applying text outline - Enabled: " .. tostring(self.db.textOutline) .. ", Thickness: " .. tostring(self.db.outlineThickness))
     
-    -- Apply outline to all visible WatchFrame lines
+    -- Apply outline to quest objective lines (WatchFrameLine)
     for lineNum = 1, 50 do
         local watchLine = _G["WatchFrameLine" .. lineNum]
         if watchLine and watchLine.text then
@@ -497,6 +497,108 @@ function Module:ApplyTextOutline()
             end
         end
     end
+    
+    -- Apply outline to quest headers using smart detection
+    self:ApplyOutlineToQuestHeaders()
+end
+
+-- Helper function to find all text elements in WatchFrame
+function Module:FindAllQuestTextElements()
+    local textElements = {}
+    
+    if not questTrackerFrame then 
+        return textElements
+    end
+    
+    -- Collect all FontString regions from WatchFrame
+    if questTrackerFrame.GetRegions then
+        local regions = {questTrackerFrame:GetRegions()}
+        for i, region in ipairs(regions) do
+            if region and region.GetObjectType and region:GetObjectType() == "FontString" and region:IsVisible() then
+                local text = region:GetText()
+                if text and text ~= "" then
+                    table.insert(textElements, {
+                        element = region,
+                        text = text,
+                        type = "region",
+                        fontSize = select(2, region:GetFont()) or 0
+                    })
+                end
+            end
+        end
+    end
+    
+    -- Collect all FontString children from WatchFrame
+    if questTrackerFrame.GetChildren then
+        local children = {questTrackerFrame:GetChildren()}
+        for i, child in ipairs(children) do
+            if child and child.GetObjectType and child:GetObjectType() == "FontString" and child:IsVisible() then
+                local text = child:GetText()
+                if text and text ~= "" then
+                    table.insert(textElements, {
+                        element = child,
+                        text = text,
+                        type = "child",
+                        fontSize = select(2, child:GetFont()) or 0
+                    })
+                end
+            end
+        end
+    end
+    
+    return textElements
+end
+
+-- Apply outline specifically to quest headers using smart detection
+function Module:ApplyOutlineToQuestHeaders()
+    local textElements = self:FindAllQuestTextElements()
+    local headersFound = 0
+    
+    for _, element in ipairs(textElements) do
+        local isHeader = false
+        local text = element.text
+        
+        -- Heuristics to detect quest headers:
+        -- 1. Font size >= 12 (headers are usually larger)
+        -- 2. Text doesn't start with numbers or common objective patterns
+        -- 3. Text doesn't contain progress indicators like "1/5", "(Complete)", etc.
+        if element.fontSize >= 12 then
+            -- Check if it doesn't look like an objective
+            local lowerText = string.lower(text)
+            if not string.match(text, "^%d+/") and -- Not "1/5 Something"
+               not string.match(text, "^%s*%d+%.") and -- Not "1. Something" 
+               not string.match(lowerText, "%(complete%)") and -- Not "(Complete)"
+               not string.match(lowerText, "%(failed%)") and -- Not "(Failed)"
+               not string.match(text, "%d+/%d+") then -- Not containing "X/Y"
+                isHeader = true
+            end
+        end
+        
+        -- Additional check: if text is very short and capitalized, might be a header
+        if not isHeader and string.len(text) > 5 and string.len(text) < 50 then
+            local firstChar = string.sub(text, 1, 1)
+            if firstChar == string.upper(firstChar) and not string.match(text, "%d") then
+                isHeader = true
+            end
+        end
+        
+        if isHeader then
+            if self.db.textOutline then
+                if self.db.outlineThickness == 2 then
+                    element.element:SetFont(element.element:GetFont(), element.fontSize, "THICKOUTLINE")
+                else
+                    element.element:SetFont(element.element:GetFont(), element.fontSize, "OUTLINE")
+                end
+                self:Debug("Applied outline to quest header: '" .. text .. "' (fontSize: " .. element.fontSize .. ")")
+                headersFound = headersFound + 1
+            else
+                element.element:SetFont(element.element:GetFont(), element.fontSize, "")
+                self:Debug("Removed outline from quest header: '" .. text .. "'")
+            end
+        end
+    end
+    
+    self:Debug("Quest header outline processing complete. Headers found: " .. headersFound)
 end
 
 -- Apply custom width to WatchFrame
