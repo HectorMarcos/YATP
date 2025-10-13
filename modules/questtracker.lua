@@ -29,8 +29,9 @@ end
 
 -- Debug function specifically for dash analysis
 function Module:DebugDashAnalysis()
-    if not questTrackerFrame then 
-        print("|cffff0000[YATP - Dash Debug]|r questTrackerFrame not found")
+    local watchFrame = _G["WatchFrame"]
+    if not watchFrame then 
+        print("|cffff0000[YATP - Dash Debug]|r WatchFrame not found")
         return 
     end
     
