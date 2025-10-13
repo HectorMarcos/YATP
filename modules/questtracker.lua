@@ -24,10 +24,40 @@ local Module = YATP:NewModule("QuestTracker", "AceEvent-3.0", "AceConsole-3.0", 
 -- Debug helper - Disabled for production
 -------------------------------------------------
 function Module:Debug(msg)
-    -- Debug disabled for cleaner output
-    -- if YATP.db and YATP.db.profile and YATP.db.profile.debugMode then
-    --     print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
-    -- end
+    -- All debug disabled
+end
+
+-- Debug function specifically for dash analysis
+function Module:DebugDashAnalysis()
+    if not questTrackerFrame then 
+        print("|cffff0000[YATP - Dash Debug]|r questTrackerFrame not found")
+        return 
+    end
+    
+    print("|cff00ff00[YATP - Dash Debug]|r === Analyzing .dash elements ===")
+    
+    for lineNum = 1, 50 do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine.text and watchLine:IsVisible() then
+            local text = watchLine.text:GetText()
+            if text and text ~= "" then
+                -- Clean text for display
+                local cleanText = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
+                cleanText = string.gsub(cleanText, "|r", "")
+                
+                -- Check dash status
+                local hasDash = watchLine.dash and true or false
+                local dashVisible = hasDash and watchLine.dash:IsVisible() or false
+                local dashExists = hasDash and "YES" or "NO"
+                local dashVisibleText = dashVisible and "VISIBLE" or "HIDDEN"
+                
+                print(string.format("|cff00ff00[YATP - Dash Debug]|r Line %d: '%s' | Dash: %s (%s)", 
+                    lineNum, cleanText, dashExists, dashVisibleText))
+            end
+        end
+    end
+    
+    print("|cff00ff00[YATP - Dash Debug]|r === Analysis Complete ===")
 end
 
 function Module:Print(msg)
@@ -2628,6 +2658,16 @@ end
 
 
 
+-- Register command to analyze dash elements
+SLASH_YATPQTDASH1 = "/qtdash"
+SlashCmdList["YATPQTDASH"] = function()
+    if YATP.modules.QuestTracker then
+        YATP.modules.QuestTracker:DebugDashAnalysis()
+    else
+        print("Quest Tracker module not found")
+    end
+end
+
 -- Register debug command to see quest info
 SLASH_YATPQTDEBUG1 = "/qtdebug"
 SlashCmdList["YATPQTDEBUG"] = function()
@@ -2636,7 +2676,6 @@ SlashCmdList["YATPQTDEBUG"] = function()
         print("=== Quest Tracker Debug Info ===")
         print("Show Levels: " .. tostring(module.db.showQuestLevels))
         print("Color by Difficulty: " .. tostring(module.db.colorCodeByDifficulty))
-        print("Indent Objectives: " .. tostring(module.db.indentObjectives))
         
         local numWatched = GetNumQuestWatches()
         print("Watched Quests: " .. numWatched)
