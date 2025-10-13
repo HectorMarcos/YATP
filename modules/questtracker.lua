@@ -1489,32 +1489,23 @@ function Module:ApplyAllTextEnhancements()
     isApplyingLevels = false
 end
 
--- Format quest objectives by adding indentation - improved version
+-- Format quest objectives by adding indentation - simplified dash-based approach
 function Module:FormatQuestObjectives()
     if not questTrackerFrame then return end
     
-    -- Cache quest titles for comparison
-    local questTitles = {}
-    for i = 1, GetNumQuestWatches() do
-        local questIndex = GetQuestIndexForWatch(i)
-        if questIndex then
-            local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily = GetQuestLogTitle(questIndex)
-            if title then
-                questTitles[string.lower(title)] = true
-            end
-        end
-    end
-    
-    -- Process each visible line
+    -- Process each visible line - much simpler approach
     for lineNum = 1, 50 do
         local watchLine = _G["WatchFrameLine" .. lineNum]
         if watchLine and watchLine.text and watchLine:IsVisible() then
             local text = watchLine.text:GetText()
             if text and text ~= "" then
-                local isQuestTitle = self:IsQuestTitle(text, questTitles)
                 
-                if not isQuestTitle then
-                    -- This is an objective line - apply indentation
+                -- If this line has a .dash element, it's an objective line
+                if watchLine.dash then
+                    -- Hide the visual dash element
+                    watchLine.dash:Hide()
+                    
+                    -- Clean and indent the text
                     local cleanedText = self:CleanObjectiveText(text)
                     local indentedText = "    " .. cleanedText  -- 4 spaces for better readability
                     
@@ -1522,51 +1513,16 @@ function Module:FormatQuestObjectives()
                         watchLine.text:SetText(indentedText)
                         self:Debug("Indented objective: '" .. cleanedText .. "'")
                     end
-                    
-                    -- Hide the dash visual element if it exists
-                    if watchLine.dash then
-                        watchLine.dash:Hide()
-                    end
                 else
-                    self:Debug("Skipped quest title: " .. self:GetCleanText(text))
+                    -- No .dash element means this is a quest title - leave it alone
+                    self:Debug("Skipped quest title (no .dash): " .. self:GetCleanText(text))
                 end
             end
         end
     end
 end
 
--- Helper function to determine if a line is a quest title
-function Module:IsQuestTitle(text, questTitles)
-    local cleanText = self:GetCleanText(text)
-    
-    -- Check against known quest titles
-    if questTitles[string.lower(cleanText)] then
-        return true
-    end
-    
-    -- Additional heuristics for quest titles:
-    -- 1. Contains quest level format like [18]
-    -- 2. Doesn't contain progress indicators (1/5, Complete, etc.)
-    -- 3. Doesn't start with common objective patterns
-    
-    local hasLevelPrefix = string.match(text, "^%[%d+%]")
-    local hasProgress = string.match(cleanText, "%d+/%d+")
-    local hasCompletion = string.match(string.lower(cleanText), "%(complete%)")
-    local startsWithDash = string.match(cleanText, "^%-")
-    local startsWithBullet = string.match(cleanText, "^[•–—]")
-    
-    -- If it has level prefix and no objective markers, likely a title
-    if hasLevelPrefix and not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet then
-        return true
-    end
-    
-    -- If no obvious objective markers and doesn't look like an objective, might be title
-    if not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet and string.len(cleanText) > 10 then
-        return true
-    end
-    
-    return false
-end
+
 
 -- Helper function to clean objective text by removing dashes and unnecessary whitespace
 function Module:CleanObjectiveText(text)
