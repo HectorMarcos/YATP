@@ -554,3 +554,8 @@ L["Hide the quest tracker background and border artwork."] = true
 
 L["Lock the quest tracker in place. When disabled, you can drag the tracker to move it around."] = true
 L["This module enhances the quest tracker with additional features and customization options."] = true
+
+-- New simplified quest tracker texts
+L["Tracking"] = true
+L["All Quests"] = true
+L["By Zone"] = true

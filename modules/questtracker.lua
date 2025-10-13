@@ -194,46 +194,27 @@ Module.defaults = {
     showProgressPercent = false,   -- Removed from UI, disabled by default
     compactMode = false,           -- Removed from UI, disabled by default
     
-    -- Sorting options
-    customSorting = true,      -- Enable custom sorting by default
-    sortByLevel = true,        -- Sort by level by default
-    sortByZone = false,        -- Keep zone sorting disabled
-    sortByDistance = false,
-    filterByZone = false,      -- Zone filtering option
-    
     -- Position and size
     positionX = 0,
     positionY = 0,
-    trackerScale = 1.0,
-    trackerAlpha = 1.0,
     lockPosition = true,
     
-    -- Notifications
-    progressNotifications = true,
-    completionSound = true,
-    objectiveCompleteAlert = true,
-    
-    -- Auto-tracking
-    autoTrackNew = true,
-    autoUntrackComplete = false,
-    maxTrackedQuests = 25,
+    -- Auto-tracking (simplified - only two options)
     forceTrackAll = false,     -- Force tracking of all quests
     autoTrackByZone = true,    -- Auto-track quests by current zone (default enabled)
     
     -- Visual enhancements
     colorCodeByDifficulty = true,
+    indentObjectives = true,           -- Indent quest objectives for better readability
     highlightNearbyObjectives = true,
     showQuestIcons = true,
 
     
     -- Text appearance
     textOutline = false,
-    outlineThickness = 1, -- 1 = normal, 2 = thick
     
     -- Frame dimensions
-    customWidth = false,
-    frameWidth = 300,
-    customHeight = false,
+    customHeight = true,      -- Always enabled - no UI option
     frameHeight = 600,
     
     -- Frame appearance
@@ -261,18 +242,8 @@ local function RunMigrations(self)
     if self.db.textOutline == nil then
         self.db.textOutline = false
     end
-    if self.db.outlineThickness == nil then
-        self.db.outlineThickness = 1
-    end
-    if self.db.customWidth == nil then
-        self.db.customWidth = false
-    end
-    if self.db.frameWidth == nil then
-        self.db.frameWidth = 300
-    end
-
     if self.db.customHeight == nil then
-        self.db.customHeight = false
+        self.db.customHeight = true  -- Always enabled
     end
     if self.db.frameHeight == nil then
         self.db.frameHeight = 600
@@ -382,12 +353,8 @@ local function HookQuestTracker(self)
                     if self.db.textOutline then
                         self:ApplyTextOutline()
                     end
-                    if self.db.customWidth then
-                        self:ApplyCustomWidth()
-                    end
-                    if self.db.customHeight then
-                        self:ApplyCustomHeight()
-                    end
+                    -- Always apply custom height
+                    self:ApplyCustomHeight()
                     
                     -- Apply background toggle immediately after frame update to prevent flash
                     if self.db.hideBackground then
@@ -407,12 +374,7 @@ function Module:SaveWatchFrameContent()
     wipe(savedWatchFrameContent)
     wipe(savedFrameProperties)
     
-    -- Save frame properties
-    if WatchFrame then
-        savedFrameProperties.width = WatchFrame:GetWidth()
-        savedFrameProperties.scale = WatchFrame:GetScale()
-        savedFrameProperties.alpha = WatchFrame:GetAlpha()
-    end
+
     
     -- Save text content and font properties
     for lineNum = 1, 50 do
@@ -426,7 +388,6 @@ function Module:SaveWatchFrameContent()
                     font = font,
                     size = size,
                     flags = flags,
-                    width = watchLine.text:GetWidth(),
                     hasLevel = string.find(text, "^%[%d+%] ") ~= nil,
                     hasColor = string.find(text, "|c%x%x%x%x%x%x%x%x") ~= nil,
                 }
@@ -441,18 +402,7 @@ function Module:RestoreWatchFrameContent()
         return false
     end
     
-    -- Restore frame properties
-    if savedFrameProperties and WatchFrame then
-        if savedFrameProperties.width then
-            WatchFrame:SetWidth(savedFrameProperties.width)
-        end
-        if savedFrameProperties.scale then
-            WatchFrame:SetScale(savedFrameProperties.scale)
-        end
-        if savedFrameProperties.alpha then
-            WatchFrame:SetAlpha(savedFrameProperties.alpha)
-        end
-    end
+
     
     -- Restore text content and properties
     for lineNum, savedData in pairs(savedWatchFrameContent) do
@@ -472,10 +422,7 @@ function Module:RestoreWatchFrameContent()
                 end
             end
             
-            -- Restore text width if it was modified
-            if savedData.width and watchLine.text:GetWidth() ~= savedData.width then
-                watchLine.text:SetWidth(savedData.width)
-            end
+
         end
     end
     self:Debug("Restored WatchFrame content and properties")
@@ -493,24 +440,15 @@ function Module:ApplyTextOutline()
         return 
     end
     
-    -- Ensure outlineThickness has a default value
-    if not self.db.outlineThickness then
-        self.db.outlineThickness = 1
-    end
-    
-    self:Debug("Applying text outline - Enabled: " .. tostring(self.db.textOutline) .. ", Thickness: " .. tostring(self.db.outlineThickness))
+    self:Debug("Applying text outline - Enabled: " .. tostring(self.db.textOutline) .. " (Always Normal thickness)")
     
     -- Apply outline to quest objective lines (WatchFrameLine)
     for lineNum = 1, 50 do
         local watchLine = _G["WatchFrameLine" .. lineNum]
         if watchLine and watchLine.text then
             if self.db.textOutline then
-                -- Apply outline based on thickness setting
-                if self.db.outlineThickness == 2 then
-                    watchLine.text:SetFont(watchLine.text:GetFont(), select(2, watchLine.text:GetFont()), "THICKOUTLINE")
-                else
-                    watchLine.text:SetFont(watchLine.text:GetFont(), select(2, watchLine.text:GetFont()), "OUTLINE")
-                end
+                -- Apply normal outline (always normal thickness)
+                watchLine.text:SetFont(watchLine.text:GetFont(), select(2, watchLine.text:GetFont()), "OUTLINE")
                 self:Debug("Applied outline to WatchFrameLine" .. lineNum)
             else
                 -- Remove outline
@@ -651,11 +589,8 @@ function Module:ApplyOutlineToQuestHeaders()
         if isHeader then
             if self.db.textOutline then
                 local font, fontSize = element.element:GetFont()
-                if self.db.outlineThickness == 2 then
-                    element.element:SetFont(font, fontSize, "THICKOUTLINE")
-                else
-                    element.element:SetFont(font, fontSize, "OUTLINE")
-                end
+                -- Always use normal outline thickness
+                element.element:SetFont(font, fontSize, "OUTLINE")
                 self:Debug("Applied outline to header: '" .. text .. "' (fontSize: " .. element.fontSize .. ")")
                 headersFound = headersFound + 1
             else
@@ -670,51 +605,6 @@ function Module:ApplyOutlineToQuestHeaders()
 end
 
 -- Apply custom width to WatchFrame
-function Module:ApplyCustomWidth()
-    if not questTrackerFrame then 
-        questTrackerFrame = WatchFrame
-    end
-    
-    if not questTrackerFrame then 
-        self:Debug("Cannot apply custom width: WatchFrame not found")
-        return 
-    end
-    
-    -- Ensure frameWidth has a default value
-    if not self.db.frameWidth then
-        self.db.frameWidth = 300
-    end
-    
-    if self.db.customWidth then
-        local newWidth = self.db.frameWidth
-        self:Debug("Applying custom width: " .. tostring(newWidth))
-        
-        questTrackerFrame:SetWidth(newWidth)
-        
-        -- Also adjust the text regions to fit the new width
-        for lineNum = 1, 50 do
-            local watchLine = _G["WatchFrameLine" .. lineNum]
-            if watchLine and watchLine.text then
-                -- Set text width to be slightly less than frame width to prevent overflow
-                watchLine.text:SetWidth(newWidth - 20)
-                self:Debug("Adjusted text width for WatchFrameLine" .. lineNum)
-            end
-        end
-    else
-        self:Debug("Restoring default WatchFrame width")
-        -- Restore default width (WatchFrame default is usually around 204)
-        questTrackerFrame:SetWidth(204)
-        
-        -- Restore default text widths
-        for lineNum = 1, 50 do
-            local watchLine = _G["WatchFrameLine" .. lineNum]
-            if watchLine and watchLine.text then
-                watchLine.text:SetWidth(184) -- Default WatchFrame text width
-            end
-        end
-    end
-end
-
 function Module:ApplyCustomHeight()
     if not questTrackerFrame then 
         questTrackerFrame = WatchFrame
@@ -730,15 +620,10 @@ function Module:ApplyCustomHeight()
         self.db.frameHeight = 600
     end
     
-    if self.db.customHeight then
-        local newHeight = self.db.frameHeight
-        self:Debug("Applying custom height: " .. tostring(newHeight))
-        questTrackerFrame:SetHeight(newHeight)
-    else
-        self:Debug("Restoring default WatchFrame height")
-        -- Restore default height (WatchFrame default varies, but around 500-600)
-        questTrackerFrame:SetHeight(600)
-    end
+    -- Always apply custom height (no UI toggle)
+    local newHeight = self.db.frameHeight
+    self:Debug("Applying custom height: " .. tostring(newHeight))
+    questTrackerFrame:SetHeight(newHeight)
 end
 
 function Module:ApplyBackgroundToggle()
@@ -912,45 +797,20 @@ function Module:ApplyMovableTracker()
     end
 end
 
--- Enhanced quest display with flash prevention
+-- Enhanced quest display (simplified - no sorting)
 function Module:EnhanceQuestDisplay()
     -- Enhanced display is always enabled now
     if not self.db.enabled then return end
     
-    print("|cff00ff00[YATP - DEBUG]|r EnhanceQuestDisplay: Starting")
-    print("|cff00ff00[YATP - DEBUG]|r  customSorting: " .. tostring(self.db.customSorting))
-    print("|cff00ff00[YATP - DEBUG]|r  sortByLevel: " .. tostring(self.db.sortByLevel))
-    print("|cff00ff00[YATP - DEBUG]|r  filterByZone: " .. tostring(self.db.filterByZone))
+    self:Debug("EnhanceQuestDisplay: Applying text enhancements only")
     
     -- Update tracked quests table
     self:UpdateTrackedQuests()
     
-    -- FIRST: Apply text enhancements (levels and colors) so they're there for reordering
-    if self.db.showQuestLevels or self.db.colorCodeByDifficulty then
-        print("|cff00ff00[YATP - DEBUG]|r Applying text enhancements first")
-        self:ApplyAllTextEnhancements()
-    else
-        self:RemoveQuestLevels()
-        self:RemoveDifficultyColors()
-    end
+    -- Apply text enhancements (levels and colors)
+    self:ApplyAllTextEnhancements()
     
-    -- THEN: Apply custom sorting if enabled (now with levels already applied)
-    if self.db.customSorting and self.db.sortByLevel then
-        print("|cff00ff00[YATP - DEBUG]|r Calling SortQuestsByLevel")
-        self:SortQuestsByLevel()
-    else
-        print("|cff00ff00[YATP - DEBUG]|r Skipping SortQuestsByLevel (not enabled)")
-    end
-    
-    -- FINALLY: Apply zone filtering if enabled
-    if self.db.filterByZone then
-        print("|cff00ff00[YATP - DEBUG]|r Calling ApplyZoneFilter")
-        self:ApplyZoneFilter()
-    else
-        print("|cff00ff00[YATP - DEBUG]|r Skipping ApplyZoneFilter (not enabled)")
-    end
-    
-    print("|cff00ff00[YATP - DEBUG]|r EnhanceQuestDisplay: Finished")
+    self:Debug("EnhanceQuestDisplay: Finished")
 end
 
 -- Update tracked quests information
@@ -990,374 +850,17 @@ function Module:UpdateTrackedQuests()
     end
 end
 
--- Sort quests by level with completed quests at bottom
-function Module:SortQuestsByLevel()
-    if GetNumQuestWatches() == 0 then 
-        print("|cff00ff00[YATP - DEBUG]|r SortQuestsByLevel: No watched quests")
-        return 
-    end
-    
-    print("|cff00ff00[YATP - DEBUG]|r SortQuestsByLevel: Starting with " .. GetNumQuestWatches() .. " watched quests")
-    
-    local questsToSort = {}
-    local playerLevel = UnitLevel("player")
-    
-    -- Collect quest information for sorting
-    for i = 1, GetNumQuestWatches() do
-        local questIndex = GetQuestIndexForWatch(i)
-        if questIndex then
-            local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(questIndex)
-            if title and not isHeader then
-                print(string.format("|cff00ff00[YATP - DEBUG]|r Quest %d: [%d] %s (Complete: %s)", i, level or 1, title, tostring(isComplete == 1 or isComplete == -1)))
-                table.insert(questsToSort, {
-                    questIndex = questIndex,
-                    title = title,
-                    level = level or 1,
-                    isComplete = isComplete == 1 or isComplete == -1,
-                    watchIndex = i
-                })
-            end
-        end
-    end
-    
-    print("|cff00ff00[YATP - DEBUG]|r Collected " .. #questsToSort .. " quests for sorting")
-    
-    -- Sort: incomplete quests by level first, then completed quests at bottom
-    table.sort(questsToSort, function(a, b)
-        -- Completed quests go to bottom
-        if a.isComplete ~= b.isComplete then
-            return not a.isComplete -- Non-complete (false) comes before complete (true)
-        end
-        
-        -- Among quests of same completion status:
-        -- Special handling for Path to Ascension quests (they show level 22/23 but appear without [XX])
-        local aIsPathToAscension = string.find(a.title, "Path to Ascension", 1, true)
-        local bIsPathToAscension = string.find(b.title, "Path to Ascension", 1, true)
-        
-        if aIsPathToAscension ~= bIsPathToAscension then
-            -- Path to Ascension quests go after regular leveled quests but before completed
-            if not a.isComplete and not b.isComplete then
-                return not aIsPathToAscension -- Regular quests (false) come before Path to Ascension (true)
-            end
-        end
-        
-        -- For regular quests of same type, sort by level
-        return a.level < b.level
-    end)
-    
-    print("|cff00ff00[YATP - DEBUG]|r After sorting:")
-    for i, questInfo in ipairs(questsToSort) do
-        local status = questInfo.isComplete and "COMPLETE" or "INCOMPLETE"
-        local questType = string.find(questInfo.title, "Path to Ascension", 1, true) and " (PATH)" or ""
-        print(string.format("|cff00ff00[YATP - DEBUG]|r  %d. [%d] %s (%s)%s", i, questInfo.level, questInfo.title, status, questType))
-    end
-    
-    -- For WoW 3.3.5, we need to reorder visually instead of using API
-    print("|cff00ff00[YATP - DEBUG]|r Using visual reordering approach...")
-    self:ReorderWatchFrameLines(questsToSort)
-    
-    print("|cff00ff00[YATP - DEBUG]|r SortQuestsByLevel: Finished")
-end
 
--- Reorder WatchFrame lines visually to match desired quest order
-function Module:ReorderWatchFrameLines(questsToSort)
-    if not WatchFrame then 
-        print("|cff00ff00[YATP - DEBUG]|r WatchFrame not found")
-        return 
-    end
-    
-    -- Store all line contents with their quest associations
-    local questBlocks = {}
-    local currentQuestTitle = nil
-    local currentBlock = {}
-    local allLines = {}
-    
-    -- First, collect all lines and show what we have
-    for i = 1, 50 do
-        local line = _G["WatchFrameLine" .. i]
-        if line and line.text then
-            local text = line.text:GetText()
-            if text and text ~= "" then
-                table.insert(allLines, {lineNum = i, text = text, line = line})
-                print("|cff00ff00[YATP - DEBUG]|r Line " .. i .. ": '" .. text .. "'")
-            end
-        end
-    end
-    
-    print("|cff00ff00[YATP - DEBUG]|r Found " .. #allLines .. " total lines")
-    
-    -- Now try to group them by quest
-    for _, lineData in ipairs(allLines) do
-        local text = lineData.text
-        
-        -- Check if this is a quest title line (more flexible pattern)
-        -- Look for level brackets anywhere in the line, or known quest patterns
-        local hasLevel = string.match(text, "%[%d+%]")
-        local isIndented = string.match(text, "^%s+") -- starts with spaces (objective)
-        
-        if hasLevel and not isIndented then
-            -- Save previous block if exists
-            if currentQuestTitle and #currentBlock > 0 then
-                questBlocks[currentQuestTitle] = currentBlock
-                print("|cff00ff00[YATP - DEBUG]|r Saved block for: " .. currentQuestTitle .. " (" .. #currentBlock .. " lines)")
-            end
-            -- Start new block - use the CLEAN title as key
-            local cleanTitle = self:ExtractQuestTitle(text)
-            currentQuestTitle = cleanTitle
-            currentBlock = {lineData}
-            print("|cff00ff00[YATP - DEBUG]|r Starting new block for: " .. cleanTitle .. " (from line: '" .. text .. "')")
-        else
-            -- This is likely an objective line, add to current block
-            if currentQuestTitle then
-                table.insert(currentBlock, lineData)
-            else
-                -- Orphaned line, try to match it to a quest
-                local foundQuest = false
-                for _, questInfo in ipairs(questsToSort) do
-                    if string.find(text, questInfo.title, 1, true) then
-                        currentQuestTitle = questInfo.title
-                        currentBlock = {lineData}
-                        print("|cff00ff00[YATP - DEBUG]|r Found orphaned quest line: " .. currentQuestTitle)
-                        foundQuest = true
-                        break
-                    end
-                end
-                if not foundQuest then
-                    print("|cff00ff00[YATP - DEBUG]|r Orphaned line: " .. text)
-                end
-            end
-        end
-    end
-    
-    -- Save the last block
-    if currentQuestTitle and #currentBlock > 0 then
-        questBlocks[currentQuestTitle] = currentBlock
-        print("|cff00ff00[YATP - DEBUG]|r Saved final block for: " .. currentQuestTitle .. " (" .. #currentBlock .. " lines)")
-    end
-    
-    print("|cff00ff00[YATP - DEBUG]|r Found " .. self:TableCount(questBlocks) .. " quest blocks")
-    
-    -- If we still have no blocks, abort to avoid clearing everything
-    if self:TableCount(questBlocks) == 0 then
-        print("|cff00ff00[YATP - ERROR]|r No quest blocks found, aborting reorder to prevent data loss")
-        return
-    end
-    
-    -- Clear all lines first
-    for i = 1, 50 do
-        local line = _G["WatchFrameLine" .. i]
-        if line and line.text then
-            line.text:SetText("")
-            line:Hide()
-        end
-    end
-    
-    -- Reassign in sorted order
-    local lineIndex = 1
-    for _, questInfo in ipairs(questsToSort) do
-        local questTitle = questInfo.title  -- Use the original title from quest data
-        local questBlock = questBlocks[questTitle]
-        
-        -- If not found, try alternative keys
-        if not questBlock then
-            -- Try with level prefix
-            local titleWithLevel = "[" .. questInfo.level .. "] " .. questTitle
-            questBlock = questBlocks[titleWithLevel]
-            
-            -- Try finding by partial match
-            if not questBlock then
-                for blockKey, block in pairs(questBlocks) do
-                    if string.find(blockKey, questTitle, 1, true) then
-                        questBlock = block
-                        print("|cff00ff00[YATP - DEBUG]|r Found block by partial match: '" .. blockKey .. "' for quest '" .. questTitle .. "'")
-                        break
-                    end
-                end
-            end
-        end
-        
-        if questBlock then
-            print("|cff00ff00[YATP - DEBUG]|r Placing quest: " .. questInfo.title .. " (Complete: " .. tostring(questInfo.isComplete) .. ")")
-            for _, lineData in ipairs(questBlock) do
-                local line = _G["WatchFrameLine" .. lineIndex]
-                if line and line.text then
-                    line.text:SetText(lineData.text)
-                    line:Show()
-                    print("|cff00ff00[YATP - DEBUG]|r  Line " .. lineIndex .. ": " .. lineData.text)
-                    lineIndex = lineIndex + 1
-                end
-            end
-        else
-            print("|cff00ff00[YATP - DEBUG]|r Warning: No block found for quest: " .. questInfo.title)
-            -- Debug: show what blocks we DO have
-            print("|cff00ff00[YATP - DEBUG]|r Available blocks:")
-            for blockKey, _ in pairs(questBlocks) do
-                print("|cff00ff00[YATP - DEBUG]|r   '" .. blockKey .. "'")
-            end
-        end
-    end
-    
-    print("|cff00ff00[YATP - DEBUG]|r Reordered " .. (lineIndex - 1) .. " lines")
-end
 
--- Helper function to count table entries
-function Module:TableCount(t)
-    local count = 0
-    for _ in pairs(t) do count = count + 1 end
-    return count
-end
 
--- Extract quest title from WatchFrame line text
-function Module:ExtractQuestTitle(text)
-    if not text then return "" end
-    
-    -- Remove level prefix like "[18] " 
-    local title = string.gsub(text, "^%[%d+%]%s*", "")
-    
-    -- Remove color codes
-    title = string.gsub(title, "|c%x%x%x%x%x%x%x%x", "")
-    title = string.gsub(title, "|r", "")
-    
-    return title
-end
 
--- Filter quests to show only current zone
-function Module:ApplyZoneFilter()
-    local currentZone = GetRealZoneText()
-    if not currentZone or currentZone == "" then
-        currentZone = GetZoneText() -- Fallback to subzone
-    end
-    
-    if not currentZone or currentZone == "" then return end
-    
-    local questsToHide = {}
-    
-    -- Check each watched quest
-    for i = 1, GetNumQuestWatches() do
-        local questIndex = GetQuestIndexForWatch(i)
-        if questIndex then
-            local questZone = self:GetQuestZone(questIndex)
-            
-            -- If quest zone doesn't match current zone, mark for hiding
-            if questZone and questZone ~= currentZone then
-                table.insert(questsToHide, questIndex)
-            end
-        end
-    end
-    
-    -- Hide quests not in current zone
-    for _, questIndex in ipairs(questsToHide) do
-        RemoveQuestWatch(questIndex)
-    end
-end
 
--- Get the zone for a specific quest
-function Module:GetQuestZone(questIndex)
-    -- This is tricky in 3.3.5 as quest zone info isn't readily available
-    -- We'll use a simple approach: check quest log for zone headers
-    local numEntries = GetNumQuestLogEntries()
-    local currentZone = nil
-    
-    for i = 1, numEntries do
-        local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
-        
-        if isHeader then
-            currentZone = questTitle
-        elseif i == questIndex then
-            return currentZone
-        end
-    end
-    
-    return nil
-end
 
--- Remove quest levels from tracker
-function Module:RemoveQuestLevels()
-    if not questTrackerFrame then return end
-    
-    -- Clear the cache of processed quests
-    wipe(lastProcessedQuests)
-    
-    -- Search through all WatchFrame lines to find ones with modifications
-    for lineNum = 1, 50 do
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine and watchLine.text then
-            local currentText = watchLine.text:GetText()
-            if currentText then
-                local newText = currentText
-                local modified = false
-                
-                -- Remove color codes
-                newText = string.gsub(newText, "|c%x%x%x%x%x%x%x%x", "")
-                newText = string.gsub(newText, "|r", "")
-                
-                -- Remove ALL level prefixes (including multiple consecutive ones)
-                local maxIterations = 10 -- Prevent infinite loops
-                local iterations = 0
-                while string.find(newText, "%[%d+%]") and iterations < maxIterations do
-                    local beforeRemove = newText
-                    -- Remove level prefix at the start
-                    newText = string.gsub(newText, "^%[%d+%]%s*", "")
-                    -- Remove level prefix after color codes
-                    newText = string.gsub(newText, "(|c%x%x%x%x%x%x%x%x)%s*%[%d+%]%s*", "%1")
-                    
-                    -- If nothing changed, break to avoid infinite loop
-                    if beforeRemove == newText then
-                        break
-                    end
-                    modified = true
-                    iterations = iterations + 1
-                end
-                
-                if newText ~= currentText then
-                    watchLine.text:SetText(newText)
-                end
-            end
-        end
-    end
-end
 
--- Clean up any duplicate level prefixes
-function Module:CleanupDuplicateLevels()
-    if not questTrackerFrame then return end
-    
-    for lineNum = 1, 50 do
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine and watchLine.text then
-            local currentText = watchLine.text:GetText()
-            if currentText then
-                -- Check for multiple level prefixes like "[11] [11] Quest Title"
-                local cleanedText = currentText
-                local changesMade = false
-                
-                -- Remove multiple consecutive level prefixes (more aggressive pattern)
-                while string.find(cleanedText, "%[%d+%]%s*%[%d+%]") do
-                    cleanedText = string.gsub(cleanedText, "(%[%d+%]%s*)%[%d+%]%s*", "%1")
-                    changesMade = true
-                end
-                
-                -- Also remove any extra level prefixes at the beginning
-                local levelCount = 0
-                for level in string.gmatch(cleanedText, "^%[%d+%]") do
-                    levelCount = levelCount + 1
-                end
-                
-                if levelCount > 1 then
-                    -- Extract the first level and the rest of the text
-                    local firstLevel = string.match(cleanedText, "^%[%d+%]")
-                    local restOfText = string.gsub(cleanedText, "^%[%d+%]%s*", "", 1)
-                    restOfText = string.gsub(restOfText, "^%[%d+%]%s*", "")
-                    cleanedText = firstLevel .. " " .. restOfText
-                    changesMade = true
-                end
-                
-                if changesMade then
-                    watchLine.text:SetText(cleanedText)
-                end
-            end
-        end
-    end
-end
+
+
+
+
 
 -- Helper function to find the exact title line for a quest in WatchFrame
 -- Uses WoW 3.3.5 API to map quest watch index to WatchFrame line
@@ -1413,99 +916,151 @@ end
 --   GREEN:  Quest level 30-37 (3-10 below player)
 --   GRAY:   Quest level 29- (11+ below player, no XP)
 function Module:ApplyAllTextEnhancements()
-    if not questTrackerFrame then return end
+    -- NEW APPROACH - Using dash.text pattern for quest detection
+    -- Based on analysis: dash.text == "-" indicates objective, otherwise it's a title
+    -- NOTE: Width alignment issue (width > 210) exists in base game, not our code
     
-    -- Prevent multiple simultaneous applications
-    if isApplyingLevels then 
-        return 
+    if not self.db.enabled then
+        return
     end
-    isApplyingLevels = true
     
-    -- Clean ALL existing modifications first (levels, symbols, colors)
-    -- This ensures we start fresh even if WatchFrame_Update didn't fully clean
-    self:RemoveQuestLevels()
-    self:RemoveDifficultyColors()
-    
-    -- Clear the cache since we're starting fresh
-    wipe(lastProcessedQuests)
-    
-    local numWatched = GetNumQuestWatches()
     local playerLevel = UnitLevel("player")
-    local processedLines = {}
     
-    for i = 1, numWatched do
-        local questIndex = GetQuestIndexForWatch(i)
-        if questIndex then
-            local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(questIndex)
-            
-            if title and level and not isHeader then
-                -- Calculate color if needed using WoW standard system
-                local color = ""
-                local closeColor = ""
-                local difficultySymbol = "" -- Symbol for colorblind accessibility
+    -- Process all visible WatchFrame lines
+    for lineNum = 1, 50 do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine:IsVisible() and watchLine.text then
+            local lineText = watchLine.text:GetText()
+            if lineText and lineText ~= "" then
                 
-                if self.db.colorCodeByDifficulty then
-                    local levelDiff = level - playerLevel
-                    
-                    -- WoW Color System (ejemplo: jugador nivel 40)
-                    -- Rojo: misión 45+ (5+ niveles arriba)
-                    -- Naranja: misión 43-44 (3-4 niveles arriba)
-                    -- Amarillo: misión 38-42 (-2 a +2 niveles)
-                    -- Verde: misión 30-37 (-10 a -3 niveles)
-                    -- Gris: misión 29 o menos (más de -10 niveles)
-                    
-                    -- Using more distinct colors for colorblind accessibility
-                    if levelDiff >= 5 then
-                        color = "|cffff0000" -- Bright Red (5+ niveles arriba)
-                        difficultySymbol = "" -- No symbol, only color
-                    elseif levelDiff >= 3 then
-                        color = "|cffff6600" -- Bright Orange (3-4 niveles arriba)
-                        difficultySymbol = "" -- No symbol, only color
-                    elseif levelDiff >= -2 then
-                        color = "|cffffff00" -- Bright Yellow (-2 a +2 niveles)
-                        difficultySymbol = "" -- Normal, no symbol
-                    elseif levelDiff >= -10 then
-                        color = "|cff00ff00" -- Bright Green (-10 a -3 niveles)
-                        difficultySymbol = "" -- Easy, no symbol needed
-                    else
-                        color = "|cff999999" -- Light Gray (más de -10 niveles)
-                        difficultySymbol = "" -- No symbol, only color
-                    end
-                    closeColor = "|r"
-                end
-                
-                -- Find the EXACT title line for this quest using the helper function
-                local lineNum, watchLine = FindQuestTitleLine(i, title)
-                
-                if lineNum and watchLine and not processedLines[lineNum] then
-                    local currentText = watchLine.text:GetText()
-                    
-                    if currentText then
-                        -- Apply level AND color in one operation
-                        local finalText = currentText
-                        
-                        -- Add quest level if enabled
-                        if self.db.showQuestLevels then
-                            finalText = "[" .. level .. "] " .. finalText
-                        end
-                        
-                        -- Apply color coding if enabled
-                        if self.db.colorCodeByDifficulty then
-                            finalText = color .. finalText .. closeColor
-                        end
-                        
-                        watchLine.text:SetText(finalText)
-                        processedLines[lineNum] = true
-                        lastProcessedQuests[title] = lineNum -- Remember this quest's line
-                    end
+                -- Core detection logic with Path to Ascension exception
+                if lineText:match("Path to Ascension") then
+                    -- Excepción: Path to Ascension siempre es título
+                    self:ApplyQuestTitleEnhancements(watchLine, lineText, playerLevel)
+                elseif watchLine.dash and watchLine.dash:GetText() == "-" then
+                    -- Es un objetivo → aplicar indentado
+                    self:ApplyObjectiveIndentation(watchLine, lineText)
+                else
+                    -- Es un título → aplicar nivel y color
+                    self:ApplyQuestTitleEnhancements(watchLine, lineText, playerLevel)
                 end
             end
         end
     end
+end
+-- Helper function to apply indentation to quest objectives
+function Module:ApplyObjectiveIndentation(watchLine, lineText)
+    -- ALWAYS apply indentation to objectives (lines with dash.text == "-")
+    -- This is the core feature - indent all objectives for better readability
     
+    -- Keep the dash invisible but present (for logic detection)
+    if watchLine.dash then
+        watchLine.dash:SetAlpha(0)  -- Make dash invisible to user (0% transparency)
+    end
+    
+    -- Smart text truncation for long objectives (>100 characters)
+    local processedText = self:TruncateObjectiveText(lineText)
+    
+    -- Check if line is already indented to avoid double indentation
+    if not processedText:match("^%s%s%s%s") then
+        -- Add 4 spaces for indentation
+        local indentedText = "    " .. processedText
+        watchLine.text:SetText(indentedText)
+    end
+end
 
+-- Helper function to intelligently truncate objective text
+function Module:TruncateObjectiveText(text)
+    if not text or string.len(text) <= 100 then
+        return text
+    end
     
-    isApplyingLevels = false
+    -- Find the last space before character 100
+    local truncatePoint = nil
+    for i = 100, 1, -1 do
+        if string.sub(text, i, i) == " " then
+            truncatePoint = i
+            break
+        end
+    end
+    
+    -- If we found a space, truncate there and add "..."
+    if truncatePoint then
+        return string.sub(text, 1, truncatePoint - 1) .. "..."
+    else
+        -- If no space found (very rare case), just cut at 97 and add "..."
+        return string.sub(text, 1, 97) .. "..."
+    end
+end
+
+-- Helper function to apply level and color enhancements to quest titles
+function Module:ApplyQuestTitleEnhancements(watchLine, lineText, playerLevel)
+    -- This is a quest title line
+    local finalText = lineText
+    
+    -- Exception: Path to Ascension quests don't show level (they are special quest type)
+    if lineText:match("Path to Ascension") then
+        -- Only apply color if enabled, no level for Path to Ascension
+        local questLevel = self:GetQuestLevelFromTitle(lineText)
+        if questLevel and playerLevel and self.db.colorCodeByDifficulty then
+            local color, closeColor = self:GetQuestDifficultyColor(questLevel, playerLevel)
+            finalText = color .. finalText .. closeColor
+        end
+        watchLine.text:SetText(finalText)
+        return
+    end
+    
+    -- Try to find quest info for this title
+    local questLevel = self:GetQuestLevelFromTitle(lineText)
+    
+    if questLevel and playerLevel then
+        -- Add quest level if enabled
+        if self.db.showQuestLevels then
+            finalText = "[" .. questLevel .. "] " .. finalText
+        end
+        
+        -- Apply color coding if enabled
+        if self.db.colorCodeByDifficulty then
+            local color, closeColor = self:GetQuestDifficultyColor(questLevel, playerLevel)
+            finalText = color .. finalText .. closeColor
+        end
+        
+        watchLine.text:SetText(finalText)
+    end
+end
+
+-- Helper function to extract quest level from title by matching with quest log
+function Module:GetQuestLevelFromTitle(titleText)
+    -- Remove any existing level prefix like "[40] " to get clean title
+    local cleanTitle = titleText:gsub("^%[%d+%] ", "")
+    
+    -- Search through quest log to find matching title
+    local numEntries = GetNumQuestLogEntries()
+    for i = 1, numEntries do
+        local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
+        if title and not isHeader and title == cleanTitle then
+            return level
+        end
+    end
+    return nil
+end
+
+-- Helper function to get difficulty color based on level difference
+function Module:GetQuestDifficultyColor(questLevel, playerLevel)
+    local levelDiff = questLevel - playerLevel
+    
+    -- WoW standard difficulty colors
+    if levelDiff >= 5 then
+        return "|cffff0000", "|r" -- Bright Red (5+ levels above)
+    elseif levelDiff >= 3 then
+        return "|cffff6600", "|r" -- Bright Orange (3-4 levels above)
+    elseif levelDiff >= -2 then
+        return "|cffffff00", "|r" -- Bright Yellow (-2 to +2 levels)
+    elseif levelDiff >= -10 then
+        return "|cff00ff00", "|r" -- Bright Green (-10 to -3 levels)
+    else
+        return "|cff999999", "|r" -- Light Gray (more than -10 levels)
+    end
 end
 
 -- Format quest objectives by adding indentation - simplified dash-based approach
@@ -1516,6 +1071,144 @@ end
 
 
 
+
+-- COMPREHENSIVE WATCHFRAME DEBUGGING SYSTEM
+-- This system provides detailed analysis of WatchFrame structure and content
+-- to understand how quest titles are organized internally for better detection
+
+function Module:AnalyzeWatchFrameStructure()
+    print("DEBUG: AnalyzeWatchFrameStructure function called!")
+    
+    if not WatchFrame then 
+        print("ERROR: WatchFrame not found!")
+        return 
+    end
+    
+    print("=== COMPREHENSIVE WATCHFRAME ANALYSIS ===")
+    
+    -- Basic WatchFrame properties
+    print("WatchFrame Basic Properties:")
+    print("  - IsVisible: " .. tostring(WatchFrame:IsVisible()))
+    print("  - NumLines: " .. tostring(WatchFrame.numLines or "nil"))
+    print("  - Height: " .. tostring(WatchFrame:GetHeight()))
+    print("  - Width: " .. tostring(WatchFrame:GetWidth()))
+    
+    -- Analyze all child frames
+    print("\nWatchFrame Child Analysis:")
+    local children = {WatchFrame:GetChildren()}
+    for i, child in ipairs(children) do
+        if child then
+            local name = child:GetName() or "unnamed"
+            local childType = child:GetObjectType()
+            print("  Child " .. i .. ": " .. name .. " (" .. childType .. ")")
+            
+            -- If it has text, show it
+            if child.GetText and child:GetText() then
+                print("    Text: '" .. child:GetText() .. "'")
+            end
+        end
+    end
+    
+    -- Analyze all WatchFrameLine elements (WatchFrameLine1, WatchFrameLine2, etc.)
+    print("\nWatchFrameLine Analysis:")
+    for lineNum = 1, 50 do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine then
+            print("  WatchFrameLine" .. lineNum .. ":")
+            print("    - Visible: " .. tostring(watchLine:IsVisible()))
+            
+            if watchLine.text then
+                local text = watchLine.text:GetText()
+                if text and text ~= "" then
+                    print("    - Text: '" .. text .. "'")
+                    print("    - Text Color: R=" .. string.format("%.2f", watchLine.text:GetTextColor()))
+                    print("    - Font: " .. tostring(watchLine.text:GetFont()))
+                end
+            end
+            
+            -- Check for dash element
+            if watchLine.dash then
+                print("    - Has dash element: " .. tostring(watchLine.dash:IsVisible()))
+                if watchLine.dash.GetText and watchLine.dash:GetText() then
+                    print("    - Dash text: '" .. watchLine.dash:GetText() .. "'")
+                end
+            end
+            
+            -- Check for other common elements
+            if watchLine.check then
+                print("    - Has check element: " .. tostring(watchLine.check:IsVisible()))
+            end
+            
+        else
+            -- Stop when we hit the first non-existent line
+            break
+        end
+    end
+    
+    -- Quest-specific analysis
+    print("\nQuest Data Analysis:")
+    local numWatched = GetNumQuestWatches()
+    print("  Number of watched quests: " .. numWatched)
+    
+    for i = 1, numWatched do
+        local questIndex = GetQuestIndexForWatch(i)
+        if questIndex then
+            local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(questIndex)
+            print("  Quest " .. i .. ":")
+            print("    - Title: '" .. (title or "nil") .. "'")
+            print("    - Level: " .. (level or "nil"))
+            print("    - QuestID: " .. (questID or "nil"))
+            print("    - IsHeader: " .. tostring(isHeader))
+            print("    - IsComplete: " .. tostring(isComplete))
+            
+            -- Try to find this quest in the WatchFrame lines
+            if title then
+                local foundLine = self:FindQuestTitleInWatchFrame(title)
+                if foundLine then
+                    print("    - Found in WatchFrameLine" .. foundLine)
+                else
+                    print("    - NOT FOUND in any WatchFrameLine!")
+                end
+            end
+        end
+    end
+    
+    print("=== END WATCHFRAME ANALYSIS ===")
+end
+
+-- Helper to find which WatchFrameLine contains a specific quest title
+function Module:FindQuestTitleInWatchFrame(questTitle)
+    if not questTitle then return nil end
+    
+    for lineNum = 1, 50 do
+        local watchLine = _G["WatchFrameLine" .. lineNum]
+        if watchLine and watchLine.text then
+            local lineText = watchLine.text:GetText()
+            if lineText then
+                -- Try exact match first
+                if lineText == questTitle then
+                    return lineNum
+                end
+                
+                -- Try partial match (in case of level prefixes or other modifications)
+                if string.find(lineText, questTitle, 1, true) then
+                    return lineNum
+                end
+                
+                -- Try clean match (remove colors and level prefixes)
+                local cleanLineText = self:GetCleanText(lineText)
+                local cleanQuestTitle = self:GetCleanText(questTitle)
+                if cleanLineText == cleanQuestTitle then
+                    return lineNum
+                end
+            end
+        else
+            break
+        end
+    end
+    
+    return nil
+end
 
 -- Helper function to get clean text for comparison (removes colors and formatting)
 function Module:GetCleanText(text)
@@ -1537,41 +1230,13 @@ function Module:GetCleanText(text)
     return clean
 end
 
--- Show quest levels in tracker (legacy function, now uses unified approach)
-function Module:ShowQuestLevels()
-    -- Just call the unified function that handles both levels and colors
-    self:ApplyAllTextEnhancements()
-end
-
 -- Show progress percentages
 function Module:ShowProgressPercentages()
     -- Implementation for showing progress percentages
     -- This would calculate and display completion percentages for objectives
 end
 
--- Apply difficulty-based color coding (legacy function, now uses unified approach)
-function Module:ApplyDifficultyColors()
-    -- Just call the unified function that handles both levels and colors
-    self:ApplyAllTextEnhancements()
-end
 
--- Remove difficulty colors from quest titles
-function Module:RemoveDifficultyColors()
-    if not questTrackerFrame then return end
-    
-    for lineNum = 1, 50 do
-        local watchLine = _G["WatchFrameLine" .. lineNum]
-        if watchLine and watchLine.text then
-            local currentText = watchLine.text:GetText()
-            if currentText and (string.find(currentText, "|c%x%x%x%x%x%x%x%x") or string.find(currentText, "|r")) then
-                -- Remove color codes
-                local cleanText = string.gsub(currentText, "|c%x%x%x%x%x%x%x%x", "")
-                cleanText = string.gsub(cleanText, "|r", "")
-                watchLine.text:SetText(cleanText)
-            end
-        end
-    end
-end
 
 -- Apply visual enhancements to the tracker
 function Module:ApplyVisualEnhancements()
@@ -1583,17 +1248,6 @@ function Module:ApplyVisualEnhancements()
         self:Debug("Cannot apply visual enhancements: WatchFrame not found")
         return 
     end
-    
-    self:Debug("Applying visual enhancements - Scale: " .. self.db.trackerScale .. ", Alpha: " .. self.db.trackerAlpha)
-    
-    -- Apply scale
-    questTrackerFrame:SetScale(self.db.trackerScale)
-    
-    -- Apply alpha
-    questTrackerFrame:SetAlpha(self.db.trackerAlpha)
-    
-    -- Apply custom width
-    self:ApplyCustomWidth()
     
     -- Apply text outline
     self:ApplyTextOutline()
@@ -1616,34 +1270,7 @@ function Module:ApplyVisualEnhancements()
     end
 end
 
--- Handle quest completion notifications
-function Module:OnQuestComplete(questID)
-    if not self.db.progressNotifications then return end
-    
-    local questInfo = trackedQuests[questID]
-    if questInfo then
-        -- Play completion sound
-        if self.db.completionSound then
-            PlaySound("QuestCompleted")
-        end
-        
-        -- Show completion message
-        self:Debug("Quest completed: " .. (questInfo.title or "Unknown"))
-        
-        -- Auto-untrack if enabled (for 3.3.5, we need to find the quest index)
-        if self.db.autoUntrackComplete and questInfo.questIndex then
-            RemoveQuestWatch(questInfo.questIndex)
-        end
-    end
-end
 
--- Handle objective updates
-function Module:OnObjectiveUpdate()
-    if self.db.objectiveCompleteAlert then
-        -- Implementation for objective completion alerts
-        self:Debug("Objective updated")
-    end
-end
 
 -------------------------------------------------
 -- OnInitialize
@@ -1664,16 +1291,11 @@ function Module:OnInitialize()
     self:RegisterChatCommand("qt", function() self:OpenConfig() end)
     
     -- Debug commands
-    self:RegisterChatCommand("qtsort", function() 
-        print("|cff00ff00[YATP]|r Testing quest sorting...")
-        self:EnhanceQuestDisplay() 
-    end)
     self:RegisterChatCommand("qtdebug", function() 
         print("|cff00ff00[YATP]|r Quest Tracker Debug Info:")
         print("  Module enabled: " .. tostring(self:IsEnabled()))
-        print("  customSorting: " .. tostring(self.db.customSorting))
-        print("  sortByLevel: " .. tostring(self.db.sortByLevel))
-        print("  filterByZone: " .. tostring(self.db.filterByZone))
+        print("  forceTrackAll: " .. tostring(self.db.forceTrackAll))
+        print("  autoTrackByZone: " .. tostring(self.db.autoTrackByZone))
         print("  Watched quests: " .. GetNumQuestWatches())
     end)
     self:RegisterChatCommand("qtrestore", function()
@@ -1710,7 +1332,7 @@ function Module:OnEnable()
     self:RegisterEvent("QUEST_WATCH_UPDATE", "OnQuestWatchUpdate")
     self:RegisterEvent("QUEST_LOG_UPDATE", "OnQuestLogUpdate")
     self:RegisterEvent("UI_INFO_MESSAGE", "OnUIInfoMessage")
-    self:RegisterEvent("QUEST_COMPLETE", "OnQuestComplete")
+
     self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnPlayerEnteringWorld")
     self:RegisterEvent("QUEST_ABANDONED", "OnQuestAbandoned")
     self:RegisterEvent("ZONE_CHANGED", "OnZoneChanged")
@@ -1725,10 +1347,10 @@ function Module:OnEnable()
         self:Debug("Started maintenance timer")
     end
     
-    -- Validate tracking modes - ensure at least one is always enabled
+    -- Ensure at least one tracking mode is enabled
     if not self.db.forceTrackAll and not self.db.autoTrackByZone then
         self.db.autoTrackByZone = true
-        self:Print("|cffffd700[YATP]|r Auto-tracking is required. Enabled 'Auto-track by Zone' by default.")
+        -- Auto-enabled zone tracking by default silently
     end
     
     -- Apply all enhancements on enable to ensure settings are applied after reload
@@ -1802,15 +1424,6 @@ function Module:MaintenanceCheck()
     
     -- Very light check - only verify basic frame properties
     if numWatched > 0 and questTrackerFrame and questTrackerFrame:IsVisible() then
-        -- Simple scale/alpha check only (these don't interfere with text content)
-        if questTrackerFrame:GetScale() ~= self.db.trackerScale then
-            questTrackerFrame:SetScale(self.db.trackerScale)
-        end
-        
-        if questTrackerFrame:GetAlpha() ~= self.db.trackerAlpha then
-            questTrackerFrame:SetAlpha(self.db.trackerAlpha)
-        end
-        
         -- Check if background setting needs to be reapplied
         if self.db.hideBackground then
             -- Check if any background textures are visible when they shouldn't be
@@ -1881,7 +1494,50 @@ function Module:OnQuestLogUpdate()
     end, 0.1)
 end
 
--- New function to handle automatic quest tracking
+-- Helper function to move "Path to Ascension" quests to the end
+function Module:MovePathToAscensionQuestsToEnd()
+    local numWatched = GetNumQuestWatches()
+    if numWatched <= 1 then return end -- Nothing to reorder
+    
+    local pathQuests = {}
+    local regularQuests = {}
+    
+    -- Collect quest indices and categorize them
+    for i = 1, numWatched do
+        local questIndex = GetQuestIndexForWatch(i)
+        if questIndex then
+            local questTitle = GetQuestLogTitle(questIndex)
+            if questTitle and questTitle:match("Path to Ascension") then
+                table.insert(pathQuests, questIndex)
+            else
+                table.insert(regularQuests, questIndex)
+            end
+        end
+    end
+    
+    -- Only reorder if we have Path to Ascension quests that aren't already at the end
+    if #pathQuests > 0 and numWatched > #pathQuests then
+        -- Remove all watched quests
+        for i = numWatched, 1, -1 do
+            local questIndex = GetQuestIndexForWatch(i)
+            if questIndex then
+                RemoveQuestWatch(questIndex)
+            end
+        end
+        
+        -- Re-add in desired order: regular quests first, then Path to Ascension quests
+        for _, questIndex in ipairs(regularQuests) do
+            AddQuestWatch(questIndex)
+        end
+        for _, questIndex in ipairs(pathQuests) do
+            AddQuestWatch(questIndex)
+        end
+        
+        self:Debug("Moved " .. #pathQuests .. " Path to Ascension quest(s) to end of tracker")
+    end
+end
+
+-- Simplified auto-tracking management (only two options)
 function Module:ManageAutoTracking()
     if not self.db.enabled then return end
     
@@ -1892,11 +1548,10 @@ function Module:ManageAutoTracking()
     end
 end
 
--- Track all quests in quest log
+-- Track all quests in quest log (simplified)
 function Module:TrackAllQuests()
     local numEntries = GetNumQuestLogEntries()
     local trackedCount = 0
-    local untrackedCount = 0
     
     for i = 1, numEntries do
         local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
@@ -1912,40 +1567,21 @@ function Module:TrackAllQuests()
                 end
             end
             
-            -- Determine if we should track this quest
-            local shouldTrack = true
-            
-            -- Skip completed quests if auto-untrack is enabled
-            if self.db.autoUntrackComplete and (isComplete == 1 or isComplete == -1) then
-                shouldTrack = false
-            end
-            
-            -- Apply tracking logic
-            if shouldTrack and not isTracked then
+            -- Track all quests (including completed ones)
+            if not isTracked then
                 AddQuestWatch(i)
                 trackedCount = trackedCount + 1
                 self:Debug("Auto-tracked quest: " .. (questTitle or "Unknown"))
-            elseif not shouldTrack and isTracked then
-                RemoveQuestWatch(i)
-                untrackedCount = untrackedCount + 1
-                self:Debug("Auto-untracked completed quest: " .. (questTitle or "Unknown"))
             end
         end
     end
     
-    -- Provide user feedback
-    local message = "Force Track All: "
+    -- Silent operation - no user feedback needed
+    
+    -- Move Path to Ascension quests to the end
     if trackedCount > 0 then
-        message = message .. "Added " .. trackedCount .. " quest(s)"
+        self:MovePathToAscensionQuestsToEnd()
     end
-    if untrackedCount > 0 then
-        if trackedCount > 0 then message = message .. ", " end
-        message = message .. "Removed " .. untrackedCount .. " completed quest(s)"
-    end
-    if trackedCount == 0 and untrackedCount == 0 then
-        message = message .. "No changes needed"
-    end
-    self:Print(message)
     
     -- Force quest tracker update to show changes immediately
     self:ForceQuestTrackerUpdate()
@@ -2010,17 +1646,23 @@ function Module:AutoTrackByCurrentZone()
             
             -- Also track quests for current zone (if not already marked as Ascension)
             if not shouldTrack then
-                local questZone = self:GetQuestZone(i)
+                -- Simple zone detection: find the last zone header before this quest
+                local questZone = nil
+                for k = i, 1, -1 do
+                    local headerTitle, _, _, _, isHeaderCheck = GetQuestLogTitle(k)
+                    if isHeaderCheck then
+                        questZone = headerTitle
+                        break
+                    end
+                end
+                
                 if questZone and questZone == currentZone then
                     shouldTrack = true
                     self:Debug("  -> Marked for tracking: Current zone quest (" .. questZone .. ")")
                 end
             end
             
-            -- Skip completed quests if auto-untrack is enabled
-            if shouldTrack and self.db.autoUntrackComplete and (isComplete == 1 or isComplete == -1) then
-                shouldTrack = false
-            end
+
             
             -- Check current tracking status
             local isTracked = false
@@ -2064,18 +1706,11 @@ function Module:AutoTrackByCurrentZone()
     
     self:Debug("Auto-track summary: " .. ascensionTracked .. " Ascension quests, " .. zoneTracked .. " zone quests, " .. #questsToUntrack .. " untracked")
     
-    -- Provide user feedback
+    -- Silent operation - no user feedback needed
+    
+    -- Move Path to Ascension quests to the end
     if #questsToTrack > 0 or #questsToUntrack > 0 then
-        local message = "Auto-track by Zone: "
-        if #questsToTrack > 0 then
-            message = message .. "Added " .. #questsToTrack .. " quest(s)"
-        end
-        if #questsToUntrack > 0 then
-            if #questsToTrack > 0 then message = message .. ", " end
-            message = message .. "Removed " .. #questsToUntrack .. " quest(s)"
-        end
-        message = message .. " (Zone: " .. currentZone .. ")"
-        self:Print(message)
+        self:MovePathToAscensionQuestsToEnd()
     end
     
     -- Force quest tracker update to show changes immediately
@@ -2104,22 +1739,16 @@ function Module:ReapplyAllEnhancements()
     self:Debug("ReapplyAllEnhancements called - hideBackground: " .. tostring(self.db.hideBackground))
     
     -- Apply text enhancements (levels and colors) in one unified pass
-    if self.db.showQuestLevels or self.db.colorCodeByDifficulty then
-        self:ApplyAllTextEnhancements()
-    end
+    -- Always call - the function internally checks what to apply
+    self:ApplyAllTextEnhancements()
     
     -- Apply visual enhancements (these don't conflict with text)
     if self.db.textOutline then
         self:ApplyTextOutline()
     end
     
-    if self.db.customWidth then
-        self:ApplyCustomWidth()
-    end
-    
-    if self.db.customHeight then
-        self:ApplyCustomHeight()
-    end
+    -- Always apply custom height
+    self:ApplyCustomHeight()
     
     -- Apply background toggle with multiple attempts to fight frame regeneration
     self:ApplyBackgroundToggle()
@@ -2149,14 +1778,16 @@ function Module:ReapplyAllEnhancements()
         end, 0.5)
     end
     
+    -- Ensure Path to Ascension quests stay at the end
+    self:ScheduleTimer(function()
+        self:MovePathToAscensionQuestsToEnd()
+    end, 0.3)
+    
     self:Debug("All enhancements reapplied")
 end
 
 function Module:OnUIInfoMessage(event, messageType, message)
-    -- Handle quest completion messages and other UI info
-    if self.db.progressNotifications then
-        -- Process quest notifications here
-    end
+
 end
 
 function Module:OnQuestAbandoned()
@@ -2181,45 +1812,18 @@ function Module:BuildOptions()
             else 
                 self:Disable() 
             end
-        elseif key == "trackerScale" or key == "trackerAlpha" or key == "lockPosition" then
-            -- Apply visual changes immediately
+        elseif key == "lockPosition" then
+            -- Apply position lock immediately
             self:ApplyVisualEnhancements()
-        elseif key == "textOutline" or key == "outlineThickness" then
+        elseif key == "textOutline" then
             -- Apply text outline immediately
             if self:IsEnabled() then
                 self:ApplyTextOutline()
             end
-        elseif key == "customWidth" or key == "frameWidth" then
-            -- Apply width changes immediately
+        elseif key == "showQuestLevels" or key == "colorCodeByDifficulty" then
+            -- Force a clean update - let the unified system handle everything
             if self:IsEnabled() then
-                self:ApplyCustomWidth()
-            end
-        elseif key == "showQuestLevels" then
-            -- Apply quest levels immediately
-            if self:IsEnabled() then
-                if val then
-                    self:ShowQuestLevels()
-                else
-                    self:RemoveQuestLevels()
-                end
-            end
-        elseif key == "colorCodeByDifficulty" then
-            -- Apply difficulty colors immediately
-            if self:IsEnabled() then
-                if val then
-                    self:ApplyDifficultyColors()
-                else
-                    self:RemoveDifficultyColors()
-                end
-            end
-            -- Update quest display immediately
-            if self:IsEnabled() then
-                self:UpdateTrackedQuests()
-                self:EnhanceQuestDisplay()
-            end
-            -- Apply other reactive settings
-            if self:IsEnabled() then
-                HookQuestTracker(self)
+                self:ForceQuestTrackerUpdate()
             end
 
         end
@@ -2261,22 +1865,8 @@ function Module:BuildOptions()
                 type = "group", inline = true, order = 20,
                 name = L["Visual Settings"] or "Visual Settings",
                 args = {
-                    trackerScale = {
-                        type = "range", order = 1,
-                        name = L["Tracker Scale"] or "Tracker Scale",
-                        desc = L["Adjust the size of the quest tracker."] or "Adjust the size of the quest tracker.",
-                        min = 0.5, max = 2.0, step = 0.05,
-                        get=get, set=set,
-                    },
-                    trackerAlpha = {
-                        type = "range", order = 2,
-                        name = L["Tracker Transparency"] or "Tracker Transparency",
-                        desc = L["Adjust the transparency of the quest tracker."] or "Adjust the transparency of the quest tracker.",
-                        min = 0.1, max = 1.0, step = 0.05,
-                        get=get, set=set,
-                    },
                     lockPosition = {
-                        type = "toggle", order = 3,
+                        type = "toggle", order = 1,
                         name = L["Lock Position"] or "Lock Position",
                         desc = L["Lock the quest tracker in place. When disabled, you can drag the tracker to move it around."] or "Lock the quest tracker in place. When disabled, you can drag the tracker to move it around.",
                         get=get, set=function(info, val)
@@ -2287,49 +1877,13 @@ function Module:BuildOptions()
                         end,
                     },
                     textOutline = {
-                        type = "toggle", order = 7,
+                        type = "toggle", order = 2,
                         name = L["Text Outline"] or "Text Outline",
                         desc = L["Add outline to quest tracker text for better readability."] or "Add outline to quest tracker text for better readability.",
                         get=get, set=set,
                     },
-                    outlineThickness = {
-                        type = "select", order = 8,
-                        name = L["Outline Thickness"] or "Outline Thickness",
-                        desc = L["Choose the thickness of the text outline."] or "Choose the thickness of the text outline.",
-                        values = {
-                            [1] = L["Normal"] or "Normal",
-                            [2] = L["Thick"] or "Thick",
-                        },
-                        get=get, set=set,
-                        disabled = function() return not self.db.textOutline end,
-                    },
-                    customWidth = {
-                        type = "toggle", order = 9,
-                        name = L["Custom Width"] or "Custom Width",
-                        desc = L["Enable custom width for the quest tracker frame."] or "Enable custom width for the quest tracker frame.",
-                        get=get, set=set,
-                    },
-                    frameWidth = {
-                        type = "range", order = 10,
-                        name = L["Frame Width"] or "Frame Width",
-                        desc = L["Set the width of the quest tracker frame in pixels."] or "Set the width of the quest tracker frame in pixels.",
-                        min = 200, max = 500, step = 10,
-                        get=get, set=set,
-                        disabled = function() return not self.db.customWidth end,
-                    },
-                    customHeight = {
-                        type = "toggle", order = 11,
-                        name = L["Custom Height"] or "Custom Height",
-                        desc = L["Enable custom height for the quest tracker frame."] or "Enable custom height for the quest tracker frame.",
-                        get=get, set=function(info, val)
-                            set(info, val)
-                            if self:IsEnabled() then
-                                self:ApplyCustomHeight()
-                            end
-                        end,
-                    },
                     frameHeight = {
-                        type = "range", order = 12,
+                        type = "range", order = 3,
                         name = L["Frame Height"] or "Frame Height",
                         desc = L["Set the height of the quest tracker frame in pixels."] or "Set the height of the quest tracker frame in pixels.",
                         min = 300, max = 1000, step = 50,
@@ -2339,10 +1893,9 @@ function Module:BuildOptions()
                                 self:ApplyCustomHeight()
                             end
                         end,
-                        disabled = function() return not self.db.customHeight end,
                     },
                     hideBackground = {
-                        type = "toggle", order = 13,
+                        type = "toggle", order = 4,
                         name = L["Hide Background"] or "Hide Background",
                         desc = L["Hide the quest tracker background and border artwork."] or "Hide the quest tracker background and border artwork.",
                         get=get, set=function(info, val)
@@ -2355,97 +1908,13 @@ function Module:BuildOptions()
                 }
             },
             
-            notificationGroup = {
-                type = "group", inline = true, order = 30,
-                name = L["Notifications"] or "Notifications",
-                args = {
-                    progressNotifications = {
-                        type = "toggle", order = 1,
-                        name = L["Progress Notifications"] or "Progress Notifications",
-                        desc = L["Show notifications for quest progress updates."] or "Show notifications for quest progress updates.",
-                        get=get, set=set,
-                    },
-                    completionSound = {
-                        type = "toggle", order = 2,
-                        name = L["Completion Sound"] or "Completion Sound",
-                        desc = L["Play a sound when quests are completed."] or "Play a sound when quests are completed.",
-                        get=get, set=set,
-                        disabled = function() return not self.db.progressNotifications end,
-                    },
-                    objectiveCompleteAlert = {
-                        type = "toggle", order = 3,
-                        name = L["Objective Complete Alert"] or "Objective Complete Alert",
-                        desc = L["Show alerts when individual objectives are completed."] or "Show alerts when individual objectives are completed.",
-                        get=get, set=set,
-                        disabled = function() return not self.db.progressNotifications end,
-                    },
-                }
-            },
-            
             autoGroup = {
-                type = "group", inline = true, order = 40,
-                name = L["Auto-tracking"] or "Auto-tracking",
+                type = "group", inline = true, order = 30,
+                name = L["Tracking"] or "Tracking",
                 args = {
-                    autoTrackNew = {
-                        type = "toggle", order = 1,
-                        name = L["Auto-track New Quests"] or "Auto-track New Quests",
-                        desc = L["Automatically track newly accepted quests."] or "Automatically track newly accepted quests.",
-                        get=get, set=set,
-                    },
-                    autoUntrackComplete = {
-                        type = "toggle", order = 2,
-                        name = L["Auto-untrack Complete"] or "Auto-untrack Complete",
-                        desc = L["Automatically untrack completed quests. Works with both 'Force Track All' and 'Auto-track by Zone' modes."] or "Automatically untrack completed quests. Works with both 'Force Track All' and 'Auto-track by Zone' modes.",
-                        get=get, set=function(info, val)
-                            set(info, val)
-                            -- Apply changes immediately if one of the auto-tracking modes is active
-                            if self:IsEnabled() then
-                                if self.db.forceTrackAll then
-                                    self:TrackAllQuests()
-                                elseif self.db.autoTrackByZone then
-                                    self:AutoTrackByCurrentZone()
-                                else
-                                    -- If no auto-tracking mode is active, just clean completed quests
-                                    if val then
-                                        local numEntries = GetNumQuestLogEntries()
-                                        local untrackedCount = 0
-                                        
-                                        for i = 1, numEntries do
-                                            local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
-                                            
-                                            if not isHeader and questTitle and (isComplete == 1 or isComplete == -1) then
-                                                -- Check if quest is being tracked
-                                                for j = 1, GetNumQuestWatches() do
-                                                    local watchedIndex = GetQuestIndexForWatch(j)
-                                                    if watchedIndex == i then
-                                                        RemoveQuestWatch(i)
-                                                        untrackedCount = untrackedCount + 1
-                                                        break
-                                                    end
-                                                end
-                                            end
-                                        end
-                                        
-                                        if untrackedCount > 0 then
-                                            self:Print("Auto-untrack Complete: Removed " .. untrackedCount .. " completed quest(s)")
-                                            self:ForceQuestTrackerUpdate()
-                                        end
-                                    end
-                                end
-                            end
-                        end,
-                    },
-                    maxTrackedQuests = {
-                        type = "range", order = 3,
-                        name = L["Max Tracked Quests"] or "Max Tracked Quests",
-                        desc = L["Maximum number of quests to track simultaneously."] or "Maximum number of quests to track simultaneously.",
-                        min = 5, max = 50, step = 1,
-                        get=get, set=set,
-                    },
-                    spacer1 = { type = "description", order = 4, name = "", fontSize = "small" },
                     forceTrackAll = {
-                        type = "toggle", order = 5,
-                        name = L["Force Track All Quests"] or "Force Track All Quests",
+                        type = "toggle", order = 1,
+                        name = L["All Quests"] or "All Quests",
                         desc = L["Automatically track all quests in your quest log. Disables zone-based tracking."] or "Automatically track all quests in your quest log. Disables zone-based tracking.",
                         get=get, set=function(info, val) 
                             if val then 
@@ -2459,9 +1928,9 @@ function Module:BuildOptions()
                             else 
                                 -- Trying to disable Force Track All
                                 if not self.db.autoTrackByZone then
-                                    -- If Zone tracking is also disabled, prevent disabling this and auto-enable Zone tracking
+                                    -- If Zone tracking is also disabled, auto-enable Zone tracking
                                     self.db.autoTrackByZone = true
-                                    self:Print("|cffffd700[YATP]|r Auto-tracking is required. Enabled 'Auto-track by Zone' instead.")
+                                    -- Auto-enabled zone tracking silently
                                     if self:IsEnabled() then
                                         self:AutoTrackByCurrentZone()
                                     end
@@ -2471,8 +1940,8 @@ function Module:BuildOptions()
                         end,
                     },
                     autoTrackByZone = {
-                        type = "toggle", order = 6,
-                        name = L["Auto-track by Zone"] or "Auto-track by Zone",
+                        type = "toggle", order = 2,
+                        name = L["By Zone"] or "By Zone",
                         desc = L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories. Disables force tracking."] or "Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories. Disables force tracking.",
                         get=get, set=function(info, val) 
                             if val then 
@@ -2486,9 +1955,9 @@ function Module:BuildOptions()
                             else 
                                 -- Trying to disable Zone tracking
                                 if not self.db.forceTrackAll then
-                                    -- If Force Track All is also disabled, prevent disabling this and auto-enable Force Track All
+                                    -- If Force Track All is also disabled, auto-enable Force Track All
                                     self.db.forceTrackAll = true
-                                    self:Print("|cffffd700[YATP]|r Auto-tracking is required. Enabled 'Force Track All Quests' instead.")
+                                    -- Auto-enabled force track all silently
                                     if self:IsEnabled() then
                                         self:TrackAllQuests()
                                     end
@@ -2500,46 +1969,7 @@ function Module:BuildOptions()
                 }
             },
             
-            sortingGroup = {
-                type = "group", inline = true, order = 50,
-                name = L["Quest Sorting"] or "Quest Sorting",
-                args = {
-                    customSorting = {
-                        type = "toggle", order = 1,
-                        name = L["Custom Quest Sorting"] or "Custom Quest Sorting",
-                        desc = L["Enable custom sorting of tracked quests."] or "Enable custom sorting of tracked quests.",
-                        get=get, set=function(info,val) 
-                            set(info,val)
-                            if self:IsEnabled() then
-                                self:EnhanceQuestDisplay()
-                            end
-                        end,
-                    },
-                    sortByLevel = {
-                        type = "toggle", order = 2,
-                        name = L["Sort by Level"] or "Sort by Level",
-                        desc = L["Sort quests by level with completed quests at the bottom."] or "Sort quests by level with completed quests at the bottom.",
-                        get=get, set=function(info,val) 
-                            set(info,val)
-                            if self:IsEnabled() then
-                                self:EnhanceQuestDisplay()
-                            end
-                        end,
-                        disabled = function() return not self.db.customSorting end,
-                    },
-                    filterByZone = {
-                        type = "toggle", order = 3,
-                        name = L["Filter by Zone"] or "Filter by Zone",
-                        desc = L["Only show quests for the current zone."] or "Only show quests for the current zone.",
-                        get=get, set=function(info,val) 
-                            set(info,val)
-                            if self:IsEnabled() then
-                                self:EnhanceQuestDisplay()
-                            end
-                        end,
-                    },
-                }
-            },
+
             
             help = { 
                 type="description", order=90, fontSize="small", 
@@ -2568,17 +1998,11 @@ function Module:TestFunction()
     if WatchFrame then
         self:Debug("WatchFrame name: " .. (WatchFrame:GetName() or "unnamed"))
         self:Debug("WatchFrame visible: " .. tostring(WatchFrame:IsVisible()))
-        self:Debug("Current scale: " .. tostring(WatchFrame:GetScale()))
-        self:Debug("Current alpha: " .. tostring(WatchFrame:GetAlpha()))
     end
-    self:Debug("Config scale: " .. tostring(self.db.trackerScale))
-    self:Debug("Config alpha: " .. tostring(self.db.trackerAlpha))
     self:Debug("Enhanced display: " .. tostring(self.db.enhancedDisplay))
     self:Debug("Show quest levels: " .. tostring(self.db.showQuestLevels))
     self:Debug("Text outline: " .. tostring(self.db.textOutline))
-    self:Debug("Outline thickness: " .. tostring(self.db.outlineThickness or "nil"))
-    self:Debug("Custom width: " .. tostring(self.db.customWidth))
-    self:Debug("Frame width: " .. tostring(self.db.frameWidth or "nil"))
+    self:Debug("Using normal outline thickness (always)")
     
     -- Test quest tracking
     local numWatched = GetNumQuestWatches()
@@ -2610,9 +2034,7 @@ function Module:TestFunction()
     
     -- Apply settings manually
     self:ApplyVisualEnhancements()
-    if self.db.showQuestLevels then
-        self:ShowQuestLevels()
-    end
+    self:ApplyAllTextEnhancements()
     self:Debug("=== Test Complete ===")
 end
 
@@ -2626,17 +2048,7 @@ SlashCmdList["YATPQTTEST"] = function()
     end
 end
 
--- Register clean command to remove all levels manually
-SLASH_YATPQTCLEAN1 = "/qtclean"
-SlashCmdList["YATPQTCLEAN"] = function()
-    if YATP.modules.QuestTracker then
-        YATP.modules.QuestTracker:RemoveQuestLevels()
-        YATP.modules.QuestTracker:CleanupDuplicateLevels()
-        print("Removed all quest levels from tracker and cleaned duplicates")
-    else
-        print("Quest Tracker module not found")
-    end
-end
+
 
 -- Register fix command to clean duplicates and reapply
 SLASH_YATPQTFIX1 = "/qtfix"
@@ -2707,6 +2119,34 @@ SlashCmdList["YATPQTDEBUG"] = function()
         print("=== End Debug Info ===")
     else
         print("Quest Tracker module not found")
+    end
+end
+
+-- Register comprehensive WatchFrame analysis command
+SLASH_YATPQTANALYZE1 = "/qtanalyze"
+SlashCmdList["YATPQTANALYZE"] = function()
+    print("DEBUG: /qtanalyze command executed!")
+    if YATP then
+        print("DEBUG: YATP addon found")
+        if YATP.modules then
+            print("DEBUG: YATP.modules found")
+            if YATP.modules.QuestTracker then
+                print("DEBUG: QuestTracker module found")
+                local module = YATP.modules.QuestTracker
+                if module.AnalyzeWatchFrameStructure then
+                    print("DEBUG: AnalyzeWatchFrameStructure function found, calling it...")
+                    module:AnalyzeWatchFrameStructure()
+                else
+                    print("ERROR: AnalyzeWatchFrameStructure function not found!")
+                end
+            else
+                print("ERROR: Quest Tracker module not found in YATP.modules")
+            end
+        else
+            print("ERROR: YATP.modules not found")
+        end
+    else
+        print("ERROR: YATP addon not found")
     end
 end
 

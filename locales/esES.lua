@@ -345,3 +345,8 @@ L["Sort by Distance"] = "Ordenar por Distancia"
 L["Sort quests by distance to objectives."] = "Ordenar misiones por distancia a objetivos."
 L["Sort quests by level with completed quests at the bottom."] = "Ordenar misiones por nivel con misiones completadas al final."
 L["This module enhances the quest tracker with additional features and customization options."] = "Este módulo mejora el rastreador de misiones con características adicionales y opciones de personalización."
+
+-- New simplified quest tracker texts
+L["Tracking"] = "Seguimiento"
+L["All Quests"] = "Todas las Misiones"
+L["By Zone"] = "Por Zona"

@@ -336,3 +336,8 @@ if not L["Sort by Distance"] then L["Sort by Distance"] = "Trier par Distance" e
 if not L["Sort quests by distance to objectives."] then L["Sort quests by distance to objectives."] = "Trier les quêtes par distance aux objectifs." end
 if not L["Sort quests by level with completed quests at the bottom."] then L["Sort quests by level with completed quests at the bottom."] = "Trier les quêtes par niveau avec les quêtes terminées en bas." end
 if not L["This module enhances the quest tracker with additional features and customization options."] then L["This module enhances the quest tracker with additional features and customization options."] = "Ce module améliore le suivi des quêtes avec des fonctionnalités supplémentaires et des options de personnalisation." end
+
+-- New simplified quest tracker texts
+if not L["Tracking"] then L["Tracking"] = "Suivi" end
+if not L["All Quests"] then L["All Quests"] = "Toutes les Quêtes" end
+if not L["By Zone"] then L["By Zone"] = "Par Zone" end
