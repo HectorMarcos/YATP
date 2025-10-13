@@ -25,8 +25,8 @@ local Module = YATP:NewModule("QuestTracker", "AceEvent-3.0", "AceConsole-3.0", 
 -------------------------------------------------
 function Module:Debug(msg)
     -- Debug disabled for cleaner output
-    -- Temporarily enable debug for indentation testing
-    if string.find(msg, "Line") or string.find(msg, "SKIPPING") or string.find(msg, "INDENTED") or string.find(msg, "dash") then
+    -- Temporarily enable debug for dash analysis only
+    if string.find(msg, "hasDash") or string.find(msg, "dashVisible") then
         print("|cff00ff00[YATP - QuestTracker]|r " .. tostring(msg))
     end
     -- if YATP.db and YATP.db.profile and YATP.db.profile.debugMode then
@@ -1501,7 +1501,7 @@ function Module:FormatQuestObjectives()
             if text and text ~= "" then
                 local cleanText = self:GetCleanText(text)
                 
-                -- Enhanced debug to see what's happening
+                -- Debug only dash information
                 local hasDash = watchLine.dash and true or false
                 local dashVisible = hasDash and watchLine.dash:IsVisible() or false
                 self:Debug(string.format("Line %d: '%s' | hasDash: %s | dashVisible: %s", 
@@ -1511,7 +1511,7 @@ function Module:FormatQuestObjectives()
                 local looksLikeTitle = self:LooksLikeQuestTitle(text)
                 
                 if looksLikeTitle then
-                    self:Debug("SKIPPING - looks like quest title: " .. cleanText)
+                    -- Skip quest titles
                 else
                     -- This looks like an objective - indent it
                     -- Hide the dash element if it exists (regardless of visibility)
@@ -1525,7 +1525,6 @@ function Module:FormatQuestObjectives()
                     
                     if indentedText ~= text then
                         watchLine.text:SetText(indentedText)
-                        self:Debug("INDENTED objective: '" .. cleanedText .. "'")
                     end
                 end
             end
@@ -1562,10 +1561,10 @@ function Module:LooksLikeQuestTitle(text)
         return true
     end
     
-    -- "Speak with..." instructions (usually quest completion objectives that look like titles)  
-    if string.match(cleanText, "^Speak with") then
-        return true
-    end
+    -- "Speak with..." can be objectives, so don't treat as titles for now
+    -- if string.match(cleanText, "^Speak with") then
+    --     return true
+    -- end
     
     -- Quest names without progress indicators and not starting with symbols
     if not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet then
