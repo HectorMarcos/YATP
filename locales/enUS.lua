@@ -502,9 +502,9 @@ L["Automatically untrack completed quests. Works with both 'Force Track All' and
 L["Max Tracked Quests"] = true
 L["Maximum number of quests to track simultaneously."] = true
 L["Force Track All Quests"] = true
-L["Automatically track all quests in your quest log."] = true
+L["Automatically track all quests in your quest log. Disables zone-based tracking."] = true
 L["Auto-track by Zone"] = true
-L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories."] = true
+L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories. Disables force tracking."] = true
 L["Filter by Zone"] = true
 L["Only show quests for the current zone."] = true
 L["Quest Sorting"] = true

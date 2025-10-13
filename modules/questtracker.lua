@@ -191,7 +191,7 @@ Module.defaults = {
     autoUntrackComplete = false,
     maxTrackedQuests = 25,
     forceTrackAll = false,     -- Force tracking of all quests
-    autoTrackByZone = false,   -- Auto-track quests by current zone
+    autoTrackByZone = true,    -- Auto-track quests by current zone (default enabled)
     
     -- Visual enhancements
     colorCodeByDifficulty = true,
@@ -1623,6 +1623,12 @@ function Module:OnEnable()
         self:Debug("Started maintenance timer")
     end
     
+    -- Validate tracking modes - ensure at least one is always enabled
+    if not self.db.forceTrackAll and not self.db.autoTrackByZone then
+        self.db.autoTrackByZone = true
+        self:Print("|cffffd700[YATP]|r Auto-tracking is required. Enabled 'Auto-track by Zone' by default.")
+    end
+    
     -- Apply all enhancements on enable to ensure settings are applied after reload
     self:ScheduleTimer(function()
         self:ReapplyAllEnhancements()
@@ -2353,32 +2359,54 @@ function Module:BuildOptions()
                     forceTrackAll = {
                         type = "toggle", order = 5,
                         name = L["Force Track All Quests"] or "Force Track All Quests",
-                        desc = L["Automatically track all quests in your quest log."] or "Automatically track all quests in your quest log.",
+                        desc = L["Automatically track all quests in your quest log. Disables zone-based tracking."] or "Automatically track all quests in your quest log. Disables zone-based tracking.",
                         get=get, set=function(info, val) 
-                            if val then self.db.autoTrackByZone = false end
-                            set(info, val)
-                            -- Apply changes immediately
-                            if val and self:IsEnabled() then
-                                self:TrackAllQuests()
-                            elseif not val then
-                                -- When disabling, just show a message
-                                self:Print("Force Track All: Disabled")
+                            if val then 
+                                -- Activating Force Track All, disable Zone tracking
+                                self.db.autoTrackByZone = false
+                                set(info, val)
+                                -- Apply changes immediately
+                                if self:IsEnabled() then
+                                    self:TrackAllQuests()
+                                end
+                            else 
+                                -- Trying to disable Force Track All
+                                if not self.db.autoTrackByZone then
+                                    -- If Zone tracking is also disabled, prevent disabling this and auto-enable Zone tracking
+                                    self.db.autoTrackByZone = true
+                                    self:Print("|cffffd700[YATP]|r Auto-tracking is required. Enabled 'Auto-track by Zone' instead.")
+                                    if self:IsEnabled() then
+                                        self:AutoTrackByCurrentZone()
+                                    end
+                                end
+                                set(info, val)
                             end
                         end,
                     },
                     autoTrackByZone = {
                         type = "toggle", order = 6,
                         name = L["Auto-track by Zone"] or "Auto-track by Zone",
-                        desc = L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories."] or "Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories.",
+                        desc = L["Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories. Disables force tracking."] or "Automatically track quests for your current zone only. Always tracks Ascension Main Quest and Path to Ascension categories. Disables force tracking.",
                         get=get, set=function(info, val) 
-                            if val then self.db.forceTrackAll = false end
-                            set(info, val)
-                            -- Apply changes immediately
-                            if val and self:IsEnabled() then
-                                self:AutoTrackByCurrentZone()
-                            elseif not val then
-                                -- When disabling, just show a message
-                                self:Print("Auto-track by Zone: Disabled")
+                            if val then 
+                                -- Activating Zone tracking, disable Force Track All
+                                self.db.forceTrackAll = false
+                                set(info, val)
+                                -- Apply changes immediately
+                                if self:IsEnabled() then
+                                    self:AutoTrackByCurrentZone()
+                                end
+                            else 
+                                -- Trying to disable Zone tracking
+                                if not self.db.forceTrackAll then
+                                    -- If Force Track All is also disabled, prevent disabling this and auto-enable Force Track All
+                                    self.db.forceTrackAll = true
+                                    self:Print("|cffffd700[YATP]|r Auto-tracking is required. Enabled 'Force Track All Quests' instead.")
+                                    if self:IsEnabled() then
+                                        self:TrackAllQuests()
+                                    end
+                                end
+                                set(info, val)
                             end
                         end,
                     },
