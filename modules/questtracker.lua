@@ -510,6 +510,33 @@ function Module:FindAllQuestTextElements()
         return textElements
     end
     
+    -- First, try to find the main header specifically
+    local mainHeaderFound = false
+    local possibleHeaders = {
+        _G["WatchFrameTitle"],
+        _G["QuestWatchFrameTitle"],
+        _G["ObjectiveTrackerFrameTitle"],
+        questTrackerFrame.title,
+        questTrackerFrame.header
+    }
+    
+    for _, header in ipairs(possibleHeaders) do
+        if header and header.GetText and header:GetText() then
+            local text = header:GetText()
+            if text and string.match(text, "Objectives") then
+                table.insert(textElements, {
+                    element = header,
+                    text = text,
+                    type = "main_header",
+                    fontSize = select(2, header:GetFont()) or 12
+                })
+                self:Debug("Found main header via direct reference: " .. text)
+                mainHeaderFound = true
+                break
+            end
+        end
+    end
+    
     -- Collect all FontString regions from WatchFrame
     if questTrackerFrame.GetRegions then
         local regions = {questTrackerFrame:GetRegions()}
@@ -517,12 +544,24 @@ function Module:FindAllQuestTextElements()
             if region and region.GetObjectType and region:GetObjectType() == "FontString" and region:IsVisible() then
                 local text = region:GetText()
                 if text and text ~= "" then
-                    table.insert(textElements, {
-                        element = region,
-                        text = text,
-                        type = "region",
-                        fontSize = select(2, region:GetFont()) or 0
-                    })
+                    -- Check if this is the main header we haven't found yet
+                    if not mainHeaderFound and string.match(text, "Objectives") then
+                        table.insert(textElements, {
+                            element = region,
+                            text = text,
+                            type = "main_header_region",
+                            fontSize = select(2, region:GetFont()) or 12
+                        })
+                        self:Debug("Found main header via region scan: " .. text)
+                        mainHeaderFound = true
+                    else
+                        table.insert(textElements, {
+                            element = region,
+                            text = text,
+                            type = "region",
+                            fontSize = select(2, region:GetFont()) or 0
+                        })
+                    end
                 end
             end
         end
@@ -558,11 +597,17 @@ function Module:ApplyOutlineToQuestHeaders()
         local isHeader = false
         local text = element.text
         
-        -- Heuristics to detect quest headers:
+        -- Check for main tracker header "Objectives (X)"
+        if string.match(text, "Objectives") or element.type == "main_header" or element.type == "main_header_region" then
+            isHeader = true
+            self:Debug("Found main objectives header: " .. text .. " (type: " .. element.type .. ")")
+        end
+        
+        -- Heuristics to detect individual quest headers:
         -- 1. Font size >= 12 (headers are usually larger)
         -- 2. Text doesn't start with numbers or common objective patterns
         -- 3. Text doesn't contain progress indicators like "1/5", "(Complete)", etc.
-        if element.fontSize >= 12 then
+        if not isHeader and element.fontSize >= 12 then
             -- Check if it doesn't look like an objective
             local lowerText = string.lower(text)
             if not string.match(text, "^%d+/") and -- Not "1/5 Something"
@@ -571,29 +616,30 @@ function Module:ApplyOutlineToQuestHeaders()
                not string.match(lowerText, "%(failed%)") and -- Not "(Failed)"
                not string.match(text, "%d+/%d+") then -- Not containing "X/Y"
                 isHeader = true
+                self:Debug("Detected quest header by font size: " .. text .. " (fontSize: " .. element.fontSize .. ")")
             end
         end
         
-        -- Additional check: if text is very short and capitalized, might be a header
-        if not isHeader and string.len(text) > 5 and string.len(text) < 50 then
-            local firstChar = string.sub(text, 1, 1)
-            if firstChar == string.upper(firstChar) and not string.match(text, "%d") then
-                isHeader = true
-            end
+        -- Additional check: if text starts with "[" (quest level/name format)
+        if not isHeader and string.match(text, "^%[%d+%]") then
+            isHeader = true
+            self:Debug("Detected quest header by level format: " .. text)
         end
         
         if isHeader then
             if self.db.textOutline then
+                local font, fontSize = element.element:GetFont()
                 if self.db.outlineThickness == 2 then
-                    element.element:SetFont(element.element:GetFont(), element.fontSize, "THICKOUTLINE")
+                    element.element:SetFont(font, fontSize, "THICKOUTLINE")
                 else
-                    element.element:SetFont(element.element:GetFont(), element.fontSize, "OUTLINE")
+                    element.element:SetFont(font, fontSize, "OUTLINE")
                 end
-                self:Debug("Applied outline to quest header: '" .. text .. "' (fontSize: " .. element.fontSize .. ")")
+                self:Debug("Applied outline to header: '" .. text .. "' (fontSize: " .. element.fontSize .. ")")
                 headersFound = headersFound + 1
             else
-                element.element:SetFont(element.element:GetFont(), element.fontSize, "")
-                self:Debug("Removed outline from quest header: '" .. text .. "'")
+                local font, fontSize = element.element:GetFont()
+                element.element:SetFont(font, fontSize, "")
+                self:Debug("Removed outline from header: '" .. text .. "'")
             end
         end
     end
