@@ -1512,9 +1512,12 @@ function Module:FormatQuestObjectives()
                 
                 if looksLikeTitle then
                     self:Debug("SKIPPING - looks like quest title: " .. cleanText)
-                elseif watchLine.dash and watchLine.dash:IsVisible() then
-                    -- Only process if dash exists AND is visible
-                    watchLine.dash:Hide()
+                else
+                    -- This looks like an objective - indent it
+                    -- Hide the dash element if it exists (regardless of visibility)
+                    if watchLine.dash then
+                        watchLine.dash:Hide()
+                    end
                     
                     -- Clean and indent the text
                     local cleanedText = self:CleanObjectiveText(text)
@@ -1524,8 +1527,6 @@ function Module:FormatQuestObjectives()
                         watchLine.text:SetText(indentedText)
                         self:Debug("INDENTED objective: '" .. cleanedText .. "'")
                     end
-                else
-                    self:Debug("SKIPPED - no visible dash or is title: " .. cleanText)
                 end
             end
         end
@@ -1538,11 +1539,12 @@ function Module:LooksLikeQuestTitle(text)
     
     local cleanText = self:GetCleanText(text)
     
-    -- Quest titles typically:
-    -- 1. Have level prefix [XX] 
-    -- 2. Don't contain progress indicators (1/5, 0/3, etc.)
-    -- 3. Don't start with dash or bullet
-    -- 4. Are longer than typical objectives
+    -- Based on debug analysis, quest titles are:
+    -- 1. Lines with [XX] level prefix (like "[22] Egg Hunt")
+    -- 2. Lines without progress indicators (no "0/12", "1/5", etc.)
+    -- 3. Quest names like "Betrayal from Within", "The Ashenvale Hunt"
+    -- 4. "Path to Ascension:" quests
+    -- 5. "Speak with..." instructions
     
     local hasLevel = string.match(text, "^%[%d+%]")
     local hasProgress = string.match(cleanText, "%d+/%d+")
@@ -1550,14 +1552,27 @@ function Module:LooksLikeQuestTitle(text)
     local startsWithDash = string.match(cleanText, "^%-")
     local startsWithBullet = string.match(cleanText, "^[•–—]")
     
-    -- If it has level and no objective markers, it's likely a title
-    if hasLevel and not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet then
+    -- Definite quest titles:
+    if hasLevel then
+        return true  -- "[22] Egg Hunt", "[27] Mahren Skyseer"
+    end
+    
+    -- Path to Ascension quests
+    if string.match(cleanText, "^Path to Ascension:") then
         return true
     end
     
-    -- If it's long enough and has no objective markers, might be a title
-    if string.len(cleanText) > 15 and not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet then
+    -- "Speak with..." instructions (usually quest completion objectives that look like titles)  
+    if string.match(cleanText, "^Speak with") then
         return true
+    end
+    
+    -- Quest names without progress indicators and not starting with symbols
+    if not hasProgress and not hasCompletion and not startsWithDash and not startsWithBullet then
+        -- Exclude short phrases that might be objectives
+        if string.len(cleanText) > 8 and not string.match(cleanText, "^%d+/%d+") then
+            return true  -- "Betrayal from Within", "The Ashenvale Hunt", etc.
+        end
     end
     
     return false
