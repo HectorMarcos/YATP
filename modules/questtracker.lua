@@ -948,6 +948,41 @@ function Module:OnInitialize()
         print("  autoTrackByZone: " .. tostring(self.db.autoTrackByZone))
         print("  Watched quests: " .. GetNumQuestWatches())
     end)
+    
+    self:RegisterChatCommand("qtinfo", function()
+        print("|cff00ff00[YATP]|r Quest Log Information:")
+        print(" ")
+        local numEntries = GetNumQuestLogEntries()
+        print("Total quest log entries: " .. numEntries)
+        print(" ")
+        
+        for i = 1, numEntries do
+            local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
+            
+            if isHeader then
+                print("|cffFFD700=== " .. (questTitle or "Unknown Category") .. " ===|r")
+            elseif questTitle then
+                local tracked = IsQuestWatched(i) and "|cff00ff00[TRACKED]|r " or ""
+                local complete = isComplete and "|cff00ff00(Complete)|r" or ""
+                local daily = isDaily and "|cff00ffffDaily|r " or ""
+                local elite = questTag and "|cffff6600[" .. questTag .. "]|r " or ""
+                local group = suggestedGroup and suggestedGroup > 0 and "|cffff9900(Group: " .. suggestedGroup .. ")|r " or ""
+                
+                print(string.format("%s|cffFFFFFF[%d] %s|r %s%s%s%s%s", 
+                    tracked,
+                    level or 0,
+                    questTitle,
+                    elite,
+                    group,
+                    daily,
+                    complete,
+                    questID and ("ID: " .. questID) or ""
+                ))
+            end
+        end
+        print(" ")
+        print("|cff00ff00Use /qtinfo to see this list again|r")
+    end)
     self:RegisterChatCommand("qtrestore", function()
         print("|cff00ff00[YATP]|r Restoring quest tracker...")
         -- Force refresh the watch frame
