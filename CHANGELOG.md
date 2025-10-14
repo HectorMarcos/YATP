@@ -7,6 +7,30 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.6.3] - 2025-10-15
+
+### Added
+
+- **QuestTracker**: Quest type indicators in level display for easy identification at a glance
+  - Elite/Group quests now show as `[30+]` instead of `[30]`
+  - Dungeon quests now show as `[30D]`
+  - Raid quests now show as `[30R]`
+  - Heroic quests now show as `[30H]`
+  - PvP quests now show as `[30PvP]`
+  - Automatically detects quest type from API (questTag and suggestedGroup fields)
+
+- **QuestTracker**: New debug command `/qtinfo` to display detailed quest log information
+  - Shows all quests with their level, tags, group size, daily status, and completion state
+  - Displays tracking status for each quest
+  - Useful for troubleshooting and understanding quest properties
+  - Color-coded output for better readability
+
+### Technical Improvements
+
+- **QuestTracker**: Created `GetQuestInfoFromTitle()` function to retrieve level, tag, and group info in one call
+- **QuestTracker**: Created `GetQuestTagSuffix()` function to generate appropriate type indicators
+- **QuestTracker**: Updated `GetQuestLevelFromTitle()` to handle new tag suffix formats in quest titles
+
 ## [0.6.2] - 2025-10-14
 
 ### Fixed
@@ -378,7 +402,8 @@ The following early commits were consolidated into this initial snapshot:
 - `8224f9a` debug clean (preparation for unified debug approach)
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
-[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/zavahcodes/YATP/releases/tag/v0.6.3
 [0.6.2]: https://github.com/zavahcodes/YATP/releases/tag/v0.6.2
 [0.6.1]: https://github.com/zavahcodes/YATP/releases/tag/v0.6.1
 [0.6.0]: https://github.com/zavahcodes/YATP/releases/tag/v0.6.0

@@ -833,12 +833,14 @@ function Module:ApplyQuestTitleEnhancements(watchLine, lineText, playerLevel)
     end
     
     -- Try to find quest info for this title
-    local questLevel = self:GetQuestLevelFromTitle(lineText)
+    local questLevel, questTag, suggestedGroup = self:GetQuestInfoFromTitle(lineText)
     
     if questLevel and playerLevel then
-        -- Add quest level if enabled
+        -- Add quest level with tag suffix if enabled
         if self.db.showQuestLevels then
-            finalText = "[" .. questLevel .. "] " .. finalText
+            local levelString = questLevel
+            local tagSuffix = self:GetQuestTagSuffix(questTag, suggestedGroup)
+            finalText = "[" .. levelString .. tagSuffix .. "] " .. finalText
         end
         
         -- Apply color coding if enabled
@@ -853,8 +855,9 @@ end
 
 -- Helper function to extract quest level from title by matching with quest log
 function Module:GetQuestLevelFromTitle(titleText)
-    -- Remove any existing level prefix like "[40] " to get clean title
-    local cleanTitle = titleText:gsub("^%[%d+%] ", "")
+    -- Remove any existing level prefix like "[40] " or "[40+] " to get clean title
+    local cleanTitle = titleText:gsub("^%[%d+[%+DRHP][PvP]*%] ", "")
+    cleanTitle = cleanTitle:gsub("^%[%d+%] ", "")
     
     -- Search through quest log to find matching title
     local numEntries = GetNumQuestLogEntries()
@@ -865,6 +868,58 @@ function Module:GetQuestLevelFromTitle(titleText)
         end
     end
     return nil
+end
+
+-- Helper function to get full quest info (level, tag, and group) from title
+function Module:GetQuestInfoFromTitle(titleText)
+    -- Remove any existing level prefix to get clean title
+    local cleanTitle = titleText:gsub("^%[%d+[%+DRHP][PvP]*%] ", "")
+    cleanTitle = cleanTitle:gsub("^%[%d+%] ", "")
+    
+    -- Search through quest log to find matching title
+    local numEntries = GetNumQuestLogEntries()
+    for i = 1, numEntries do
+        local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
+        if title and not isHeader and title == cleanTitle then
+            return level, questTag, suggestedGroup
+        end
+    end
+    return nil, nil, nil
+end
+
+-- Helper function to generate quest tag suffix for level display
+-- Returns string suffix like "+", "D", "R", "H", "PvP" based on quest type
+function Module:GetQuestTagSuffix(questTag, suggestedGroup)
+    if not questTag or questTag == "" then
+        -- Check if it's a group quest without explicit Elite/Group tag
+        if suggestedGroup and suggestedGroup > 0 then
+            return "+"
+        end
+        return ""
+    end
+    
+    -- Convert tag to lowercase for comparison
+    local tag = string.lower(questTag)
+    
+    -- Elite or Group quests
+    if tag == "elite" or tag == "group" then
+        return "+"
+    -- Dungeon quests
+    elseif tag == "dungeon" then
+        return "D"
+    -- Raid quests
+    elseif tag == "raid" then
+        return "R"
+    -- Heroic quests
+    elseif tag == "heroic" then
+        return "H"
+    -- PvP quests
+    elseif tag == "pvp" then
+        return "PvP"
+    end
+    
+    -- Unknown tag, return empty string
+    return ""
 end
 
 -- Helper function to get difficulty color based on level difference
@@ -947,6 +1002,41 @@ function Module:OnInitialize()
         print("  forceTrackAll: " .. tostring(self.db.forceTrackAll))
         print("  autoTrackByZone: " .. tostring(self.db.autoTrackByZone))
         print("  Watched quests: " .. GetNumQuestWatches())
+    end)
+    
+    self:RegisterChatCommand("qtinfo", function()
+        print("|cff00ff00[YATP]|r Quest Log Information:")
+        print(" ")
+        local numEntries = GetNumQuestLogEntries()
+        print("Total quest log entries: " .. numEntries)
+        print(" ")
+        
+        for i = 1, numEntries do
+            local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
+            
+            if isHeader then
+                print("|cffFFD700=== " .. (questTitle or "Unknown Category") .. " ===|r")
+            elseif questTitle then
+                local tracked = IsQuestWatched(i) and "|cff00ff00[TRACKED]|r " or ""
+                local complete = isComplete and "|cff00ff00(Complete)|r" or ""
+                local daily = isDaily and "|cff00ffffDaily|r " or ""
+                local elite = questTag and "|cffff6600[" .. questTag .. "]|r " or ""
+                local group = suggestedGroup and suggestedGroup > 0 and "|cffff9900(Group: " .. suggestedGroup .. ")|r " or ""
+                
+                print(string.format("%s|cffFFFFFF[%d] %s|r %s%s%s%s%s", 
+                    tracked,
+                    level or 0,
+                    questTitle,
+                    elite,
+                    group,
+                    daily,
+                    complete,
+                    questID and ("ID: " .. questID) or ""
+                ))
+            end
+        end
+        print(" ")
+        print("|cff00ff00Use /qtinfo to see this list again|r")
     end)
     self:RegisterChatCommand("qtrestore", function()
         print("|cff00ff00[YATP]|r Restoring quest tracker...")

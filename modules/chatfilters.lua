@@ -134,6 +134,12 @@ local function SystemMessageFilter(self, event, msg, ...)
 
     local stripped = StripColors(msg)
     local lowered = stripped:lower()
+    
+    -- Diagnostic trace
+    if diagnosticMode and (lowered:find("interface", 1, true) or lowered:find("error", 1, true)) then
+        table.insert(diagnosticMessages, {source = "SystemFilter(" .. event .. ")", msg = stripped})
+        if #diagnosticMessages > 100 then table.remove(diagnosticMessages, 1) end
+    end
 
     -- Interface action failed (all variants)
     if db.suppressInterfaceActionFailed then
@@ -214,13 +220,29 @@ end
 
 local function HookedAddMessage(frame, text, r, g, b, id, holdTime, ...)
     local db = Module.db
-    if not db or not db.enabled or not db.enableAddMessageHook then
-        if frame.__YATP_OrigAddMessage and frame.__YATP_OrigAddMessage ~= frame.AddMessage then
-            return frame.__YATP_OrigAddMessage(frame, text, r, g, b, id, holdTime, ...)
+    
+    -- Diagnostic trace (ALWAYS active)
+    if diagnosticMode and type(text) == "string" then
+        local lowered = text:lower()
+        if lowered:find("interface", 1, true) or lowered:find("error", 1, true) then
+            local frameName = frame:GetName() or "UnknownFrame"
+            table.insert(diagnosticMessages, {source = "ChatFrame." .. frameName, msg = text})
+            if #diagnosticMessages > 100 then table.remove(diagnosticMessages, 1) end
         end
-        return
     end
-    if db.suppressLoginWelcomeSpam and type(text) == "string" then
+    
+    -- Check if we should suppress
+    if db and db.enabled and type(text) == "string" then
+        local lowered = text:lower()
+        if db.suppressInterfaceActionFailed and lowered:find("interface action failed", 1, true) then
+            countInterfaceFailed = countInterfaceFailed + 1
+            ThrottledStatsRefresh()
+            return -- suppress
+        end
+    end
+    
+    -- Legacy login spam suppression
+    if db and db.enabled and db.enableAddMessageHook and db.suppressLoginWelcomeSpam and type(text) == "string" then
         local lowered = StripAndLower(text)
         if ShouldSuppressLoginLine(lowered) then
             if db.diagnosticLog and YATP and YATP.IsDebug and YATP:IsDebug() then
@@ -231,6 +253,8 @@ local function HookedAddMessage(frame, text, r, g, b, id, holdTime, ...)
             return -- swallow
         end
     end
+    
+    -- Call original
     if frame.__YATP_OrigAddMessage and frame.__YATP_OrigAddMessage ~= frame.AddMessage then
         return frame.__YATP_OrigAddMessage(frame, text, r, g, b, id, holdTime, ...)
     end
@@ -264,9 +288,8 @@ local function RequestHookLater()
             elapsed = elapsed + e
             if elapsed > 0.5 then
                 f:SetScript("OnUpdate", nil)
-                if Module.db and Module.db.enableAddMessageHook then
-                    HookChatFrames()
-                end
+                -- Always hook for diagnostics
+                HookChatFrames()
             end
         end)
         Module:UnregisterEvent("PLAYER_LOGIN")
@@ -287,6 +310,16 @@ end
 local orig_UIErrorsFrame_AddMessage
 local function HookedUIErrorsFrame_AddMessage(frame, text, r, g, b, id, holdTime)
     local db = Module.db
+    
+    -- Diagnostic trace
+    if diagnosticMode and type(text) == "string" then
+        local lowered = text:lower()
+        if lowered:find("interface", 1, true) or lowered:find("error", 1, true) then
+            table.insert(diagnosticMessages, {source = "UIErrorsFrame", msg = text})
+            if #diagnosticMessages > 100 then table.remove(diagnosticMessages, 1) end
+        end
+    end
+    
     if db and db.enabled and db.suppressInterfaceActionFailed and type(text) == "string" then
         local lowered = text:lower()
         if lowered:find("interface action failed", 1, true) then
@@ -401,7 +434,8 @@ function Module:OnEnable()
     ChatFrame_AddMessageEventFilter("CHAT_MSG_TEXT_EMOTE", SystemMessageFilter)
     ChatFrame_AddMessageEventFilter("SYSMSG", SystemMessageFilter)
     -- Legacy AddMessage hook left possible via SavedVariables flag (not exposed)
-    if self.db.enableAddMessageHook then
+    -- Always hook for diagnostic purposes (even if not actively filtering)
+    if self.db.enableAddMessageHook or true then  -- forced true for diagnostics
         if _G.ChatFrame1 then HookChatFrames() else RequestHookLater() end
     end
     self:SetupTimePlayedHook()
@@ -455,6 +489,10 @@ SlashCmdList["YATPIFHOOK"] = function()
     YATP:Debug("ChatFilters: fallback hook deshabilitado por riesgo de crash. No se activará.")
 end
 
+-- Diagnostic mode to trace ALL chat/error messages
+local diagnosticMode = true  -- Always enabled to capture real game messages
+local diagnosticMessages = {}
+
 -- Test command to inject "Interface action failed" messages for testing the filter
 SLASH_YATPTESTFILTER1 = "/yatptestfilter"
 SlashCmdList["YATPTESTFILTER"] = function(args)
@@ -466,9 +504,36 @@ SlashCmdList["YATPTESTFILTER"] = function(args)
         print("  |cffFFD700/yatptestfilter ui|r - Send via UIErrorsFrame")
         print("  |cffFFD700/yatptestfilter all|r - Test all methods")
         print("  |cffFFD700/yatptestfilter stats|r - Show suppression stats")
+        print("  |cffFFD700/yatptestfilter trace|r - Enable diagnostic trace mode")
+        print("  |cffFFD700/yatptestfilter dump|r - Show traced messages")
         print(" ")
         print("|cffFF6B6BNote:|r If messages appear, the filter is |cffFF0000NOT working|r.")
         print("If no messages appear, the filter is |cff00FF00WORKING|r!")
+        return
+    end
+    
+    if args == "trace" then
+        diagnosticMode = not diagnosticMode
+        if diagnosticMode then
+            print("|cff00ff00YATP: Diagnostic trace mode ENABLED|r")
+            print("All chat/error messages will be logged. Use '/yatptestfilter dump' to see them.")
+            wipe(diagnosticMessages)
+        else
+            print("|cffFF6B6BYATP: Diagnostic trace mode DISABLED|r")
+        end
+        return
+    end
+    
+    if args == "dump" then
+        print("|cff00ff00YATP: Traced Messages (last 50):|r")
+        if #diagnosticMessages == 0 then
+            print("|cffFF6B6BNo messages traced. Enable with '/yatptestfilter trace' first.|r")
+        else
+            for i = math.max(1, #diagnosticMessages - 49), #diagnosticMessages do
+                local entry = diagnosticMessages[i]
+                print(string.format("|cffFFD700[%d]|r %s: |cffFFFFFF%s|r", i, entry.source, entry.msg))
+            end
+        end
         return
     end
     
