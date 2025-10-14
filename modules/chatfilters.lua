@@ -455,6 +455,68 @@ SlashCmdList["YATPIFHOOK"] = function()
     YATP:Debug("ChatFilters: fallback hook deshabilitado por riesgo de crash. No se activará.")
 end
 
+-- Test command to inject "Interface action failed" messages for testing the filter
+SLASH_YATPTESTFILTER1 = "/yatptestfilter"
+SlashCmdList["YATPTESTFILTER"] = function(args)
+    args = args and args:lower() or ""
+    
+    if args == "" or args == "help" then
+        print("|cff00ff00YATP ChatFilter Test Commands:|r")
+        print("  |cffFFD700/yatptestfilter chat|r - Send via CHAT_MSG_SYSTEM event")
+        print("  |cffFFD700/yatptestfilter ui|r - Send via UIErrorsFrame")
+        print("  |cffFFD700/yatptestfilter all|r - Test all methods")
+        print("  |cffFFD700/yatptestfilter stats|r - Show suppression stats")
+        print(" ")
+        print("|cffFF6B6BNote:|r If messages appear, the filter is |cffFF0000NOT working|r.")
+        print("If no messages appear, the filter is |cff00FF00WORKING|r!")
+        return
+    end
+    
+    if args == "stats" then
+        print("|cff00ff00YATP ChatFilter Stats:|r")
+        print("  Interface action failed suppressed: |cffFFD700" .. countInterfaceFailed .. "|r")
+        print("  UI error occurred suppressed: |cffFFD700" .. countUIErrorOccurred .. "|r")
+        print("  Login spam suppressed: |cffFFD700" .. countLoginSpamSuppressed .. "|r")
+        return
+    end
+    
+    local testMessage = "Interface action failed because of an AddOn"
+    
+    if args == "chat" or args == "all" then
+        print("|cffFFD700[TEST]|r Sending via CHAT_MSG_SYSTEM...")
+        ChatFrame_MessageEventHandler(DEFAULT_CHAT_FRAME, "CHAT_MSG_SYSTEM", testMessage, "", "", "", "", "", "", "", "", 0)
+        if args == "chat" then
+            C_Timer.After(1, function()
+                print("|cff00ff00Check above - did you see the error message? If not, filter is working!|r")
+            end)
+        end
+    end
+    
+    if args == "ui" or args == "all" then
+        print("|cffFFD700[TEST]|r Sending via UIErrorsFrame...")
+        if UIErrorsFrame and UIErrorsFrame.AddMessage then
+            UIErrorsFrame:AddMessage(testMessage, 1.0, 0.1, 0.1, 1.0)
+        else
+            print("|cffFF0000ERROR:|r UIErrorsFrame not available")
+        end
+        if args == "ui" then
+            C_Timer.After(1, function()
+                print("|cff00ff00Check above - did you see the error message? If not, filter is working!|r")
+            end)
+        end
+    end
+    
+    if args == "all" then
+        C_Timer.After(2, function()
+            print("|cff00ff00Test complete! Check above for error messages.|r")
+            print("If you saw |cffFF0000red error messages|r, the filter is |cffFF0000NOT working|r.")
+            print("If you saw |cff00ff00NO error messages|r, the filter is |cff00FF00WORKING|r!")
+            print(" ")
+            print("Current suppression count: |cffFFD700" .. countInterfaceFailed .. "|r")
+        end)
+    end
+end
+
 --------------------------------------------------
 -- Loot Money Summary Support
 --------------------------------------------------
