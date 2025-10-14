@@ -190,6 +190,16 @@ function XPRepBar:CreateBar()
             self:SavePosition()
         end
     end)
+    -- Update all elements when the frame size changes
+    f:SetScript("OnSizeChanged", function()
+        if self and self.UpdateXP then
+            C_Timer.After(0, function()
+                if self and self.UpdateXP then
+                    self:UpdateXP()
+                end
+            end)
+        end
+    end)
 
         self.frame = f
     end
@@ -255,6 +265,16 @@ function XPRepBar:CreateBar()
             if not self.db.locked and self.frame then
                 self.frame:StopMovingOrSizing()
                 self:SavePosition()
+            end
+        end)
+        -- Update reputation display when size changes
+        r:SetScript("OnSizeChanged", function()
+            if self and self.UpdateReputation then
+                C_Timer.After(0, function()
+                    if self and self.UpdateReputation then
+                        self:UpdateReputation()
+                    end
+                end)
             end
         end)
 
@@ -341,10 +361,14 @@ function XPRepBar:ApplySettings()
     local tickR, tickG, tickB = 161/255, 145/255, 158/255
     for i,tick in ipairs(self.frame.ticks) do
         if db.showTicks then
-            local sectionWidth = db.width / 10
+            -- Calculate section width from actual bar width (accounting for padding)
+            local barWidth = self.frame.bar:GetWidth() or db.width
+            local sectionWidth = barWidth / 10
+            -- Clamp tick position to ensure it doesn't exceed bar bounds
+            local tickPos = math.min(sectionWidth * i, barWidth - 1)
             tick:ClearAllPoints()
-            tick:SetPoint("TOPLEFT", self.frame.bar, "TOPLEFT", sectionWidth * i, 0)
-            tick:SetPoint("BOTTOMLEFT", self.frame.bar, "BOTTOMLEFT", sectionWidth * i, 0)
+            tick:SetPoint("TOPLEFT", self.frame.bar, "TOPLEFT", tickPos, 0)
+            tick:SetPoint("BOTTOMLEFT", self.frame.bar, "BOTTOMLEFT", tickPos, 0)
             tick:SetColorTexture(tickR, tickG, tickB, 1)
             tick:Show()
         else
@@ -388,10 +412,14 @@ function XPRepBar:ApplySettings()
         local tickR, tickG, tickB = 161/255, 145/255, 158/255
         for i,tick in ipairs(self.repFrame.ticks) do
             if db.showTicks then
-                local sectionWidth = db.width / 10
+                -- Calculate section width from actual bar width (accounting for padding)
+                local repBarWidth = self.repFrame.bar:GetWidth() or db.width
+                local sectionWidth = repBarWidth / 10
+                -- Clamp tick position to ensure it doesn't exceed bar bounds
+                local tickPos = math.min(sectionWidth * i, repBarWidth - 1)
                 tick:ClearAllPoints()
-                tick:SetPoint("TOPLEFT", self.repFrame.bar, "TOPLEFT", sectionWidth * i, 0)
-                tick:SetPoint("BOTTOMLEFT", self.repFrame.bar, "BOTTOMLEFT", sectionWidth * i, 0)
+                tick:SetPoint("TOPLEFT", self.repFrame.bar, "TOPLEFT", tickPos, 0)
+                tick:SetPoint("BOTTOMLEFT", self.repFrame.bar, "BOTTOMLEFT", tickPos, 0)
                 tick:SetColorTexture(tickR, tickG, tickB, 1)
                 tick:Show()
             else
@@ -467,6 +495,16 @@ function XPRepBar:UpdateXP()
         C_Timer.After(0, function() if XPRepBar and XPRepBar.UpdateXP then XPRepBar:UpdateXP() end end)
         return
     end
+    
+    -- Calculate the effective width of the bar (accounting for any padding/borders)
+    local effectiveWidth = width
+    local barParent = bar:GetParent()
+    if barParent then
+        local parentWidth = barParent:GetWidth() or width
+        -- The bar has 2px padding on each side (from TOPLEFT/BOTTOMRIGHT offsets)
+        effectiveWidth = math.max(1, parentWidth - 4)
+    end
+    
     -- Rested overlay handling:
     -- Classic behavior: a lighter segment indicates bonus XP up to either
     -- (curr + rested) clamped to next level. Previous implementation never
@@ -476,16 +514,21 @@ function XPRepBar:UpdateXP()
         local remainingToLevel = max - curr
         if remainingToLevel < 0 then remainingToLevel = 0 end
         local shownRested = math.min(rested, remainingToLevel)
-        local restWidth = (shownRested / max) * width
+        -- Use effectiveWidth to ensure we stay within bounds
+        local restWidth = (shownRested / max) * effectiveWidth
         -- Guard against tiny floating point artifacts
         if restWidth < 0.25 then
             restWidth = 0 -- visually hide insignificant sliver
         end
         -- Position the rested overlay starting at current XP position
-        local startX = (curr / max) * width
-        if startX + restWidth > width then
-            restWidth = math.max(0, width - startX)
+        local startX = (curr / max) * effectiveWidth
+        -- Clamp to ensure we never exceed the bar width
+        startX = math.min(startX, effectiveWidth)
+        if startX + restWidth > effectiveWidth then
+            restWidth = math.max(0, effectiveWidth - startX)
         end
+        -- Final safety clamp
+        restWidth = math.min(restWidth, effectiveWidth - startX)
         rest:ClearAllPoints()
         rest:SetPoint("TOPLEFT", bar, "TOPLEFT", startX, 0)
         rest:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", startX, 0)
@@ -506,8 +549,12 @@ function XPRepBar:UpdateXP()
     -- Position spark at current XP
     local spark = self.frame.bar.spark
     if spark then
-        if self.db.showSpark and width and width > 0 then
-            local offset = (curr / max) * width
+        if self.db.showSpark and effectiveWidth and effectiveWidth > 0 then
+            -- Calculate spark position using effective width
+            local offset = (curr / max) * effectiveWidth
+            -- Clamp offset to ensure spark stays within bar bounds
+            offset = math.min(offset, effectiveWidth)
+            offset = math.max(offset, 0)
             spark:ClearAllPoints()
             spark:SetPoint("CENTER", self.frame.bar, "LEFT", offset, 0)
             spark:Show()
