@@ -120,8 +120,11 @@ function XPRepBar:CreateBar()
         f:SetPoint("CENTER", 0, -250)
 
     local bar = CreateFrame("StatusBar", nil, f)
-        bar:SetPoint("TOPLEFT", f, "TOPLEFT", 2, -2)
-        bar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
+        -- Use explicit size with insets instead of relative points to prevent overflow
+        local barWidth = math.max(10, self.db.width - 4) -- 2px padding each side
+        local barHeight = math.max(2, self.db.height - 4) -- 2px padding top/bottom
+        bar:SetSize(barWidth, barHeight)
+        bar:SetPoint("CENTER", f, "CENTER", 0, 0)
     -- create a unique texture instance for this statusbar to avoid shared texture color bleed
     local barTex = bar:CreateTexture(nil, "ARTWORK")
     barTex:SetAllPoints(bar)
@@ -129,11 +132,10 @@ function XPRepBar:CreateBar()
         f.bar = bar
 
         local rest = bar:CreateTexture(nil, "ARTWORK")
-        rest:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
-        rest:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0)
-        rest:SetWidth(0)
+        -- Start with no size/position - will be set dynamically in UpdateXP
         rest:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
         rest:SetVertexColor(0.35, 0.78, 1, 0.75)
+        rest:Hide() -- Hidden by default
         f.bar.rest = rest
 
     -- Spark indicator for current XP progress
@@ -213,8 +215,11 @@ function XPRepBar:CreateBar()
         r:SetPoint("BOTTOM", self.frame, "TOP", 0, 2)
 
     local bar = CreateFrame("StatusBar", nil, r)
-        bar:SetPoint("TOPLEFT", r, "TOPLEFT", 2, -2)
-        bar:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -2, 2)
+        -- Use explicit size with insets instead of relative points to prevent overflow
+        local barWidth = math.max(10, self.db.width - 4) -- 2px padding each side
+        local barHeight = math.max(2, self.db.height - 4) -- 2px padding top/bottom
+        bar:SetSize(barWidth, barHeight)
+        bar:SetPoint("CENTER", r, "CENTER", 0, 0)
     -- create a unique texture instance for the rep statusbar as well
     local repBarTex = bar:CreateTexture(nil, "ARTWORK")
     repBarTex:SetAllPoints(bar)
@@ -325,6 +330,13 @@ end
 function XPRepBar:ApplySettings()
     local db = self.db
     self.frame:SetSize(db.width, db.height)
+    
+    -- Update the StatusBar size to match with padding
+    if self.frame.bar then
+        local barWidth = math.max(10, db.width - 4)
+        local barHeight = math.max(2, db.height - 4)
+        self.frame.bar:SetSize(barWidth, barHeight)
+    end
 
     local texPath = (LSM and LSM:Fetch("statusbar", db.texture)) or "Interface\\TargetingFrame\\UI-StatusBar"
     -- Apply texture path to the unique texture instances created earlier (if present)
@@ -389,6 +401,14 @@ function XPRepBar:ApplySettings()
     -- Reputation sync
     if self.repFrame then
         self.repFrame:SetSize(db.width, db.height)
+        
+        -- Update the rep StatusBar size to match with padding
+        if self.repFrame.bar then
+            local barWidth = math.max(10, db.width - 4)
+            local barHeight = math.max(2, db.height - 4)
+            self.repFrame.bar:SetSize(barWidth, barHeight)
+        end
+        
         local repTex = (self.repFrame.bar and self.repFrame.bar:GetStatusBarTexture())
         if repTex and repTex.SetTexture then
             repTex:SetTexture(texPath)
@@ -496,47 +516,49 @@ function XPRepBar:UpdateXP()
         return
     end
     
-    -- Calculate the effective width of the bar (accounting for any padding/borders)
-    local effectiveWidth = width
-    local barParent = bar:GetParent()
-    if barParent then
-        local parentWidth = barParent:GetWidth() or width
-        -- The bar has 2px padding on each side (from TOPLEFT/BOTTOMRIGHT offsets)
-        effectiveWidth = math.max(1, parentWidth - 4)
-    end
+    -- Rested overlay handling using safer SetTexCoord approach
+    -- This ensures the texture never extends beyond the bar bounds
+    local barHeight = bar:GetHeight() or self.db.height or 15
     
-    -- Rested overlay handling:
-    -- Classic behavior: a lighter segment indicates bonus XP up to either
-    -- (curr + rested) clamped to next level. Previous implementation never
-    -- updated width, causing stale or misleading rested visuals.
-    rest:SetHeight(bar:GetHeight())
     if rested and rested > 0 then
         local remainingToLevel = max - curr
         if remainingToLevel < 0 then remainingToLevel = 0 end
         local shownRested = math.min(rested, remainingToLevel)
-        -- Use effectiveWidth to ensure we stay within bounds
-        local restWidth = (shownRested / max) * effectiveWidth
-        -- Guard against tiny floating point artifacts
-        if restWidth < 0.25 then
-            restWidth = 0 -- visually hide insignificant sliver
+        
+        -- Calculate percentages (0 to 1)
+        local currentPercent = curr / max
+        local restedPercent = shownRested / max
+        
+        -- Safety clamps
+        currentPercent = math.min(math.max(currentPercent, 0), 1)
+        restedPercent = math.max(restedPercent, 0)
+        
+        -- End point should not exceed 100%
+        local endPercent = math.min(currentPercent + restedPercent, 1)
+        local actualRestedPercent = endPercent - currentPercent
+        
+        -- Only show if rested is significant (> 0.1%)
+        if actualRestedPercent > 0.001 then
+            -- Calculate pixel positions based on percentage
+            local startX = currentPercent * width
+            local restWidth = actualRestedPercent * width
+            
+            -- Clamp to bar bounds (with 0.5px tolerance for rounding)
+            startX = math.max(0, math.min(startX, width - 0.5))
+            restWidth = math.max(0, math.min(restWidth, width - startX))
+            
+            -- Set size and position using safe methods
+            rest:ClearAllPoints()
+            rest:SetSize(restWidth, barHeight)
+            rest:SetPoint("LEFT", bar, "LEFT", startX, 0)
+            -- Reset texture coordinates to default
+            rest:SetTexCoord(0, 1, 0, 1)
+            rest:Show()
+        else
+            rest:Hide()
         end
-        -- Position the rested overlay starting at current XP position
-        local startX = (curr / max) * effectiveWidth
-        -- Clamp to ensure we never exceed the bar width
-        startX = math.min(startX, effectiveWidth)
-        if startX + restWidth > effectiveWidth then
-            restWidth = math.max(0, effectiveWidth - startX)
-        end
-        -- Final safety clamp
-        restWidth = math.min(restWidth, effectiveWidth - startX)
-        rest:ClearAllPoints()
-        rest:SetPoint("TOPLEFT", bar, "TOPLEFT", startX, 0)
-        rest:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", startX, 0)
-        rest:SetWidth(restWidth)
-        rest:Show()
     else
-        -- Explicitly collapse & hide when no rested bonus is present.
-        rest:SetWidth(0)
+        -- No rested XP
         rest:Hide()
     end
 
@@ -549,12 +571,14 @@ function XPRepBar:UpdateXP()
     -- Position spark at current XP
     local spark = self.frame.bar.spark
     if spark then
-        if self.db.showSpark and effectiveWidth and effectiveWidth > 0 then
-            -- Calculate spark position using effective width
-            local offset = (curr / max) * effectiveWidth
+        if self.db.showSpark and width and width > 0 then
+            -- Calculate spark position as percentage
+            local currentPercent = math.min(math.max(curr / max, 0), 1)
+            local offset = currentPercent * width
+            
             -- Clamp offset to ensure spark stays within bar bounds
-            offset = math.min(offset, effectiveWidth)
-            offset = math.max(offset, 0)
+            offset = math.min(math.max(offset, 0), width)
+            
             spark:ClearAllPoints()
             spark:SetPoint("CENTER", self.frame.bar, "LEFT", offset, 0)
             spark:Show()
