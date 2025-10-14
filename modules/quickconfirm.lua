@@ -83,21 +83,11 @@ end
 -- Event Registration (Event-Driven Method)
 -------------------------------------------------
 function Module:RegisterEvents()
-    print("[QuickConfirm] RegisterEvents() called")
-    print("[QuickConfirm] enabled:", self.db.enabled, "autoBopLoot:", self.db.autoBopLoot)
-    
-    if not self.db.enabled then 
-        print("[QuickConfirm] Module disabled, not registering events")
-        return 
-    end
+    if not self.db.enabled then return end
     
     -- Register BoP loot event if enabled
     if self.db.autoBopLoot then
-        print("[QuickConfirm] Registering LOOT_BIND_CONFIRM event")
         self:RegisterEvent("LOOT_BIND_CONFIRM")
-        print("[QuickConfirm] LOOT_BIND_CONFIRM registered successfully")
-    else
-        print("[QuickConfirm] autoBopLoot is disabled, not registering LOOT_BIND_CONFIRM")
     end
     
     -- Note: Transmog doesn't have a direct event we can use before the popup shows,
@@ -105,37 +95,20 @@ function Module:RegisterEvents()
 end
 
 -------------------------------------------------
--- Event Handlers (Leatrix Method + Manual Loot)
+-- Event Handlers (Ascension Method: Confirm + Manual Loot)
 -------------------------------------------------
 function Module:LOOT_BIND_CONFIRM(event, arg1, arg2, ...)
-    print("[QuickConfirm] ✓✓✓ LOOT_BIND_CONFIRM event fired!")
-    print("[QuickConfirm] arg1 (slot):", tostring(arg1), "arg2:", tostring(arg2))
+    if not self.db.enabled or not self.db.autoBopLoot then return end
     
-    if not self.db.enabled or not self.db.autoBopLoot then 
-        print("[QuickConfirm] Module or autoBopLoot disabled")
-        return 
-    end
-    
-    -- Exact Leatrix method
-    print("[QuickConfirm] Step 1: Calling ConfirmLootSlot(" .. tostring(arg1) .. ", " .. tostring(arg2) .. ")")
+    -- ConfirmLootSlot only confirms the dialog, doesn't actually loot in Ascension
     ConfirmLootSlot(arg1, arg2)
-    
-    print("[QuickConfirm] Step 2: Hiding LOOT_BIND popup")
     StaticPopup_Hide("LOOT_BIND", ...)
     
-    -- Try to loot the item manually after confirming
-    print("[QuickConfirm] Step 3: Attempting to loot slot " .. tostring(arg1))
+    -- Actually loot the item after confirming
+    -- Small delay to let the confirmation process
     C_Timer.After(0.01, function()
-        if LootSlot then
-            print("[QuickConfirm] Calling LootSlot(" .. tostring(arg1) .. ")")
-            LootSlot(arg1)
-            print("[QuickConfirm] ✓ LootSlot called")
-        else
-            print("[QuickConfirm] LootSlot function not found")
-        end
+        LootSlot(arg1)
     end)
-    
-    print("[QuickConfirm] ✓✓✓ BoP confirmation complete")
     
     if YATP.Debug then
         YATP:Debug("QuickConfirm", "Auto-confirmed BoP loot (slot: " .. tostring(arg1) .. ")")
