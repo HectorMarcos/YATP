@@ -484,7 +484,7 @@ SlashCmdList["YATPIFHOOK"] = function()
 end
 
 -- Diagnostic mode to trace ALL chat/error messages
-local diagnosticMode = false
+local diagnosticMode = true  -- Always enabled to capture real game messages
 local diagnosticMessages = {}
 
 -- Test command to inject "Interface action failed" messages for testing the filter
