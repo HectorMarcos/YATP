@@ -61,7 +61,6 @@ function Module:OnInitialize()
     for key, value in pairs(self.defaults) do
         if self.db[key] == nil then
             self.db[key] = value
-            print("[QuickConfirm] Applied missing default:", key, "=", tostring(value))
         end
     end
 
@@ -71,20 +70,9 @@ function Module:OnInitialize()
 end
 
 function Module:OnEnable()
-    print("[QuickConfirm] OnEnable() called")
-    if not self.db.enabled then 
-        print("[QuickConfirm] Module is disabled in settings")
-        return 
-    end
-    
-    print("[QuickConfirm] Config: autoTransmog=" .. tostring(self.db.autoTransmog) .. 
-          ", autoBopLoot=" .. tostring(self.db.autoBopLoot) ..
-          ", useFallbackMethod=" .. tostring(self.db.useFallbackMethod))
-    
+    if not self.db.enabled then return end
     self:RegisterEvents()
     self:InstallFallbackHook()
-    
-    print("[QuickConfirm] Module enabled successfully!")
 end
 
 function Module:OnDisable()
@@ -126,95 +114,48 @@ end
 -- Fallback Hook Method (for Transmog and safety)
 -------------------------------------------------
 function Module:InstallFallbackHook()
-    if self._fallbackHookInstalled then 
-        print("[QuickConfirm] Hook already installed")
-        return 
-    end
-    if not self.db.useFallbackMethod then 
-        print("[QuickConfirm] useFallbackMethod is disabled")
-        return 
-    end
-    
-    print("[QuickConfirm] Installing StaticPopup_Show hook...")
+    if self._fallbackHookInstalled then return end
+    if not self.db.useFallbackMethod then return end
     
     -- Hook StaticPopup_Show to catch transmog popups
     -- We use this for transmog because there's no pre-popup event we can use
     hooksecurefunc("StaticPopup_Show", function(which, ...)
-        print("[QuickConfirm] StaticPopup_Show fired - which:", tostring(which))
-        
-        if not self.db or not self.db.enabled then 
-            print("[QuickConfirm] Module disabled or no db")
-            return 
-        end
+        if not self.db or not self.db.enabled then return end
         
         -- Handle transmog confirmation
         if self.db.autoTransmog and which == "CONFIRM_COLLECT_APPEARANCE" then
-            print("[QuickConfirm] ✓ Transmog popup detected! Scheduling confirm in 0.05s")
             -- Use a small delay to ensure the popup is fully initialized
             C_Timer.After(0.05, function()
-                print("[QuickConfirm] Timer fired, calling ConfirmTransmogPopup()")
                 self:ConfirmTransmogPopup()
             end)
-        else
-            if not self.db.autoTransmog then
-                print("[QuickConfirm] autoTransmog is OFF")
-            end
         end
     end)
     
     self._fallbackHookInstalled = true
-    print("[QuickConfirm] Hook installed successfully!")
 end
 
 -------------------------------------------------
 -- Transmog Confirmation Helper
 -------------------------------------------------
 function Module:ConfirmTransmogPopup()
-    print("[QuickConfirm] ConfirmTransmogPopup() called - scanning popups...")
-    
     -- Find the CONFIRM_COLLECT_APPEARANCE popup
     for i = 1, STATICPOPUP_NUMDIALOGS do
         local frame = _G["StaticPopup" .. i]
-        if frame then
-            local isShown = frame:IsShown()
-            local which = frame.which
-            print(string.format("[QuickConfirm] StaticPopup%d: shown=%s, which=%s", 
-                i, tostring(isShown), tostring(which or "nil")))
-            
-            if isShown and which == "CONFIRM_COLLECT_APPEARANCE" then
-                print("[QuickConfirm] ✓ Found CONFIRM_COLLECT_APPEARANCE popup!")
+        if frame and frame:IsShown() and frame.which == "CONFIRM_COLLECT_APPEARANCE" then
+            local button = _G[frame:GetName() .. "Button1"]
+            if button and button:IsShown() and button:IsEnabled() then
+                button:Click()
                 
-                local button = _G[frame:GetName() .. "Button1"]
-                if button then
-                    local btnShown = button:IsShown()
-                    local btnEnabled = button:IsEnabled()
-                    print(string.format("[QuickConfirm] Button1: shown=%s, enabled=%s", 
-                        tostring(btnShown), tostring(btnEnabled)))
-                    
-                    if btnShown and btnEnabled then
-                        print("[QuickConfirm] ✓✓ Clicking button!")
-                        button:Click()
-                        
-                        -- Schedule AdiBags refresh after confirming transmog
-                        self:ScheduleAdiBagsRefresh()
-                        
-                        print("[QuickConfirm] ✓✓✓ Transmog confirmed!")
-                        
-                        if YATP.Debug then
-                            YATP:Debug("QuickConfirm", "Auto-confirmed transmog appearance")
-                        end
-                        return true
-                    else
-                        print("[QuickConfirm] ✗ Button not ready (shown or enabled = false)")
-                    end
-                else
-                    print("[QuickConfirm] ✗ Button1 not found")
+                -- Schedule AdiBags refresh after confirming transmog
+                self:ScheduleAdiBagsRefresh()
+                
+                if YATP.Debug then
+                    YATP:Debug("QuickConfirm", "Auto-confirmed transmog appearance")
                 end
+                return true
             end
         end
     end
-    
-    print("[QuickConfirm] ✗ No CONFIRM_COLLECT_APPEARANCE popup found")
     return false
 end
 
