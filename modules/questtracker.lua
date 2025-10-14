@@ -833,12 +833,14 @@ function Module:ApplyQuestTitleEnhancements(watchLine, lineText, playerLevel)
     end
     
     -- Try to find quest info for this title
-    local questLevel = self:GetQuestLevelFromTitle(lineText)
+    local questLevel, questTag, suggestedGroup = self:GetQuestInfoFromTitle(lineText)
     
     if questLevel and playerLevel then
-        -- Add quest level if enabled
+        -- Add quest level with tag suffix if enabled
         if self.db.showQuestLevels then
-            finalText = "[" .. questLevel .. "] " .. finalText
+            local levelString = questLevel
+            local tagSuffix = self:GetQuestTagSuffix(questTag, suggestedGroup)
+            finalText = "[" .. levelString .. tagSuffix .. "] " .. finalText
         end
         
         -- Apply color coding if enabled
@@ -853,8 +855,9 @@ end
 
 -- Helper function to extract quest level from title by matching with quest log
 function Module:GetQuestLevelFromTitle(titleText)
-    -- Remove any existing level prefix like "[40] " to get clean title
-    local cleanTitle = titleText:gsub("^%[%d+%] ", "")
+    -- Remove any existing level prefix like "[40] " or "[40+] " to get clean title
+    local cleanTitle = titleText:gsub("^%[%d+[%+DRHP][PvP]*%] ", "")
+    cleanTitle = cleanTitle:gsub("^%[%d+%] ", "")
     
     -- Search through quest log to find matching title
     local numEntries = GetNumQuestLogEntries()
@@ -865,6 +868,58 @@ function Module:GetQuestLevelFromTitle(titleText)
         end
     end
     return nil
+end
+
+-- Helper function to get full quest info (level, tag, and group) from title
+function Module:GetQuestInfoFromTitle(titleText)
+    -- Remove any existing level prefix to get clean title
+    local cleanTitle = titleText:gsub("^%[%d+[%+DRHP][PvP]*%] ", "")
+    cleanTitle = cleanTitle:gsub("^%[%d+%] ", "")
+    
+    -- Search through quest log to find matching title
+    local numEntries = GetNumQuestLogEntries()
+    for i = 1, numEntries do
+        local title, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete, isDaily, questID = GetQuestLogTitle(i)
+        if title and not isHeader and title == cleanTitle then
+            return level, questTag, suggestedGroup
+        end
+    end
+    return nil, nil, nil
+end
+
+-- Helper function to generate quest tag suffix for level display
+-- Returns string suffix like "+", "D", "R", "H", "PvP" based on quest type
+function Module:GetQuestTagSuffix(questTag, suggestedGroup)
+    if not questTag or questTag == "" then
+        -- Check if it's a group quest without explicit Elite/Group tag
+        if suggestedGroup and suggestedGroup > 0 then
+            return "+"
+        end
+        return ""
+    end
+    
+    -- Convert tag to lowercase for comparison
+    local tag = string.lower(questTag)
+    
+    -- Elite or Group quests
+    if tag == "elite" or tag == "group" then
+        return "+"
+    -- Dungeon quests
+    elseif tag == "dungeon" then
+        return "D"
+    -- Raid quests
+    elseif tag == "raid" then
+        return "R"
+    -- Heroic quests
+    elseif tag == "heroic" then
+        return "H"
+    -- PvP quests
+    elseif tag == "pvp" then
+        return "PvP"
+    end
+    
+    -- Unknown tag, return empty string
+    return ""
 end
 
 -- Helper function to get difficulty color based on level difference
