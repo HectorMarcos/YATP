@@ -7,6 +7,56 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.6.2] - 2025-10-14
+
+### Fixed
+
+- **XPRepBar**: Resolved overflow issue where the XP bar occasionally extended beyond its bounds to the right
+  - Changed StatusBar from relative positioning to explicit sizing with proper padding calculation (width-4, height-4)
+  - Rewrote rested XP overlay to use `SetSize()` + `LEFT` anchor instead of `SetPoint()` + `SetWidth()`
+  - Implemented percentage-based calculations with multiple safety clamps (0-1 range)
+  - Added spark positioning with strict boundary enforcement to prevent overflow
+  - Added `OnSizeChanged` handlers for dynamic updates when bar dimensions change
+  - Applied fixes to both XP and reputation bars for consistency
+
+- **ChatFilters**: Fixed "Interface action failed because of an AddOn" message still appearing despite filter being active
+  - Added `UIErrorsFrame.AddMessage` hook to catch messages that bypass chat events entirely
+  - Many error messages go directly to UIErrorsFrame instead of through the chat system
+  - Simplified interface action failed filter to use basic substring match for all variants
+  - Added additional event filters for `CHAT_MSG_TEXT_EMOTE` and `SYSMSG` as safety net
+  - Proper hook installation/removal in `OnEnable`/`OnDisable` with reference preservation
+
+### Added
+
+- **InfoBar**: Soul Shard counter for Warlocks with configurable low threshold warning
+  - Shows current soul shard count in the info bar
+  - Configurable threshold (1-10 shards) for low shard warning
+  - Red colorization when below threshold
+  - Searches bags for Soul Shard items by name (multilingual support)
+
+- **ChatFilters**: Test command `/yatptestfilter` for verifying filter functionality
+  - `/yatptestfilter help` - Show all available test commands
+  - `/yatptestfilter chat` - Test via CHAT_MSG_SYSTEM event
+  - `/yatptestfilter ui` - Test via UIErrorsFrame (most common path)
+  - `/yatptestfilter all` - Test all methods at once with summary
+  - `/yatptestfilter stats` - Show current suppression statistics
+  - Helpful for troubleshooting and confirming the filter is working correctly
+
+### Documentation
+
+- **QuickConfirm**: Added comprehensive Ascension implementation notes document (`QUICKCONFIRM_ASCENSION_NOTES.md`)
+  - Documents key differences between Retail WoW and Ascension WoW for BoP loot handling
+  - Explains why `ConfirmLootSlot()` only confirms but doesn't loot in Ascension (requires manual `LootSlot()` call)
+  - Includes testing results comparing different implementation approaches
+  - Provides troubleshooting guide with verification commands
+  - Documents performance metrics and technical implementation details
+
+### Technical Improvements
+
+- **XPRepBar**: All child elements now guaranteed to stay within parent StatusBar's explicit dimensions
+- **ChatFilters**: Comprehensive multi-path message filtering ensures no error messages slip through
+- **InfoBar**: Localization support for Soul Shards across English, Spanish, and French
+
 ## [0.6.1] - 2025-10-14
 
 ### Changed
@@ -328,7 +378,8 @@ The following early commits were consolidated into this initial snapshot:
 - `8224f9a` debug clean (preparation for unified debug approach)
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
-[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/zavahcodes/YATP/releases/tag/v0.6.2
 [0.6.1]: https://github.com/zavahcodes/YATP/releases/tag/v0.6.1
 [0.6.0]: https://github.com/zavahcodes/YATP/releases/tag/v0.6.0
 [0.5.0]: https://github.com/zavahcodes/YATP/releases/tag/v0.5.0
