@@ -221,7 +221,7 @@ end
 local function HookedAddMessage(frame, text, r, g, b, id, holdTime, ...)
     local db = Module.db
     
-    -- Diagnostic trace
+    -- Diagnostic trace (ALWAYS active)
     if diagnosticMode and type(text) == "string" then
         local lowered = text:lower()
         if lowered:find("interface", 1, true) or lowered:find("error", 1, true) then
@@ -231,13 +231,18 @@ local function HookedAddMessage(frame, text, r, g, b, id, holdTime, ...)
         end
     end
     
-    if not db or not db.enabled or not db.enableAddMessageHook then
-        if frame.__YATP_OrigAddMessage and frame.__YATP_OrigAddMessage ~= frame.AddMessage then
-            return frame.__YATP_OrigAddMessage(frame, text, r, g, b, id, holdTime, ...)
+    -- Check if we should suppress
+    if db and db.enabled and type(text) == "string" then
+        local lowered = text:lower()
+        if db.suppressInterfaceActionFailed and lowered:find("interface action failed", 1, true) then
+            countInterfaceFailed = countInterfaceFailed + 1
+            ThrottledStatsRefresh()
+            return -- suppress
         end
-        return
     end
-    if db.suppressLoginWelcomeSpam and type(text) == "string" then
+    
+    -- Legacy login spam suppression
+    if db and db.enabled and db.enableAddMessageHook and db.suppressLoginWelcomeSpam and type(text) == "string" then
         local lowered = StripAndLower(text)
         if ShouldSuppressLoginLine(lowered) then
             if db.diagnosticLog and YATP and YATP.IsDebug and YATP:IsDebug() then
@@ -248,6 +253,8 @@ local function HookedAddMessage(frame, text, r, g, b, id, holdTime, ...)
             return -- swallow
         end
     end
+    
+    -- Call original
     if frame.__YATP_OrigAddMessage and frame.__YATP_OrigAddMessage ~= frame.AddMessage then
         return frame.__YATP_OrigAddMessage(frame, text, r, g, b, id, holdTime, ...)
     end
@@ -281,9 +288,8 @@ local function RequestHookLater()
             elapsed = elapsed + e
             if elapsed > 0.5 then
                 f:SetScript("OnUpdate", nil)
-                if Module.db and Module.db.enableAddMessageHook then
-                    HookChatFrames()
-                end
+                -- Always hook for diagnostics
+                HookChatFrames()
             end
         end)
         Module:UnregisterEvent("PLAYER_LOGIN")
