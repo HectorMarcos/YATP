@@ -56,6 +56,14 @@ function Module:OnInitialize()
         YATP.db.profile.modules[ModuleName] = CopyTable(self.defaults)
     end
     self.db = YATP.db.profile.modules[ModuleName]
+    
+    -- Ensure new defaults are applied to existing configs
+    for key, value in pairs(self.defaults) do
+        if self.db[key] == nil then
+            self.db[key] = value
+            print("[QuickConfirm] Applied missing default:", key, "=", tostring(value))
+        end
+    end
 
     if YATP.AddModuleOptions then
         YATP:AddModuleOptions(ModuleName, self:BuildOptions(), "QualityOfLife")
