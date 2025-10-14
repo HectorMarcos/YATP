@@ -7,6 +7,32 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.6.1] - 2025-10-14
+
+### Changed
+
+- **QuickConfirm**: Complete refactoring to event-driven architecture for both transmog and BoP loot confirmations
+  - **Performance**: BoP loot now instant (~10ms vs 0-600ms), 0% CPU when idle (vs constant polling)
+  - **Code Quality**: 26% code reduction (267 → 198 lines) with cleaner, more maintainable structure
+  - **Architecture**: Direct event handlers (`LOOT_BIND_CONFIRM`) and StaticPopup hooks replace polling/retry system
+  - **Reliability**: Event-driven approach eliminates race conditions and missed popups
+  - **Ascension-Specific**: Custom implementation with `LootSlot()` call required after `ConfirmLootSlot()` due to client differences
+
+### Removed
+
+- **QuickConfirm**: Legacy polling system including scanner, retry scheduler, and complex pattern matching
+  - Removed `TRANSMOG_PATTERNS` and `BOP_LOOT_PATTERNS` constant tables (replaced by direct event/hook detection)
+  - Removed `EVENTS` reference table (replaced by direct AceEvent registration)
+  - Eliminated scheduler dependency for popup detection
+
+### Documentation
+
+- **QuickConfirm**: Added 4 comprehensive technical documents (895 lines total):
+  - `QUICKCONFIRM_REFACTOR.md` - Technical analysis and implementation details
+  - `QUICKCONFIRM_TESTING.md` - Complete testing procedures and scenarios
+  - `QUICKCONFIRM_COMPLETION.md` - Feature completion summary and metrics
+  - `QUICKCONFIRM_ASCENSION_NOTES.md` - Ascension-specific implementation notes
+
 ## [0.6.0] - 2025-10-13
 
 ### Added
@@ -302,7 +328,8 @@ The following early commits were consolidated into this initial snapshot:
 - `8224f9a` debug clean (preparation for unified debug approach)
 - `a9c80b7` lootrollinfo debugmode (forms the basis of changes now under [Unreleased])
 
-[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/zavahcodes/YATP/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/zavahcodes/YATP/releases/tag/v0.6.1
 [0.6.0]: https://github.com/zavahcodes/YATP/releases/tag/v0.6.0
 [0.5.0]: https://github.com/zavahcodes/YATP/releases/tag/v0.5.0
 [0.4.2]: https://github.com/zavahcodes/YATP/releases/tag/v0.4.2
