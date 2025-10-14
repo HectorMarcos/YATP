@@ -105,64 +105,48 @@ function Module:RegisterEvents()
 end
 
 -------------------------------------------------
--- Event Handlers (Hybrid Method - Event + Popup Click)
+-- Event Handlers (Hybrid: API + Button Click Fallback)
 -------------------------------------------------
-function Module:LOOT_BIND_CONFIRM(event, slot)
-    print("[QuickConfirm] ✓✓✓ LOOT_BIND_CONFIRM event fired! slot:", tostring(slot))
-    print("[QuickConfirm] enabled:", self.db.enabled, "autoBopLoot:", self.db.autoBopLoot)
+function Module:LOOT_BIND_CONFIRM(event, arg1, arg2, ...)
+    print("[QuickConfirm] ✓✓✓ LOOT_BIND_CONFIRM event fired!")
+    print("[QuickConfirm] arg1:", tostring(arg1), "arg2:", tostring(arg2))
     
     if not self.db.enabled or not self.db.autoBopLoot then 
         print("[QuickConfirm] Module or autoBopLoot disabled, not confirming")
         return 
     end
     
-    -- Method 1: Try Blizzard API
-    if ConfirmLootSlot then
-        print("[QuickConfirm] Method 1: Calling ConfirmLootSlot(" .. tostring(slot) .. ")")
-        ConfirmLootSlot(slot)
+    -- Check if ConfirmLootSlot exists and try it
+    if type(ConfirmLootSlot) == "function" then
+        print("[QuickConfirm] ConfirmLootSlot exists, calling it...")
+        ConfirmLootSlot(arg1, arg2)
+        StaticPopup_Hide("LOOT_BIND", ...)
+        print("[QuickConfirm] ConfirmLootSlot called")
     else
-        print("[QuickConfirm] ConfirmLootSlot function not found")
+        print("[QuickConfirm] ⚠ ConfirmLootSlot does NOT exist!")
     end
     
-    -- Method 2: Try clicking the popup button (more reliable in custom clients)
-    print("[QuickConfirm] Method 2: Searching for LOOT_BIND popup...")
-    local confirmed = false
-    for i = 1, STATICPOPUP_NUMDIALOGS do
-        local frame = _G["StaticPopup" .. i]
-        if frame and frame:IsShown() then
-            print(string.format("[QuickConfirm]   StaticPopup%d: which=%s", i, tostring(frame.which)))
-            
-            if frame.which == "LOOT_BIND" then
-                print("[QuickConfirm]   ✓ Found LOOT_BIND popup!")
+    -- Also try button click method as fallback
+    C_Timer.After(0.05, function()
+        print("[QuickConfirm] Fallback: Searching for LOOT_BIND popup...")
+        
+        for i = 1, STATICPOPUP_NUMDIALOGS do
+            local frame = _G["StaticPopup" .. i]
+            if frame and frame:IsShown() and frame.which == "LOOT_BIND" then
+                print("[QuickConfirm]   Found at StaticPopup" .. i)
+                
                 local button = _G[frame:GetName() .. "Button1"]
                 if button and button:IsShown() and button:IsEnabled() then
-                    print("[QuickConfirm]   ✓ Button found and clickable, clicking...")
+                    print("[QuickConfirm]   Clicking button...")
                     button:Click()
-                    confirmed = true
-                    print("[QuickConfirm]   ✓✓ Button clicked!")
-                else
-                    print("[QuickConfirm]   ✗ Button not ready:", 
-                          "exists=" .. tostring(button ~= nil),
-                          "shown=" .. tostring(button and button:IsShown()),
-                          "enabled=" .. tostring(button and button:IsEnabled()))
+                    print("[QuickConfirm]   ✓✓✓ Button clicked successfully!")
+                    return
                 end
-                break
             end
         end
-    end
-    
-    if confirmed then
-        print("[QuickConfirm] ✓✓✓ BoP loot confirmed via button click!")
-    else
-        print("[QuickConfirm] ⚠ Could not find LOOT_BIND popup to click")
-    end
-    
-    -- Always try to hide the popup
-    StaticPopup_Hide("LOOT_BIND")
-    
-    if YATP.Debug then
-        YATP:Debug("QuickConfirm", "Auto-confirmed BoP loot (slot: " .. tostring(slot) .. ")")
-    end
+        
+        print("[QuickConfirm]   No popup found (already confirmed?)")
+    end)
 end
 
 -------------------------------------------------
