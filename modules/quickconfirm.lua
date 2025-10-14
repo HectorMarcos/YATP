@@ -83,11 +83,21 @@ end
 -- Event Registration (Event-Driven Method)
 -------------------------------------------------
 function Module:RegisterEvents()
-    if not self.db.enabled then return end
+    print("[QuickConfirm] RegisterEvents() called")
+    print("[QuickConfirm] enabled:", self.db.enabled, "autoBopLoot:", self.db.autoBopLoot)
+    
+    if not self.db.enabled then 
+        print("[QuickConfirm] Module disabled, not registering events")
+        return 
+    end
     
     -- Register BoP loot event if enabled
     if self.db.autoBopLoot then
+        print("[QuickConfirm] Registering LOOT_BIND_CONFIRM event")
         self:RegisterEvent("LOOT_BIND_CONFIRM")
+        print("[QuickConfirm] LOOT_BIND_CONFIRM registered successfully")
+    else
+        print("[QuickConfirm] autoBopLoot is disabled, not registering LOOT_BIND_CONFIRM")
     end
     
     -- Note: Transmog doesn't have a direct event we can use before the popup shows,
@@ -98,12 +108,23 @@ end
 -- Event Handlers (Leatrix Method)
 -------------------------------------------------
 function Module:LOOT_BIND_CONFIRM(event, slot)
-    if not self.db.enabled or not self.db.autoBopLoot then return end
+    print("[QuickConfirm] ✓✓✓ LOOT_BIND_CONFIRM event fired! slot:", tostring(slot))
+    print("[QuickConfirm] enabled:", self.db.enabled, "autoBopLoot:", self.db.autoBopLoot)
+    
+    if not self.db.enabled or not self.db.autoBopLoot then 
+        print("[QuickConfirm] Module or autoBopLoot disabled, not confirming")
+        return 
+    end
     
     -- Use Blizzard's official API to confirm the loot
     -- This is instant and doesn't require clicking buttons
+    print("[QuickConfirm] Calling ConfirmLootSlot(" .. tostring(slot) .. ")")
     ConfirmLootSlot(slot)
+    
+    print("[QuickConfirm] Hiding LOOT_BIND popup")
     StaticPopup_Hide("LOOT_BIND")
+    
+    print("[QuickConfirm] ✓ BoP loot confirmed!")
     
     if YATP.Debug then
         YATP:Debug("QuickConfirm", "Auto-confirmed BoP loot (slot: " .. tostring(slot) .. ")")
@@ -283,4 +304,40 @@ end
 -------------------------------------------------
 function Module:OpenConfig()
     if YATP.OpenConfig then YATP:OpenConfig(ModuleName) end
+end
+
+-------------------------------------------------
+-- Debug command
+-------------------------------------------------
+function Module:DebugStatus()
+    print("============ QuickConfirm Debug Status ============")
+    print("Module enabled:", tostring(self.db.enabled))
+    print("autoTransmog:", tostring(self.db.autoTransmog))
+    print("autoBopLoot:", tostring(self.db.autoBopLoot))
+    print("useFallbackMethod:", tostring(self.db.useFallbackMethod))
+    print("Hook installed:", tostring(self._fallbackHookInstalled))
+    
+    print("\nRegistered Events:")
+    local hasEvents = false
+    if self.events then
+        for event in pairs(self.events) do
+            print("  -", event)
+            hasEvents = true
+        end
+    end
+    if not hasEvents then
+        print("  (none)")
+    end
+    print("===================================================")
+end
+
+-- Register slash command for debug
+SLASH_QUICKCONFIRMDEBUG1 = "/qcdebug"
+SlashCmdList["QUICKCONFIRMDEBUG"] = function()
+    local mod = YATP:GetModule("QuickConfirm", true)
+    if mod then
+        mod:DebugStatus()
+    else
+        print("[QuickConfirm] Module not found!")
+    end
 end
