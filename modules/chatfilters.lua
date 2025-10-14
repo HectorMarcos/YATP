@@ -38,6 +38,7 @@ Module.defaults = {
 
 -- Target strings (exact). Using English retail style text; adjust if server differs.
 local LINE_INTERFACE_ACTION_FAILED = "interface action failed"   -- lowered fragment; we will lowercase incoming
+local LINE_INTERFACE_ACTION_FAILED_ALT = "interface action failed because of an addon" -- complete message variant
 -- UI error line shows inconsistent formatting and a common misspelling 'occured'.
 -- We'll treat it as presence of 'ui' + 'error' + 'interface' + 'error' and final token 'occurred/occured'.
 local LINE_UI_ERROR_OCCURRED       = "ui error: an interface error occurred" -- canonical lowered fragment (kept for reference)
@@ -134,16 +135,12 @@ local function SystemMessageFilter(self, event, msg, ...)
     local stripped = StripColors(msg)
     local lowered = stripped:lower()
 
-    -- Interface action failed
+    -- Interface action failed (all variants)
     if db.suppressInterfaceActionFailed then
-        if db.useSubstringMatching then
-            if lowered:find(LINE_INTERFACE_ACTION_FAILED, 1, true) then
-                countInterfaceFailed = countInterfaceFailed + 1
-                ThrottledStatsRefresh(); return true
-            end
-        elseif lowered == LINE_INTERFACE_ACTION_FAILED then
+        -- Check for the core "interface action failed" phrase which appears in all variants
+        if lowered:find("interface action failed", 1, true) then
             countInterfaceFailed = countInterfaceFailed + 1
-            return true
+            ThrottledStatsRefresh(); return true
         end
     end
 
@@ -286,6 +283,50 @@ local function UnhookChatFrames()
     wipe(hookedFrames)
 end
 
+-- UIErrorsFrame hook to catch interface action failed messages that bypass chat events
+local orig_UIErrorsFrame_AddMessage
+local function HookedUIErrorsFrame_AddMessage(frame, text, r, g, b, id, holdTime)
+    local db = Module.db
+    if db and db.enabled and db.suppressInterfaceActionFailed and type(text) == "string" then
+        local lowered = text:lower()
+        if lowered:find("interface action failed", 1, true) then
+            countInterfaceFailed = countInterfaceFailed + 1
+            ThrottledStatsRefresh()
+            return -- suppress
+        end
+    end
+    
+    if db and db.enabled and db.suppressUIErrorOccurred and type(text) == "string" then
+        local lowered = text:lower()
+        if lowered:find("error", 1, true) and lowered:find("interface", 1, true) then
+            local hasOccurred = lowered:find("occurred", 1, true) or lowered:find("occured", 1, true)
+            if hasOccurred then
+                countUIErrorOccurred = countUIErrorOccurred + 1
+                ThrottledStatsRefresh()
+                return -- suppress
+            end
+        end
+    end
+    
+    if orig_UIErrorsFrame_AddMessage then
+        return orig_UIErrorsFrame_AddMessage(frame, text, r, g, b, id, holdTime)
+    end
+end
+
+local function InstallUIErrorsFrameHook()
+    if UIErrorsFrame and UIErrorsFrame.AddMessage and not orig_UIErrorsFrame_AddMessage then
+        orig_UIErrorsFrame_AddMessage = UIErrorsFrame.AddMessage
+        UIErrorsFrame.AddMessage = HookedUIErrorsFrame_AddMessage
+    end
+end
+
+local function RemoveUIErrorsFrameHook()
+    if UIErrorsFrame and orig_UIErrorsFrame_AddMessage then
+        UIErrorsFrame.AddMessage = orig_UIErrorsFrame_AddMessage
+        orig_UIErrorsFrame_AddMessage = nil
+    end
+end
+
 -- Targeted fallback hook for direct AddMessage prints of the interface action failed line.
 -- Some server builds (or other addons) may bypass CHAT_MSG_SYSTEM and call DEFAULT_CHAT_FRAME:AddMessage directly,
 -- which our event filter cannot intercept. We safely wrap ONLY ChatFrame1 (DEFAULT_CHAT_FRAME) instead of all frames
@@ -356,6 +397,9 @@ function Module:OnEnable()
         ChatFrame_AddMessageEventFilter("CHAT_MSG_CHANNEL", SystemMessageFilter)
         ChatFrame_AddMessageEventFilter("CHAT_MSG_SAY", SystemMessageFilter)
     end
+    -- Add filters for error-related events that might carry "interface action failed"
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_TEXT_EMOTE", SystemMessageFilter)
+    ChatFrame_AddMessageEventFilter("SYSMSG", SystemMessageFilter)
     -- Legacy AddMessage hook left possible via SavedVariables flag (not exposed)
     if self.db.enableAddMessageHook then
         if _G.ChatFrame1 then HookChatFrames() else RequestHookLater() end
@@ -368,6 +412,8 @@ function Module:OnEnable()
     end)
     -- Fallback hook now gated behind hidden flag; not auto-enabled to avoid potential crashes.
     InstallInterfaceFailedFallback()
+    -- Install UIErrorsFrame hook to catch messages that bypass chat events
+    InstallUIErrorsFrameHook()
 end
 
 function Module:OnDisable()
@@ -377,10 +423,14 @@ function Module:OnDisable()
         ChatFrame_RemoveMessageEventFilter("CHAT_MSG_CHANNEL", SystemMessageFilter)
         ChatFrame_RemoveMessageEventFilter("CHAT_MSG_SAY", SystemMessageFilter)
     end
+    -- Remove error-related event filters
+    ChatFrame_RemoveMessageEventFilter("CHAT_MSG_TEXT_EMOTE", SystemMessageFilter)
+    ChatFrame_RemoveMessageEventFilter("SYSMSG", SystemMessageFilter)
     -- (Summary timer removed)
     self:Debug("ChatFilters disabled")
     UnhookChatFrames()
     RemoveInterfaceFailedFallback()
+    RemoveUIErrorsFrameHook()
     -- Restore time played if hooked
     if orig_ChatFrame_DisplayTimePlayed and ChatFrame_DisplayTimePlayed == Module._proxyTimePlayed then
         ChatFrame_DisplayTimePlayed = orig_ChatFrame_DisplayTimePlayed
