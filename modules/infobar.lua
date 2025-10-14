@@ -33,6 +33,9 @@ Module.defaults = {
     showAmmo = true,
     lowAmmoThreshold = 500,
     colorizeAmmo = true,
+    showShards = true,
+    lowShardsThreshold = 3,
+    colorizeShards = true,
     updateInterval = 1,
 }
 
@@ -165,10 +168,35 @@ function Module:IsPlayerHunter()
     return playerClass == "HUNTER"
 end
 
+function Module:IsPlayerWarlock()
+    local _, playerClass = UnitClass("player")
+    return playerClass == "WARLOCK"
+end
+
 function Module:GetAmmoCount()
     if not self:IsPlayerHunter() then return 0 end
     local count = GetInventoryItemCount("player", 0) -- Ammo slot is slot 0
     return count or 0
+end
+
+function Module:GetShardCount()
+    if not self:IsPlayerWarlock() then return 0 end
+    local count = 0
+    -- Search for Soul Shards by name (more reliable across versions)
+    for bag = 0, 4 do
+        for slot = 1, GetContainerNumSlots(bag) do
+            local itemLink = GetContainerItemLink(bag, slot)
+            if itemLink then
+                local itemName = GetItemInfo(itemLink)
+                -- Check for "Soul Shard" in English or localized
+                if itemName and (itemName:find("Soul Shard") or itemName:find("Fragmento de alma") or itemName:find("Éclat d'âme")) then
+                    local _, itemCount = GetContainerItemInfo(bag, slot)
+                    count = count + (itemCount or 1)
+                end
+            end
+        end
+    end
+    return count
 end
 
 function Module:GetAverageDurability()
@@ -274,6 +302,14 @@ function Module:RefreshText()
             table.insert(parts, string.format("Ammo: %d", ammo))
         end
     end
+    if self.db.showShards and self:IsPlayerWarlock() then
+        local shards = self:GetShardCount()
+        if self.db.colorizeShards and shards <= self.db.lowShardsThreshold then
+            table.insert(parts, string.format("|cffff0000Shards: %d|r", shards))
+        else
+            table.insert(parts, string.format("Shards: %d", shards))
+        end
+    end
 
     local text = table.concat(parts, "  |  ")
     if text ~= self._lastText then
@@ -363,6 +399,9 @@ function Module:BuildOptions()
                     showAmmo = { type="toggle", name=L["Show Ammo (Hunter only)"] or "Show Ammo (Hunter only)", order=6, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
                     lowAmmoThreshold = { type="range", name=L["Low Ammo Threshold"] or "Low Ammo Threshold", min=10, max=1000, step=10, order=7, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
                     colorizeAmmo = { type="toggle", name=L["Color ammo below threshold"] or "Color ammo below threshold", order=8, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
+                    showShards = { type="toggle", name=L["Show Soul Shards (Warlock only)"] or "Show Soul Shards (Warlock only)", order=9, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
+                    lowShardsThreshold = { type="range", name=L["Low Shards Threshold"] or "Low Shards Threshold", min=1, max=10, step=1, order=10, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
+                    colorizeShards = { type="toggle", name=L["Color shards below threshold"] or "Color shards below threshold", order=11, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
                 }
             },
             appearance = {
@@ -407,7 +446,7 @@ end
 function Module:OnSettingChanged(key)
     if key == "font" or key == "fontSize" or key == "fontOutline" or key == "fontColor" or key == "background" or key == "locked" then
         self:ApplySettings()
-    elseif key == "showFPS" or key == "showPing" or key == "showDurability" or key == "lowDurThreshold" or key == "colorizeLowDurability" or key == "showAmmo" or key == "lowAmmoThreshold" or key == "colorizeAmmo" then
+    elseif key == "showFPS" or key == "showPing" or key == "showDurability" or key == "lowDurThreshold" or key == "colorizeLowDurability" or key == "showAmmo" or key == "lowAmmoThreshold" or key == "colorizeAmmo" or key == "showShards" or key == "lowShardsThreshold" or key == "colorizeShards" then
         self:RefreshText()
     elseif key == "updateInterval" then
         self:StartUpdater()
