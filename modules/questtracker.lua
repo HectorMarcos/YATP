@@ -167,8 +167,8 @@ Module.defaults = {
     lockPosition = true,
     
     -- Auto-tracking (simplified - only two options)
-    forceTrackAll = false,     -- Force tracking of all quests
-    autoTrackByZone = true,    -- Auto-track quests by current zone (default enabled)
+    forceTrackAll = true,      -- Force tracking of all quests (default enabled)
+    autoTrackByZone = false,   -- Auto-track quests by current zone
     
     -- Visual enhancements
     colorCodeByDifficulty = true,
@@ -1089,8 +1089,8 @@ function Module:OnEnable()
     
     -- Ensure at least one tracking mode is enabled
     if not self.db.forceTrackAll and not self.db.autoTrackByZone then
-        self.db.autoTrackByZone = true
-        -- Auto-enabled zone tracking by default silently
+        self.db.forceTrackAll = true
+        -- Auto-enabled track all by default silently
     end
     
     -- Apply all enhancements on enable to ensure settings are applied after reload
