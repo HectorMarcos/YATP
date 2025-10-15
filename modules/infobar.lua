@@ -21,10 +21,6 @@ Module.defaults = {
     fontColor = { r=1, g=1, b=1 },
     background = true,
     locked = true,
-    point = "TOP",
-    relPoint = "TOP",
-    posX = 0,
-    posY = -10,
     showFPS = true,
     showPing = true,
     showDurability = true,
@@ -39,19 +35,45 @@ Module.defaults = {
     updateInterval = 1,
 }
 
+-- Position defaults (per-character)
+Module.positionDefaults = {
+    point = "TOP",
+    relPoint = "TOP",
+    posX = 0,
+    posY = -10,
+}
+
 -------------------------------------------------
 -- Initialization
 -------------------------------------------------
 function Module:OnInitialize()
+    -- Initialize profile settings (shared across characters)
     if not YATP.db.profile.modules then YATP.db.profile.modules = {} end
     if not YATP.db.profile.modules.InfoBar then
         YATP.db.profile.modules.InfoBar = CopyTable(self.defaults)
     end
     self.db = YATP.db.profile.modules.InfoBar
 
-    -- Migration for older versions missing point/relPoint
-    if not self.db.point then self.db.point = self.defaults.point end
-    if not self.db.relPoint then self.db.relPoint = self.defaults.relPoint end
+    -- Initialize character-specific position settings
+    if not YATP.db.char then YATP.db.char = {} end
+    if not YATP.db.char.InfoBarPosition then
+        YATP.db.char.InfoBarPosition = CopyTable(self.positionDefaults)
+    end
+    self.posDB = YATP.db.char.InfoBarPosition
+
+    -- Migration for older versions that had position in profile
+    if self.db.point or self.db.posX or self.db.posY then
+        -- Migrate old position data to character-specific storage
+        self.posDB.point = self.db.point or self.posDB.point
+        self.posDB.relPoint = self.db.relPoint or self.posDB.relPoint
+        self.posDB.posX = self.db.posX or self.posDB.posX
+        self.posDB.posY = self.db.posY or self.posDB.posY
+        -- Clean up old data
+        self.db.point = nil
+        self.db.relPoint = nil
+        self.db.posX = nil
+        self.db.posY = nil
+    end
 
     self:RegisterChatCommand("infobar", function() self:OpenConfig() end)
 
@@ -85,7 +107,7 @@ function Module:CreateFrame()
 
     local f = CreateFrame("Frame", "YATP_InfoBarFrame", UIParent)
     f:SetSize(260, 18)
-    f:SetPoint(self.db.point or "TOP", UIParent, self.db.relPoint or (self.db.point or "TOP"), self.db.posX, self.db.posY)
+    f:SetPoint(self.posDB.point or "TOP", UIParent, self.posDB.relPoint or (self.posDB.point or "TOP"), self.posDB.posX, self.posDB.posY)
 
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints(f)
@@ -131,18 +153,18 @@ function Module:SavePosition()
         self.frame:SetPoint(p, UIParent, p, x, y)
         p, parent, rp, x, y = self.frame:GetPoint()
     end
-    self.db.point = p or self.db.point or "TOP"
-    self.db.relPoint = rp or self.db.relPoint or self.db.point
-    self.db.posX = x or 0
-    self.db.posY = y or 0
+    self.posDB.point = p or self.posDB.point or "TOP"
+    self.posDB.relPoint = rp or self.posDB.relPoint or self.posDB.point
+    self.posDB.posX = x or 0
+    self.posDB.posY = y or 0
 end
 
 function Module:ApplyPosition()
     if not self.frame then return end
-    local p  = self.db.point or "TOP"
-    local rp = self.db.relPoint or p
+    local p  = self.posDB.point or "TOP"
+    local rp = self.posDB.relPoint or p
     self.frame:ClearAllPoints()
-    self.frame:SetPoint(p, UIParent, rp, self.db.posX or 0, self.db.posY or 0)
+    self.frame:SetPoint(p, UIParent, rp, self.posDB.posX or 0, self.posDB.posY or 0)
 end
 
 -------------------------------------------------
@@ -396,12 +418,26 @@ function Module:BuildOptions()
                     showDurability = { type="toggle", name=L["Show Durability"] or "Show Durability", order=3, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
                     lowDurThreshold = { type="range", name=L["Low Durability Threshold"] or "Low Durability Threshold", min=5, max=75, step=1, order=4, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
                     colorizeLowDurability = { type="toggle", name=L["Only color durability below threshold"] or "Only color durability below threshold", order=5, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
-                    showAmmo = { type="toggle", name=L["Show Ammo (Hunter only)"] or "Show Ammo (Hunter only)", order=6, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
-                    lowAmmoThreshold = { type="range", name=L["Low Ammo Threshold"] or "Low Ammo Threshold", min=10, max=1000, step=10, order=7, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
-                    colorizeAmmo = { type="toggle", name=L["Color ammo below threshold"] or "Color ammo below threshold", order=8, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
-                    showShards = { type="toggle", name=L["Show Soul Shards (Warlock only)"] or "Show Soul Shards (Warlock only)", order=9, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
-                    lowShardsThreshold = { type="range", name=L["Low Shards Threshold"] or "Low Shards Threshold", min=1, max=10, step=1, order=10, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
-                    colorizeShards = { type="toggle", name=L["Color shards below threshold"] or "Color shards below threshold", order=11, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
+                }
+            },
+            hunterMetrics = {
+                type = "group", inline = true,
+                name = L["Hunter"] or "Hunter",
+                order = 11,
+                hidden = function() return not self:IsPlayerHunter() end,
+                args = {
+                    showAmmo = { type="toggle", name=L["Show Ammo"] or "Show Ammo", order=1, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
+                    lowAmmoThreshold = { type="range", name=L["Low Ammo Threshold"] or "Low Ammo Threshold", min=10, max=1000, step=10, order=2, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
+                }
+            },
+            warlockMetrics = {
+                type = "group", inline = true,
+                name = L["Warlock"] or "Warlock",
+                order = 12,
+                hidden = function() return not self:IsPlayerWarlock() end,
+                args = {
+                    showShards = { type="toggle", name=L["Show Soul Shards"] or "Show Soul Shards", order=1, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
+                    lowShardsThreshold = { type="range", name=L["Low Shards Threshold"] or "Low Shards Threshold", min=1, max=10, step=1, order=2, get=get, set=function(i,v) set(i,v); self:RefreshText() end },
                 }
             },
             appearance = {
@@ -424,17 +460,17 @@ function Module:BuildOptions()
                 order = 30,
                 args = {
                     posX = { type="range", name=L["Position X"] or "Position X", min=-2000, max=2000, step=1, bigStep=10, order=1,
-                        get=function() return self.db.posX end,
-                        set=function(_,v) self.db.posX = v; self:ApplyPosition() end },
+                        get=function() return self.posDB.posX end,
+                        set=function(_,v) self.posDB.posX = v; self:ApplyPosition() end },
                     posY = { type="range", name=L["Position Y"] or "Position Y", min=-2000, max=2000, step=1, bigStep=10, order=2,
-                        get=function() return self.db.posY end,
-                        set=function(_,v) self.db.posY = v; self:ApplyPosition() end },
+                        get=function() return self.posDB.posY end,
+                        set=function(_,v) self.posDB.posY = v; self:ApplyPosition() end },
                     resetPosition = { type="execute", name=L["Reset Position"] or "Reset Position", order=3,
                         func=function()
-                            self.db.point = self.defaults.point
-                            self.db.relPoint = self.defaults.relPoint
-                            self.db.posX = self.defaults.posX
-                            self.db.posY = self.defaults.posY
+                            self.posDB.point = self.positionDefaults.point
+                            self.posDB.relPoint = self.positionDefaults.relPoint
+                            self.posDB.posX = self.positionDefaults.posX
+                            self.posDB.posY = self.positionDefaults.posY
                             self:ApplyPosition()
                         end },
                 }

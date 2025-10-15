@@ -2,7 +2,7 @@
 ## Title: YATP
 ## Notes: Yet Another Tweaks Pack
 ## Author: Zavah
-## Version: 0.6.0
+## Version: 0.6.4
 ## SavedVariables: YATP_DB
 ## Notes-ESMX: Archivo duplicado raiz config.lua removido; usar core/config.lua
 

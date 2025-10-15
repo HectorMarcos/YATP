@@ -7,6 +7,43 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.6.4] - 2025-10-15
+
+### Added
+
+- **InfoBar**: Soul Shard counter for Warlocks with automatic low threshold colorization
+  - Displays current soul shard count for Warlock characters
+  - Automatically highlights in red when below configurable threshold (default: 3 shards)
+  - Multilingual support - searches for shards by name in English, Spanish, and French
+  - Threshold configurable from 1-10 shards
+
+### Changed
+
+- **InfoBar**: Position settings now saved per-character instead of per-profile
+  - Each character can have the info bar in a different position on screen
+  - General settings (appearance, metrics, thresholds) remain shared across profile
+  - Automatic migration of old position data to character-specific storage
+  - Improved user experience for players with multiple characters
+
+- **InfoBar**: Reorganized options panel for better class-specific organization
+  - Hunter and Warlock options now in separate inline groups
+  - Class-specific sections only visible to appropriate classes
+  - Cleaner interface with reduced visual clutter
+  - Automatic colorization enabled by default (options hidden from UI)
+
+### Improved
+
+- **InfoBar**: Enhanced Hunter ammo counter reliability
+  - Uses both item ID (6265) and name-based detection
+  - Better support for WoW 3.3.5 client variations
+
+### Technical Improvements
+
+- **InfoBar**: Split database structure into profile (shared) and char (per-character) sections
+- **InfoBar**: Added `positionDefaults` separate from general `defaults` for cleaner code organization
+- **InfoBar**: Implemented `IsPlayerWarlock()` function parallel to existing `IsPlayerHunter()`
+- **InfoBar**: Options panel uses dynamic `hidden` functions to show/hide class-specific sections
+
 ## [0.6.3] - 2025-10-15
 
 ### Added

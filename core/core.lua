@@ -23,6 +23,9 @@ _G.YATP = YATP
 local defaults = {
     profile = {
         modules = {},
+    },
+    char = {
+        -- Character-specific settings
     }
 }
 
