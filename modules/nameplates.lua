@@ -55,6 +55,15 @@ Module.defaults = {
         size = 2, -- Border thickness in pixels
     },
     
+    -- Target Arrows System
+    targetArrows = {
+        enabled = false,
+        size = 32, -- Arrow size in pixels
+        offsetX = 15, -- Horizontal distance from nameplate edges
+        offsetY = 0, -- Vertical offset from nameplate center
+        color = {1, 1, 1, 1}, -- White with full opacity (tints the texture)
+    },
+    
     -- Threat System
     threatSystem = {
         enabled = true,
@@ -119,6 +128,7 @@ function Module:OnEnable()
     end
     
     self:SetupTargetGlow()
+    self:SetupTargetArrows()
     self:SetupMouseoverGlow()
     self:DisableAllNameplateGlows()
     
@@ -144,6 +154,7 @@ end
 function Module:OnDisable()
     -- Clean up active functionality but keep module registered
     self:CleanupTargetGlow()
+    self:CleanupTargetArrows()
     self:CleanupThreatSystem()
     self:CleanupHealthTextPositioning()
     self:CleanupNonTargetAlpha()
@@ -369,6 +380,181 @@ function Module:UpdateAllTargetGlows()
     -- Re-add border to current target if enabled
     if self.db.profile.targetGlow.enabled and UnitExists("target") then
         self:OnTargetChanged()
+    end
+end
+
+-------------------------------------------------
+-- Target Arrows System
+-------------------------------------------------
+function Module:SetupTargetArrows()
+    if not self.db.profile.enabled then 
+        return 
+    end
+    
+    if not self.db.profile.targetArrows.enabled then
+        return
+    end
+    
+    -- Initialize target arrows data
+    self.targetArrowFrames = {}
+    self.currentTargetArrowFrame = nil
+    
+    -- Register events for target arrows (reuse target border events)
+    self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnTargetArrowChanged")
+    self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateArrowAdded") 
+    self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateArrowRemoved")
+    
+    -- Test current target if any
+    if UnitExists("target") then
+        self:OnTargetArrowChanged()
+    end
+end
+
+function Module:CleanupTargetArrows()
+    -- Remove all existing arrows
+    if self.targetArrowFrames then
+        for nameplate, arrowData in pairs(self.targetArrowFrames) do
+            self:RemoveTargetArrows(nameplate)
+        end
+        self.targetArrowFrames = {}
+    end
+    
+    self.currentTargetArrowFrame = nil
+    
+    -- Don't unregister events as they're shared with target border system
+end
+
+function Module:OnTargetArrowChanged()
+    if not self.db.profile.enabled or not self.db.profile.targetArrows.enabled then 
+        return 
+    end
+    
+    -- Remove arrows from previous target
+    if self.currentTargetArrowFrame then
+        self:RemoveTargetArrows(self.currentTargetArrowFrame)
+        self.currentTargetArrowFrame = nil
+    end
+    
+    -- Add arrows to new target
+    local targetUnit = "target"
+    if UnitExists(targetUnit) then
+        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+            if nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, targetUnit) then
+                self:AddTargetArrows(nameplate)
+                self.currentTargetArrowFrame = nameplate
+                break
+            end
+        end
+    end
+end
+
+function Module:OnNamePlateArrowAdded(unit, nameplate)
+    if not self.db.profile.enabled or not self.db.profile.targetArrows.enabled then 
+        return 
+    end
+    
+    -- Check if this nameplate is for our current target
+    if UnitExists("target") and nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, "target") then
+        self:AddTargetArrows(nameplate)
+        self.currentTargetArrowFrame = nameplate
+    end
+end
+
+function Module:OnNamePlateArrowRemoved(unit, nameplate)
+    -- Clean up arrows if this nameplate had them
+    if self.targetArrowFrames and self.targetArrowFrames[nameplate] then
+        self:RemoveTargetArrows(nameplate)
+        if self.currentTargetArrowFrame == nameplate then
+            self.currentTargetArrowFrame = nil
+        end
+    end
+end
+
+function Module:AddTargetArrows(nameplate)
+    if not nameplate or not nameplate.UnitFrame then 
+        return 
+    end
+    
+    -- Don't add arrows if already exists
+    if self.targetArrowFrames and self.targetArrowFrames[nameplate] then
+        return
+    end
+    
+    local healthBar = nameplate.UnitFrame.healthBar
+    if not healthBar then 
+        return 
+    end
+    
+    -- Get settings
+    local arrowSize = self.db.profile.targetArrows.size or 32
+    local offsetX = self.db.profile.targetArrows.offsetX or 15
+    local offsetY = self.db.profile.targetArrows.offsetY or 0
+    local color = self.db.profile.targetArrows.color or {1, 1, 1, 1}
+    
+    -- Create arrow container frame with high strata
+    local arrowFrame = CreateFrame("Frame", nil, nameplate)
+    arrowFrame:SetFrameStrata("HIGH") -- Above all nameplate elements
+    arrowFrame:SetFrameLevel(healthBar:GetFrameLevel() + 10) -- Well above level/elite icons
+    
+    -- Left arrow texture (pointing RIGHT toward nameplate)
+    local leftArrow = arrowFrame:CreateTexture(nil, "OVERLAY")
+    leftArrow:SetTexture("Interface\\AddOns\\YATP\\media\\arrow")
+    leftArrow:SetSize(arrowSize, arrowSize)
+    leftArrow:SetPoint("RIGHT", healthBar, "LEFT", -offsetX, offsetY)
+    leftArrow:SetVertexColor(color[1], color[2], color[3], color[4])
+    -- Normal orientation (pointing right toward nameplate)
+    leftArrow:SetTexCoord(0, 1, 0, 1)
+    
+    -- Right arrow texture (pointing LEFT toward nameplate)
+    local rightArrow = arrowFrame:CreateTexture(nil, "OVERLAY")
+    rightArrow:SetTexture("Interface\\AddOns\\YATP\\media\\arrow")
+    rightArrow:SetSize(arrowSize, arrowSize)
+    rightArrow:SetPoint("LEFT", healthBar, "RIGHT", offsetX, offsetY)
+    rightArrow:SetVertexColor(color[1], color[2], color[3], color[4])
+    -- Flip horizontally to point left toward nameplate
+    rightArrow:SetTexCoord(1, 0, 0, 1)
+    
+    -- Store arrow data
+    if not self.targetArrowFrames then
+        self.targetArrowFrames = {}
+    end
+    
+    self.targetArrowFrames[nameplate] = {
+        arrowFrame = arrowFrame,
+        arrows = {
+            left = leftArrow,
+            right = rightArrow
+        }
+    }
+end
+
+function Module:RemoveTargetArrows(nameplate)
+    if not self.targetArrowFrames or not self.targetArrowFrames[nameplate] then
+        return
+    end
+    
+    local arrowData = self.targetArrowFrames[nameplate]
+    
+    -- Remove arrow frame and all its textures
+    if arrowData.arrowFrame then
+        arrowData.arrowFrame:Hide()
+    end
+    
+    -- Remove from tracking
+    self.targetArrowFrames[nameplate] = nil
+end
+
+function Module:UpdateAllTargetArrows()
+    -- Remove all existing arrows
+    if self.targetArrowFrames then
+        for nameplate, arrowData in pairs(self.targetArrowFrames) do
+            self:RemoveTargetArrows(nameplate)
+        end
+    end
+    
+    -- Re-add arrows to current target if enabled
+    if self.db.profile.targetArrows.enabled and UnitExists("target") then
+        self:OnTargetArrowChanged()
     end
 end
 
@@ -640,6 +826,9 @@ function Module:OnThreatTargetChanged()
     
     -- IMPORTANT: Also call target border system since this event handler is the active one
     self:OnTargetChanged()
+    
+    -- IMPORTANT: Also call target arrows system
+    self:OnTargetArrowChanged()
     
     -- IMPORTANT: Also call alpha fade system for non-target nameplates
     self:OnAlphaFadeTargetChanged()
@@ -1318,7 +1507,6 @@ function Module:UpdateNameplateAlpha(nameplate, unit)
         end
         
         nameplate.UnitFrame.alphaHooksApplied = true
-        print(string.format("[YATP Alpha] Applied all alpha hooks on: %s", unitName))
     end
     
     -- Track this nameplate
@@ -1394,11 +1582,7 @@ function Module:AutoLoadAscensionNamePlates()
         -- Addon is enabled but not loaded - try to load it
         local loaded, reason = LoadAddOn("Ascension_NamePlates")
         
-        if loaded or IsAddOnLoaded("Ascension_NamePlates") then
-            YATP:Print("|cff00ff00[NamePlates]|r Auto-loaded Ascension_NamePlates")
-        else
-            -- Silent fail - don't spam if it doesn't work
-        end
+        -- Silent auto-load (no chat spam)
     end
 end
 
@@ -1523,6 +1707,7 @@ function Module:BuildStatusTab()
                     if value then
                         -- Re-enable functionality without calling AceAddon Enable
                         self:SetupTargetGlow()
+                        self:SetupTargetArrows()
                         self:SetupMouseoverGlow()
                         self:SetupThreatSystem()
                         self:DisableAllNameplateGlows()
@@ -1532,6 +1717,7 @@ function Module:BuildStatusTab()
                     else
                         -- Disable functionality without calling AceAddon Disable
                         self:CleanupTargetGlow()
+                        self:CleanupTargetArrows()
                         self:CleanupThreatSystem()
                         self:CleanupHealthTextPositioning()
                         self:CleanupNonTargetAlpha()
@@ -2028,15 +2214,91 @@ function Module:BuildEnemyTargetTab()
             order = 13,
         },
         
-        spacer3 = { type = "description", name = "\n", order = 25 },
+        spacer2 = { type = "description", name = "\n", order = 20 },
+        
+        -- Target Arrows System (YATP Custom Feature)
+        targetArrowsHeader = { type = "header", name = L["Target Arrows (YATP Custom)"] or "Target Arrows (YATP Custom)", order = 21 },
+        
+        targetArrowsEnabled = {
+            type = "toggle",
+            name = L["Enable Target Arrows"] or "Enable Target Arrows",
+            desc = L["Show arrow indicators on both sides of your current target's nameplate for better visibility"] or "Show arrow indicators on both sides of your current target's nameplate for better visibility",
+            get = function() return self.db.profile.targetArrows.enabled end,
+            set = function(_, value) 
+                self.db.profile.targetArrows.enabled = value
+                self:UpdateAllTargetArrows()
+            end,
+            order = 22,
+        },
+        
+        targetArrowsSize = {
+            type = "range",
+            name = L["Arrow Size"] or "Arrow Size",
+            desc = L["Size of the arrow indicators in pixels"] or "Size of the arrow indicators in pixels",
+            min = 16, max = 64, step = 2,
+            get = function() return self.db.profile.targetArrows.size or 32 end,
+            set = function(_, value) 
+                self.db.profile.targetArrows.size = value
+                self:UpdateAllTargetArrows()
+            end,
+            disabled = function() return not self.db.profile.targetArrows.enabled end,
+            order = 23,
+        },
+        
+        targetArrowsOffsetX = {
+            type = "range",
+            name = L["Horizontal Distance"] or "Horizontal Distance",
+            desc = L["Distance of arrows from the nameplate edges"] or "Distance of arrows from the nameplate edges",
+            min = 0, max = 50, step = 1,
+            get = function() return self.db.profile.targetArrows.offsetX or 15 end,
+            set = function(_, value) 
+                self.db.profile.targetArrows.offsetX = value
+                self:UpdateAllTargetArrows()
+            end,
+            disabled = function() return not self.db.profile.targetArrows.enabled end,
+            order = 24,
+        },
+        
+        targetArrowsOffsetY = {
+            type = "range",
+            name = L["Vertical Offset"] or "Vertical Offset",
+            desc = L["Vertical offset of arrows from nameplate center. Negative moves down, positive moves up."] or "Vertical offset of arrows from nameplate center. Negative moves down, positive moves up.",
+            min = -20, max = 20, step = 1,
+            get = function() return self.db.profile.targetArrows.offsetY or 0 end,
+            set = function(_, value) 
+                self.db.profile.targetArrows.offsetY = value
+                self:UpdateAllTargetArrows()
+            end,
+            disabled = function() return not self.db.profile.targetArrows.enabled end,
+            order = 25,
+        },
+        
+        targetArrowsColor = {
+            type = "color",
+            name = L["Arrow Color"] or "Arrow Color",
+            desc = L["Color tint applied to the arrow textures"] or "Color tint applied to the arrow textures",
+            hasAlpha = true,
+            get = function() 
+                local color = self.db.profile.targetArrows.color
+                return color[1], color[2], color[3], color[4]
+            end,
+            set = function(_, r, g, b, a) 
+                self.db.profile.targetArrows.color = {r, g, b, a}
+                self:UpdateAllTargetArrows()
+            end,
+            disabled = function() return not self.db.profile.targetArrows.enabled end,
+            order = 26,
+        },
+        
+        spacer3 = { type = "description", name = "\n", order = 30 },
         
         -- Non-Target Alpha Fade (YATP Custom Feature)
-        nonTargetAlphaHeader = { type = "header", name = L["Non-Target Alpha Fade (YATP Custom)"] or "Non-Target Alpha Fade (YATP Custom)", order = 26 },
+        nonTargetAlphaHeader = { type = "header", name = L["Non-Target Alpha Fade (YATP Custom)"] or "Non-Target Alpha Fade (YATP Custom)", order = 31 },
         
         nonTargetAlphaDesc = {
             type = "description",
             name = L["Fade out nameplates that are not your current target. This helps you focus on your target by dimming other enemy nameplates. Only active when you have a target selected - when no target exists, all nameplates remain at full opacity."] or "Fade out nameplates that are not your current target. This helps you focus on your target by dimming other enemy nameplates. Only active when you have a target selected - when no target exists, all nameplates remain at full opacity.",
-            order = 27,
+            order = 32,
         },
         
         nonTargetAlphaEnabled = {
@@ -2052,7 +2314,7 @@ function Module:BuildEnemyTargetTab()
                     self:CleanupNonTargetAlpha()
                 end
             end,
-            order = 28,
+            order = 33,
         },
         
         nonTargetAlphaValue = {
@@ -2066,7 +2328,7 @@ function Module:BuildEnemyTargetTab()
                 self:UpdateNonTargetAlphaSettings()
             end,
             disabled = function() return not self.db.profile.nonTargetAlpha.enabled end,
-            order = 29,
+            order = 34,
         },
         
         spacer4 = { type = "description", name = "\n", order = 35 },

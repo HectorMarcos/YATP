@@ -7,6 +7,89 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.7.0] - 2025-10-16
+
+### Added
+
+- **NamePlates**: Target Arrows System (YATP Custom Enhancement)
+  - Arrow indicators appear on both sides of your current target's nameplate for enhanced visibility
+  - Arrows point inward toward the nameplate center for intuitive target identification
+  - Fully configurable: size (16-64px), horizontal distance (0-50px), vertical offset (-20 to 20px)
+  - Color customization with alpha channel support for arrow tinting
+  - Uses custom arrow.tga texture with SetTexCoord for proper left/right orientation
+  - High frame strata ensures arrows display above level/elite/rare icons
+  - Integrated with threat system for seamless target change updates
+
+- **NamePlates**: Non-Target Alpha Fade System (YATP Custom Enhancement)
+  - Automatically reduces opacity of non-targeted enemy nameplates for improved target focus
+  - Only active when you have a target selected - all nameplates remain fully visible when no target exists
+  - Configurable alpha value (0.0 = fully transparent to 1.0 = fully opaque)
+  - Triple-hook protection system blocks external addons (including Ascension_NamePlates) from overriding alpha values
+  - SetAlpha() override intercepts any alpha change requests and enforces configured value
+  - SetPoint() hook re-applies alpha during nameplate repositioning
+  - Show() hook maintains alpha during visibility changes
+  - OnUpdate frame provides continuous enforcement running every frame as final safety net
+  - Eliminates alpha reset issues during camera movement and nameplate updates
+
+### Technical Improvements
+
+- **NamePlates**: Implemented comprehensive Target Arrows System with full event integration
+  - `SetupTargetArrows()` initializes frame tracking and registers PLAYER_TARGET_CHANGED event
+  - `AddTargetArrows()` creates left/right arrow textures with proper positioning and orientation
+  - `RemoveTargetArrows()` cleanup function with frame hiding and tracking removal
+  - `UpdateAllTargetArrows()` refreshes arrows when configuration changes
+  - `OnTargetArrowChanged()` event handler integrates with existing threat system chain
+  - Arrow textures positioned relative to healthBar with configurable offsets
+  - SetTexCoord used for horizontal flip: left arrow (0,1,0,1), right arrow (1,0,0,1)
+  - Frame level set to healthBar:GetFrameLevel() + 10 for proper z-ordering
+
+- **NamePlates**: Enhanced Non-Target Alpha Fade with multi-layer protection
+  - `SetupNonTargetAlpha()` creates OnUpdate frame running every frame for continuous enforcement
+  - `UpdateAllNameplateAlphas()` only applies alpha when target exists, restores full opacity otherwise
+  - `UpdateNameplateAlpha()` implements triple-hook system:
+    * SetAlpha() override blocks all external alpha changes (most effective protection)
+    * SetPoint() hook detects repositioning and re-applies alpha
+    * Show() hook maintains alpha during visibility changes
+  - `CleanupNonTargetAlpha()` properly removes all hooks and resets alpha on disable
+  - `alphaFadeUpdateFrame` with OnUpdate script for continuous alpha enforcement
+  - Hook tracking via `alphaHooksApplied` flag prevents duplicate hook application
+
+- **NamePlates**: UI Controls Integration
+  - Enemy Target tab now includes both Target Arrows and Non-Target Alpha sections
+  - All controls properly ordered with logical grouping (21-26 for arrows, 31-34 for alpha)
+  - Enable/disable toggles call appropriate setup/cleanup functions
+  - Slider controls call update functions on value change
+  - Color picker integrated with alpha channel support
+  - Controls automatically disabled when parent feature not enabled
+
+### Changed
+
+- **NamePlates**: Removed all debug print statements for silent operation
+  - Eliminated "[YATP Alpha] Applied all alpha hooks on: %s" spam
+  - Removed "Auto-loaded Ascension_NamePlates" confirmation message
+  - Module now operates completely silently without chat spam
+
+### Localization
+
+- **NamePlates**: Added complete English localization for Target Arrows System
+  - "Target Arrows (YATP Custom)" section header
+  - "Enable Target Arrows" toggle with descriptive tooltip
+  - "Arrow Size" slider description
+  - "Horizontal Distance" slider for edge offset configuration
+  - "Vertical Offset" slider with negative/positive direction explanation
+  - "Arrow Color" picker with tint description
+
+- **NamePlates**: Complete English localization already present for Non-Target Alpha System
+  - "Non-Target Alpha Fade (YATP Custom)" section header
+  - "Enable Non-Target Alpha Fade" toggle with target-only behavior explanation
+  - "Non-Target Alpha" slider with transparency level description (0.0-1.0 range)
+
+### Documentation
+
+- **NamePlates**: Target Arrows implementation uses arrow.tga texture from media folder
+- **NamePlates**: Non-Target Alpha system successfully blocks interference from Ascension_NamePlates addon
+- **NamePlates**: Both features integrated into feature/nameplates-enhancements branch for testing
+
 ## [0.6.5] - 2025-10-16
 
 ### Added

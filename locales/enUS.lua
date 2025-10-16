@@ -463,6 +463,19 @@ L["Vertical offset from center. Negative values move down, positive values move 
 L["Reset to Default"] = true
 L["Reset health text position to default values (X: 0, Y: 1)"] = true
 
+-- Target Arrows System
+L["Target Arrows (YATP Custom)"] = true
+L["Enable Target Arrows"] = true
+L["Show arrow indicators on both sides of your current target's nameplate for better visibility"] = true
+L["Arrow Size"] = true
+L["Size of the arrow indicators in pixels"] = true
+L["Horizontal Distance"] = true
+L["Distance of arrows from the nameplate edges"] = true
+L["Vertical Offset"] = true
+L["Vertical offset of arrows from nameplate center. Negative moves down, positive moves up."] = true
+L["Arrow Color"] = true
+L["Color tint applied to the arrow textures"] = true
+
 -- Non-Target Alpha Fade System
 L["Non-Target Alpha Fade (YATP Custom)"] = true
 L["Fade out nameplates that are not your current target. This helps you focus on your target by dimming other enemy nameplates. Only active when you have a target selected - when no target exists, all nameplates remain at full opacity."] = true
