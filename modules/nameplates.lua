@@ -655,6 +655,43 @@ function Module:HookMouseoverOnNameplate(nameplate)
             if unit then
                 local unitName = UnitName(unit) or "Unknown"
                 print(string.format("[YATP NamePlates] Frame OnLeave: %s", unitName))
+                
+                -- Show state after leaving
+                if Module.mouseoverDebugEnabled then
+                    Module:DebugNameplateState(nameplate)
+                end
+            end
+        end)
+    end
+    
+    -- Hook healthBar.border Show/Hide if it exists
+    if nameplate.UnitFrame.healthBar and nameplate.UnitFrame.healthBar.border then
+        local border = nameplate.UnitFrame.healthBar.border
+        
+        -- Hook Show
+        hooksecurefunc(border, "Show", function()
+            if Module.mouseoverDebugEnabled then
+                local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
+                local unitName = unit and UnitName(unit) or "Unknown"
+                print(string.format("[YATP NamePlates] Border SHOW called for: %s", unitName))
+            end
+        end)
+        
+        -- Hook Hide
+        hooksecurefunc(border, "Hide", function()
+            if Module.mouseoverDebugEnabled then
+                local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
+                local unitName = unit and UnitName(unit) or "Unknown"
+                print(string.format("[YATP NamePlates] Border HIDE called for: %s", unitName))
+            end
+        end)
+        
+        -- Hook SetAlpha
+        hooksecurefunc(border, "SetAlpha", function(self, alpha)
+            if Module.mouseoverDebugEnabled then
+                local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
+                local unitName = unit and UnitName(unit) or "Unknown"
+                print(string.format("[YATP NamePlates] Border SetAlpha(%.2f) called for: %s", alpha, unitName))
             end
         end)
     end
@@ -678,7 +715,9 @@ function Module:DebugNameplateState(nameplate)
     if unitFrame.selectionHighlight then
         local isShown = unitFrame.selectionHighlight:IsShown()
         local alpha = unitFrame.selectionHighlight:GetAlpha()
-        print(string.format("  selectionHighlight: Shown=%s, Alpha=%.2f", tostring(isShown), alpha))
+        local r, g, b, a = unitFrame.selectionHighlight:GetVertexColor()
+        print(string.format("  selectionHighlight: Shown=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f)", 
+            tostring(isShown), alpha, r, g, b, a))
     else
         print("  selectionHighlight: NOT FOUND")
     end
@@ -697,14 +736,52 @@ function Module:DebugNameplateState(nameplate)
         local r, g, b, a = unitFrame.healthBar:GetStatusBarColor()
         print(string.format("  healthBar color: R=%.2f, G=%.2f, B=%.2f, A=%.2f", r, g, b, a))
         
-        -- Check for border
+        -- Check for border and its properties
         if unitFrame.healthBar.border then
             local borderShown = unitFrame.healthBar.border:IsShown()
             local borderAlpha = unitFrame.healthBar.border:GetAlpha()
-            print(string.format("  healthBar.border: Shown=%s, Alpha=%.2f", tostring(borderShown), borderAlpha))
+            local br, bg, bb, ba = 0, 0, 0, 0
+            if unitFrame.healthBar.border.GetVertexColor then
+                br, bg, bb, ba = unitFrame.healthBar.border:GetVertexColor()
+            end
+            print(string.format("  healthBar.border: Shown=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f)", 
+                tostring(borderShown), borderAlpha, br, bg, bb, ba))
+            
+            -- Check if border has a texture
+            if unitFrame.healthBar.border.Texture then
+                local texturePath = unitFrame.healthBar.border.Texture:GetTexture()
+                print(string.format("  healthBar.border.Texture: %s", tostring(texturePath or "None")))
+            end
+        else
+            print("  healthBar.border: NOT FOUND")
+        end
+        
+        -- Check for any glow textures
+        if unitFrame.healthBar.glow then
+            local glowShown = unitFrame.healthBar.glow:IsShown()
+            local glowAlpha = unitFrame.healthBar.glow:GetAlpha()
+            print(string.format("  healthBar.glow: Shown=%s, Alpha=%.2f", tostring(glowShown), glowAlpha))
         end
     else
         print("  healthBar: NOT FOUND")
+    end
+    
+    -- Check all regions of healthBar for unexpected textures
+    if unitFrame.healthBar then
+        print("  healthBar regions scan:")
+        local regions = {unitFrame.healthBar:GetRegions()}
+        for i, region in ipairs(regions) do
+            if region:GetObjectType() == "Texture" then
+                local name = region:GetName() or "Anonymous"
+                local texture = region:GetTexture()
+                local shown = region:IsShown()
+                local alpha = region:GetAlpha()
+                if shown and alpha > 0 then
+                    print(string.format("    Texture[%d]: %s, Texture=%s, Alpha=%.2f", 
+                        i, name, tostring(texture or "None"), alpha))
+                end
+            end
+        end
     end
     
     -- Check frame level and strata
