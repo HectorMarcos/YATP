@@ -7,6 +7,73 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.6.5] - 2025-10-16
+
+### Added
+
+- **NamePlates**: Auto-Load on Startup feature to automatically load Ascension_NamePlates on every UI reload
+  - New toggle in Status tab: "Auto-Load on Startup" (enabled by default)
+  - Automatically calls `LoadAddOn("Ascension_NamePlates")` on module initialization
+  - Solves the LoadOnDemand issue without requiring file modifications
+  - Shows confirmation message: "[NamePlates] Auto-loaded Ascension_NamePlates"
+  - Works seamlessly with Ascension's LoadOnDemand addon architecture
+
+- **NamePlates**: Comprehensive documentation suite for LoadOnDemand troubleshooting
+  - `REACTIVAR_ASCENSION_NAMEPLATES.txt` - Complete reactivation guide in Spanish
+  - `SOLUCION_DEFINITIVA_NamePlates.txt` - Definitive solution guide with all methods
+  - `README_LoadOnDemand_Fix.md` - Technical explanation of the LoadOnDemand issue
+  - `Fix_Ascension_NamePlates_LoadOnDemand.ps1` - Automated PowerShell script for .toc modification
+
+- **NamePlates**: "Check for Conflicts" diagnostic tool
+  - Scans for conflicting nameplate addons (Plater, TidyPlates, Kui_Nameplates, etc.)
+  - Shows which addons are loaded, enabled, or disabled
+  - Provides exact commands to disable conflicting addons
+  - Moved to new "Diagnostics" section for better organization
+
+### Changed
+
+- **NamePlates**: Simplified and streamlined Status tab interface
+  - "Enable & Force Load" renamed to "Load NamePlates Now" (clearer action name)
+  - Removed "Load NamePlates Addon" button (redundant with main load button)
+  - Removed "Fix LoadOnDemand Issue" button (Auto-Load solves this elegantly)
+  - Reorganized actions into logical sections: Actions, Diagnostics, Information
+  - Reduced button count from 5 to 3 for cleaner, less cluttered interface
+
+- **NamePlates**: Improved Status tab help text and troubleshooting guide
+  - Added "Quick Setup Guide" with 3-step process
+  - Updated troubleshooting section with clearer, more actionable advice
+  - Emphasized Auto-Load as the recommended solution
+  - Better visual hierarchy with section headers
+
+### Fixed
+
+- **NamePlates**: Resolved persistent issue where Ascension_NamePlates would unload after every `/reload`
+  - Root cause: Addon has `LoadOnDemand: 1` in .toc, preventing automatic loading
+  - Solution: Auto-Load system forces loading on every UI initialization
+  - Eliminates need for manual LoadAddOn() commands after each reload
+  - Users no longer need to modify game files or use external scripts
+
+### Technical Improvements
+
+- **NamePlates**: Implemented `AutoLoadAscensionNamePlates()` function with smart detection
+  - Checks if addon is enabled but not loaded before attempting load
+  - Respects user preference if Auto-Load is disabled
+  - Silent operation - only shows message on successful load
+  - Integrated into `OnEnable()` for automatic execution on module startup
+
+- **NamePlates**: Enhanced module defaults with Auto-Load configuration
+  - New `autoLoadNamePlates` setting (default: true)
+  - Allows users to disable Auto-Load if they prefer manual control
+  - Persists across sessions and UI reloads
+
+### Documentation
+
+- **NamePlates**: Created comprehensive troubleshooting and solution documentation
+  - Explains LoadOnDemand behavior and why it causes issues
+  - Compares three solution approaches: Auto-Load, .toc modification, manual commands
+  - Includes step-by-step guides for all user skill levels
+  - Provides FAQ section with common questions and answers
+
 ## [0.6.4] - 2025-10-15
 
 ### Added

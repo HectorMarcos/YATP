@@ -17,6 +17,7 @@ local Module = YATP:NewModule("NamePlates", "AceEvent-3.0", "AceConsole-3.0")
 -------------------------------------------------
 Module.defaults = {
     enabled = true,
+    autoLoadNamePlates = true, -- Auto-load Ascension_NamePlates on startup/reload if it's enabled
     autoOpenNameplatesConfig = false, -- Si abrir automáticamente la config de nameplates
     
     -- Global Health Bar Texture Override
@@ -79,6 +80,9 @@ end
 -- OnEnable
 -------------------------------------------------
 function Module:OnEnable()
+    -- AUTO-LOAD: Try to load Ascension_NamePlates if it's enabled but not loaded
+    self:AutoLoadAscensionNamePlates()
+    
     -- Register for addon loading events to detect when Ascension NamePlates loads
     self:RegisterEvent("ADDON_LOADED", "OnAddonLoaded")
     
@@ -1123,6 +1127,31 @@ function Module:OpenNamePlatesConfig()
 end
 
 -------------------------------------------------
+-- Auto-Load Ascension NamePlates on startup/reload
+-------------------------------------------------
+function Module:AutoLoadAscensionNamePlates()
+    -- Check if auto-load is disabled in settings
+    if self.db and self.db.profile and self.db.profile.autoLoadNamePlates == false then
+        return
+    end
+    
+    -- Check if addon exists and is enabled but not loaded
+    local name, title, notes, loadable = GetAddOnInfo("Ascension_NamePlates")
+    local isLoaded = IsAddOnLoaded("Ascension_NamePlates")
+    
+    if name and loadable and not isLoaded then
+        -- Addon is enabled but not loaded - try to load it
+        local loaded, reason = LoadAddOn("Ascension_NamePlates")
+        
+        if loaded or IsAddOnLoaded("Ascension_NamePlates") then
+            YATP:Print("|cff00ff00[NamePlates]|r Auto-loaded Ascension_NamePlates")
+        else
+            -- Silent fail - don't spam if it doesn't work
+        end
+    end
+end
+
+-------------------------------------------------
 -- Load/Enable Ascension NamePlates if possible
 -------------------------------------------------
 function Module:LoadNamePlatesAddon()
@@ -1265,6 +1294,24 @@ function Module:BuildStatusTab()
             order = 1,
         },
         
+        autoLoad = {
+            type = "toggle",
+            name = L["Auto-Load on Startup"] or "Auto-Load on Startup",
+            desc = L["Automatically load Ascension_NamePlates addon on every UI reload (recommended if you fixed LoadOnDemand issue)"] or "Automatically load Ascension_NamePlates addon on every UI reload (recommended if you fixed LoadOnDemand issue)",
+            get = function() return self.db and self.db.profile and self.db.profile.autoLoadNamePlates end,
+            set = function(_, value)
+                if self.db and self.db.profile then
+                    self.db.profile.autoLoadNamePlates = value
+                    if value then
+                        YATP:Print("|cff00ff00[NamePlates]|r Auto-load enabled. Ascension_NamePlates will load automatically on every UI reload.")
+                    else
+                        YATP:Print("|cffffff00[NamePlates]|r Auto-load disabled. You'll need to load the addon manually.")
+                    end
+                end
+            end,
+            order = 2,
+        },
+        
         spacer1 = { type = "description", name = "\n", order = 5 },
         
         -- Status section
@@ -1302,39 +1349,122 @@ function Module:BuildStatusTab()
         -- Actions section
         actionsHeader = { type = "header", name = L["Actions"] or "Actions", order = 20 },
         
-        loadAddon = {
+        enableAddon = {
             type = "execute",
-            name = L["Load NamePlates Addon"] or "Load NamePlates Addon",
-            desc = L["Attempt to load the Ascension NamePlates addon"] or "Attempt to load the Ascension NamePlates addon",
+            name = L["Load NamePlates Now"] or "Load NamePlates Now",
+            desc = L["Force load Ascension NamePlates immediately. Use this for the first time setup or if auto-load is disabled."] or "Force load Ascension NamePlates immediately. Use this for the first time setup or if auto-load is disabled.",
             func = function()
-                if self:LoadNamePlatesAddon() then
-                    YATP:Print("Ascension NamePlates addon loaded successfully.")
-                    -- Refresh the options to show new tabs
-                    LibStub("AceConfigRegistry-3.0"):NotifyChange("YATP-NamePlates")
-                else
-                    YATP:Print("Could not load Ascension NamePlates addon.")
+                -- Check if addon exists
+                local name, title, notes, loadable, reason, security = GetAddOnInfo("Ascension_NamePlates")
+                
+                if not name then
+                    YATP:Print("|cffff0000Error: Ascension_NamePlates addon not found!|r")
+                    YATP:Print("Make sure the addon is installed in: Interface\\AddOns\\Ascension_NamePlates")
+                    return
                 end
-            end,
-            disabled = function() 
-                local currentStatus = self:GetNamePlatesStatus()
-                return currentStatus.loaded or not currentStatus.loadable 
+                
+                -- Check current status
+                local isLoaded = IsAddOnLoaded("Ascension_NamePlates")
+                local isEnabled = select(4, GetAddOnInfo("Ascension_NamePlates"))
+                
+                if isLoaded then
+                    YATP:Print("|cff00ff00Ascension NamePlates is already loaded and running!|r")
+                    -- Refresh options anyway
+                    LibStub("AceConfigRegistry-3.0"):NotifyChange("YATP-NamePlates")
+                    return
+                end
+                
+                YATP:Print("|cffffff00Attempting to load Ascension NamePlates...|r")
+                YATP:Print("|cffffff00Status:|r Loaded=" .. tostring(isLoaded) .. " | Enabled=" .. tostring(isEnabled))
+                
+                -- Enable the addon for all characters
+                EnableAddOn("Ascension_NamePlates")
+                
+                -- Try to force load it (will work even if LoadOnDemand)
+                local loaded, reason = LoadAddOn("Ascension_NamePlates")
+                
+                if loaded or IsAddOnLoaded("Ascension_NamePlates") then
+                    YATP:Print("|cff00ff00Success! Ascension NamePlates has been loaded!|r")
+                    YATP:Print("|cffffff00Refreshing configuration...|r")
+                    
+                    -- Wait a bit for addon to initialize
+                    C_Timer.After(0.5, function()
+                        -- Refresh the options to show new tabs
+                        LibStub("AceConfigRegistry-3.0"):NotifyChange("YATP-NamePlates")
+                        YATP:Print("|cff00ff00Done! Check the NamePlates configuration for new tabs.|r")
+                    end)
+                else
+                    YATP:Print("|cffff0000Failed to load Ascension NamePlates.|r")
+                    if reason then
+                        YATP:Print("|cffff0000Reason:|r " .. tostring(reason))
+                    end
+                    YATP:Print("|cffffff00Try using the 'Fix LoadOnDemand' button below.|r")
+                end
             end,
             order = 21,
         },
         
+        spacer3 = { type = "description", name = "\n", order = 22 },
+        
         openOriginal = {
             type = "execute",
             name = L["Open Original Configuration"] or "Open Original Configuration",
-            desc = L["Open the original configuration panel for Ascension NamePlates"] or "Open the original configuration panel for Ascension NamePlates",
+            desc = L["Open the original Ascension NamePlates configuration panel in Blizzard options"] or "Open the original Ascension NamePlates configuration panel in Blizzard options",
             func = function() self:OpenNamePlatesConfig() end,
             disabled = function() return not self:CanConfigureNamePlates() end,
-            order = 22,
+            order = 23,
         },
         
-        spacer3 = { type = "description", name = "\n", order = 25 },
+        spacer4 = { type = "description", name = "\n", order = 24 },
+        
+        diagnosticsHeader = { type = "header", name = L["Diagnostics"] or "Diagnostics", order = 25 },
+        
+        checkConflicts = {
+            type = "execute",
+            name = L["Check for Conflicts"] or "Check for Conflicts",
+            desc = L["Scan for other nameplate addons that might conflict with Ascension NamePlates (Plater, TidyPlates, etc)"] or "Scan for other nameplate addons that might conflict with Ascension NamePlates (Plater, TidyPlates, etc)",
+            func = function()
+                local conflictingAddons = {
+                    "Plater",
+                    "TidyPlates",
+                    "TidyPlatesThreat",
+                    "TidyPlates_ThreatPlates",
+                    "Kui_Nameplates",
+                    "KuiNameplates",
+                    "PlateBuffs",
+                    "Aloft",
+                    "Caellian",
+                    "dNameplates",
+                }
+                
+                local foundConflicts = {}
+                for _, addonName in ipairs(conflictingAddons) do
+                    local name, title, notes, loadable = GetAddOnInfo(addonName)
+                    if name then
+                        local isLoaded = IsAddOnLoaded(addonName)
+                        table.insert(foundConflicts, {name = name, title = title or name, loaded = isLoaded, loadable = loadable})
+                    end
+                end
+                
+                if #foundConflicts > 0 then
+                    YATP:Print("|cffff0000Found " .. #foundConflicts .. " potentially conflicting nameplate addon(s):|r")
+                    for _, addon in ipairs(foundConflicts) do
+                        local status = addon.loaded and "|cffff0000(LOADED)|r" or (addon.loadable and "|cffffff00(Enabled)|r" or "|cff808080(Disabled)|r")
+                        YATP:Print("  • " .. addon.title .. " " .. status)
+                        if addon.loaded or addon.loadable then
+                            YATP:Print("    |cffffff00To disable: /run DisableAddOn(\"" .. addon.name .. "\"); ReloadUI()|r")
+                        end
+                    end
+                    YATP:Print("|cffffff00Consider disabling these addons before using Ascension NamePlates.|r")
+                else
+                    YATP:Print("|cff00ff00No conflicting nameplate addons found!|r")
+                end
+            end,
+            order = 26,
+        },
         
         -- Information section
-        infoHeader = { type = "header", name = L["Information"] or "Information", order = 30 },
+        infoHeader = { type = "header", name = L["Information"] or "Information", order = 40 },
         
         infoText = {
             type = "description",
@@ -1347,7 +1477,27 @@ function Module:BuildStatusTab()
                            "Load the NamePlates addon to unlock configuration tabs with embedded settings for General, Friendly, Enemy, and Personal nameplates."
                 end
             end,
-            order = 31,
+            order = 41,
+        },
+        
+        spacer5 = { type = "description", name = "\n", order = 45 },
+        
+        troubleshootHeader = { type = "header", name = L["Troubleshooting"] or "Troubleshooting", order = 50 },
+        
+        troubleshootInfo = {
+            type = "description",
+            name = "|cffffff00Quick Setup Guide:|r\n\n" ..
+                   "1. Enable |cff00ff00'Auto-Load on Startup'|r toggle (recommended)\n" ..
+                   "2. Click |cff00ff00'Load NamePlates Now'|r button\n" ..
+                   "3. Done! The addon will load automatically on every reload\n\n" ..
+                   "|cffffff00If you have issues:|r\n\n" ..
+                   "• Click |cff00ff00'Check for Conflicts'|r to find interfering addons\n" ..
+                   "• Disable conflicting addons (Plater, TidyPlates, etc)\n" ..
+                   "• Make sure Ascension_NamePlates addon files exist\n" ..
+                   "• Try disabling Auto-Load, reload UI, then re-enable it\n\n" ..
+                   "|cff808080Tip: With Auto-Load enabled, you never need to manually load the addon again!|r",
+            fontSize = "medium",
+            order = 51,
         }
     }
 end
