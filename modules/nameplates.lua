@@ -295,9 +295,8 @@ function Module:OnAscensionNamePlateCreated(nameplate)
         return 
     end
     
-    -- Block mouseover border glow (this is the perfect moment - UnitFrame just created)
-    -- But border.Texture might not be ready yet, so we'll try with delays
-    self:BlockNameplateBorderGlowWithRetry(nameplate)
+    -- Don't try to block border here - unit is not ready yet
+    -- It will be handled by OnNamePlateAdded when the unit is actually assigned
     
     -- Setup mouseover health bar highlight for this nameplate
     self:SetupMouseoverHealthBarForNameplate(nameplate)
@@ -308,10 +307,10 @@ function Module:OnNamePlateAdded(unit, nameplate)
         return 
     end
     
-    -- Also try to block border here as a fallback
-    -- This catches nameplates that weren't blocked by OnAscensionNamePlateCreated
+    -- Block border here - this is when the unit is actually assigned
     if nameplate.UnitFrame then
-        self:BlockNameplateBorderGlowWithRetry(nameplate, 1) -- Try with shorter delay
+        -- Use full retry attempts since this is now the primary method
+        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
     end
     
     -- Add target glow if enabled
@@ -1069,8 +1068,9 @@ function Module:CleanupMouseoverBorderBlock()
 end
 
 function Module:BlockNameplateBorderGlowWithRetry(nameplate, maxAttempts)
-    maxAttempts = maxAttempts or 5
+    maxAttempts = maxAttempts or 10
     local attemptCount = 0
+    local delaySeconds = 0.05 -- Faster retries
     
     local function tryBlock()
         attemptCount = attemptCount + 1
@@ -1078,8 +1078,11 @@ function Module:BlockNameplateBorderGlowWithRetry(nameplate, maxAttempts)
         -- Check if unit is available yet
         if not nameplate.UnitFrame or not nameplate.UnitFrame.unit then
             if attemptCount < maxAttempts then
-                print(string.format("[YATP Border] Unit not ready yet - Retry %d/%d in 0.1s", attemptCount, maxAttempts))
-                C_Timer.After(0.1, tryBlock)
+                -- Only print every 5 attempts to reduce spam
+                if attemptCount % 5 == 1 then
+                    print(string.format("[YATP Border] Unit not ready yet - Retry %d/%d", attemptCount, maxAttempts))
+                end
+                C_Timer.After(delaySeconds, tryBlock)
             else
                 print(string.format("[YATP Border] Unit never became ready after %d attempts", maxAttempts))
             end
@@ -1091,15 +1094,18 @@ function Module:BlockNameplateBorderGlowWithRetry(nameplate, maxAttempts)
         if not success and attemptCount < maxAttempts then
             -- Border not ready yet, try again
             local unitName = nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
-            print(string.format("[YATP Border] %s - Retry %d/%d in 0.1s", unitName, attemptCount, maxAttempts))
-            C_Timer.After(0.1, tryBlock)
+            -- Only print every 3 attempts to reduce spam
+            if attemptCount % 3 == 1 then
+                print(string.format("[YATP Border] %s - Border not ready, retry %d/%d", unitName, attemptCount, maxAttempts))
+            end
+            C_Timer.After(delaySeconds, tryBlock)
         elseif not success then
             local unitName = nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
             print(string.format("[YATP Border] %s - Failed after %d attempts", unitName, maxAttempts))
         else
             -- Success! Show message
             local unitName = nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
-            print(string.format("[YATP Border] %s - Border block successfully applied (attempt %d)", unitName, attemptCount))
+            print(string.format("[YATP Border] %s - Blocked successfully (attempt %d)", unitName, attemptCount))
         end
     end
     
