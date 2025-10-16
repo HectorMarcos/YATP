@@ -132,11 +132,8 @@ function Module:OnEnable()
     
     -- Only initialize functionality if enabled
     if not self.db.profile.enabled then
-        print("[YATP] NamePlates module is DISABLED")
         return
     end
-    
-    print("[YATP] NamePlates module is ENABLED - Registering events")
     
     -- Register core nameplate events (needed for border blocking and other features)
     self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateAdded")
@@ -147,10 +144,7 @@ function Module:OnEnable()
         EventRegistry:RegisterCallback("NamePlateDriver.UnitFrameCreated", function(nameplate)
             self:OnAscensionNamePlateCreated(nameplate)
         end, self)
-        print("[YATP] Registered callback: NamePlateDriver.UnitFrameCreated")
     end
-    
-    print("[YATP] Events registered: NAME_PLATE_UNIT_ADDED, NAME_PLATE_UNIT_REMOVED")
     
     self:SetupTargetGlow()
     self:SetupTargetArrows()
@@ -292,8 +286,6 @@ function Module:OnAscensionNamePlateCreated(nameplate)
     if not self.db.profile.enabled then 
         return 
     end
-    
-    print("[YATP] OnAscensionNamePlateCreated - UnitFrame created for nameplate")
     
     -- Block mouseover border glow (this is the perfect moment - UnitFrame just created)
     self:BlockNameplateBorderGlow(nameplate)
@@ -698,18 +690,13 @@ function Module:SetupMouseoverBorderBlock()
         return
     end
     
-    print("[YATP] SetupMouseoverBorderBlock: Processing existing nameplates")
-    
     -- Process existing nameplates after a short delay to ensure UnitFrames are created
     C_Timer.After(0.5, function()
-        local count = 0
         for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
             if nameplate.UnitFrame then
-                count = count + 1
                 self:BlockNameplateBorderGlow(nameplate)
             end
         end
-        print(string.format("[YATP] Blocked %d existing nameplates", count))
     end)
     
     -- Note: New nameplates will be handled by OnAscensionNamePlateCreated callback
@@ -741,23 +728,14 @@ function Module:BlockNameplateBorderGlow(nameplate)
     -- Fixed black color: RGBA(0, 0, 0, 1)
     local color = {0, 0, 0, 1}
     
-    -- DEBUG: Print when we're applying the hook
-    local unit = unitFrame.unit or unitFrame.displayedUnit
-    local unitName = unit and UnitName(unit) or "Unknown"
-    print(string.format("[YATP] Blocking border glow for: %s", unitName))
-    
-    -- Always apply the hook, even if already hooked (in case nameplate was recreated)
+    -- Store original SetVertexColor if not already stored
     if not border.Texture.originalSetVertexColor then
-        -- First time hooking - store original
         border.Texture.originalSetVertexColor = border.Texture.SetVertexColor
-        print(string.format("[YATP] Stored original SetVertexColor for: %s", unitName))
     end
     
-    -- Replace with our blocking version
+    -- Replace with our blocking version that always uses black
     border.Texture.SetVertexColor = function(self, r, g, b, a)
-        -- DEBUG: Print when color change is attempted
-        print(string.format("[YATP] Blocked color change attempt: RGBA(%.2f,%.2f,%.2f,%.2f) -> BLACK", r or 0, g or 0, b or 0, a or 0))
-        -- Always use black color, ignore any color change attempts
+        -- Always use black color, silently ignore any color change attempts
         self.originalSetVertexColor(self, color[1], color[2], color[3], color[4])
     end
     
