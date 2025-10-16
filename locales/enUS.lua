@@ -603,3 +603,17 @@ L["This module enhances the quest tracker with additional features and customiza
 L["Tracking"] = true
 L["All Quests"] = true
 L["By Zone"] = true
+
+-- Mouseover Health Bar Highlight
+L["Mouseover Health Bar Highlight (YATP Custom)"] = true
+L["Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target."] = true
+L["Enable Mouseover Highlight"] = true
+L["Highlight the health bar when mousing over non-target nameplates"] = true
+L["Highlight Method"] = true
+L["Choose how the health bar color changes on mouseover"] = true
+L["Brightness"] = true
+L["Tint"] = true
+L["Brightness Multiplier"] = true
+L["How much to brighten the color. 1.0 = no change, 1.3 = 30% brighter (recommended). Higher values may wash out dark colors."] = true
+L["Tint Amount"] = true
+L["How much white to mix in. 0.0 = original color, 1.0 = pure white. 0.25 (25%) is recommended for a subtle effect."] = true
