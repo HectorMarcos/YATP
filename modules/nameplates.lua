@@ -41,6 +41,20 @@ Module.defaults = {
         hideBorder = true, -- Hide mouseover border
     },
     
+    -- Mouseover Border Glow Block (Always ON - blocks the border color change on mouseover)
+    -- This feature is always enabled and uses a fixed black color (0, 0, 0, 1)
+    blockMouseoverBorderGlow = {
+        enabled = true, -- Always enabled
+        keepOriginalColor = false, -- Use custom color (black)
+        customColor = {0, 0, 0, 1}, -- Fixed black color (RGBA)
+    },
+    
+    -- Mouseover Health Bar Highlight (subtle color change on non-target nameplates)
+    mouseoverHealthBarHighlight = {
+        enabled = true, -- Enable mouseover highlight on health bars
+        tintAmount = 0.5, -- Fixed tint amount: mix 50% white for visibility
+    },
+    
     -- Enemy Target specific options (legacy - will be cleaned up)
     highlightEnemyTarget = false,
     highlightColor = {1, 1, 0, 0.8}, -- Yellow with 80% opacity
@@ -127,9 +141,22 @@ function Module:OnEnable()
         return
     end
     
+    -- Register core nameplate events (needed for border blocking and other features)
+    self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateAdded")
+    self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateRemoved")
+    
+    -- Register Ascension NamePlates callback for when UnitFrame is actually created
+    if EventRegistry then
+        EventRegistry:RegisterCallback("NamePlateDriver.UnitFrameCreated", function(nameplate)
+            self:OnAscensionNamePlateCreated(nameplate)
+        end, self)
+    end
+    
     self:SetupTargetGlow()
     self:SetupTargetArrows()
     self:SetupMouseoverGlow()
+    self:SetupMouseoverBorderBlock()
+    self:SetupMouseoverHealthBarHighlight()
     self:DisableAllNameplateGlows()
     
     -- Setup everything after a longer delay to ensure all addons are loaded
@@ -158,6 +185,9 @@ function Module:OnDisable()
     self:CleanupThreatSystem()
     self:CleanupHealthTextPositioning()
     self:CleanupNonTargetAlpha()
+    self:CleanupMouseoverBorderBlock()
+    self:CleanupMouseoverHealthBarHighlight()
+    self:UnblockAllBorderGlows()
     
     -- Restore original C_NamePlateManager.UpdateAll if we hooked it
     if self.originalUpdateAll and C_NamePlateManager then
@@ -206,9 +236,8 @@ function Module:SetupTargetGlow()
     self.currentTargetFrame = nil
     
     -- Register events for target border
+    -- Note: NAME_PLATE_UNIT_ADDED/REMOVED are registered in OnEnable() as core events
     self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnTargetChanged")
-    self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateAdded") 
-    self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateRemoved")
     
     -- Test current target if any
     if UnitExists("target") then
@@ -261,15 +290,30 @@ function Module:OnTargetChanged()
     end
 end
 
-function Module:OnNamePlateAdded(unit, nameplate)
-    if not self.db.profile.enabled or not self.db.profile.targetGlow.enabled then 
+function Module:OnAscensionNamePlateCreated(nameplate)
+    if not self.db.profile.enabled then 
         return 
     end
     
-    -- Check if this nameplate is for our current target
-    if UnitExists("target") and nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, "target") then
-        self:AddTargetGlow(nameplate)
-        self.currentTargetFrame = nameplate
+    -- Don't try to block border here - unit is not ready yet
+    -- It will be handled by OnNamePlateAdded when the unit is actually assigned
+    
+    -- Setup mouseover health bar highlight for this nameplate
+    self:SetupMouseoverHealthBarForNameplate(nameplate)
+end
+
+function Module:OnNamePlateAdded(unit, nameplate)
+    if not self.db.profile.enabled then 
+        return 
+    end
+    
+    -- Add target glow if enabled
+    if self.db.profile.targetGlow.enabled then
+        -- Check if this nameplate is for our current target
+        if UnitExists("target") and nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, "target") then
+            self:AddTargetGlow(nameplate)
+            self.currentTargetFrame = nameplate
+        end
     end
 end
 
@@ -568,6 +612,10 @@ function Module:SetupMouseoverGlow()
     self:SetupSelectionHighlightHooks()
 end
 
+-------------------------------------------------
+-- Selection Highlight System
+-------------------------------------------------
+
 function Module:SetupSelectionHighlightHooks()
     -- Hook nameplate updates to control selectionHighlight
     self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnMouseoverUpdate")
@@ -643,6 +691,378 @@ function Module:UpdateMouseoverGlowSettings()
 end
 
 -------------------------------------------------
+-- Mouseover Health Bar Highlight System
+-- Provides subtle visual feedback when mousing over non-target nameplates
+-------------------------------------------------
+
+function Module:SetupMouseoverHealthBarHighlight()
+    if not self.db.profile.enabled or not self.db.profile.mouseoverHealthBarHighlight.enabled then
+        return
+    end
+    
+    -- Initialize tracking
+    self.mouseoverHealthBarData = {}
+    
+    -- Register mouseover event
+    self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnHealthBarMouseoverUpdate")
+    
+    -- Create OnUpdate frame to maintain colors every frame
+    if not self.mouseoverUpdateFrame then
+        self.mouseoverUpdateFrame = CreateFrame("Frame")
+        self.mouseoverUpdateFrame:SetScript("OnUpdate", function()
+            if self.db.profile.mouseoverHealthBarHighlight.enabled then
+                self:MaintainMouseoverColors()
+            end
+        end)
+    end
+    self.mouseoverUpdateFrame:Show()
+    
+    -- Process existing nameplates
+    C_Timer.After(0.5, function()
+        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+            if nameplate.UnitFrame then
+                self:SetupMouseoverHealthBarForNameplate(nameplate)
+            end
+        end
+    end)
+end
+
+function Module:CleanupMouseoverHealthBarHighlight()
+    -- Hide OnUpdate frame
+    if self.mouseoverUpdateFrame then
+        self.mouseoverUpdateFrame:Hide()
+        self.mouseoverUpdateFrame:SetScript("OnUpdate", nil)
+    end
+    
+    -- Restore all health bar colors
+    if self.mouseoverHealthBarData then
+        for nameplate, data in pairs(self.mouseoverHealthBarData) do
+            if data.originalColor then
+                self:RestoreHealthBarColor(nameplate, data.originalColor)
+            end
+        end
+        self.mouseoverHealthBarData = {}
+    end
+    
+    -- Unregister event
+    self:UnregisterEvent("UPDATE_MOUSEOVER_UNIT")
+end
+
+function Module:MaintainMouseoverColors()
+    -- This runs every frame to maintain mouseover colors and prevent overwrites
+    if not self.mouseoverHealthBarData then
+        return
+    end
+    
+    for nameplate, data in pairs(self.mouseoverHealthBarData) do
+        if data.isMouseover and data.highlightColor and nameplate.UnitFrame and nameplate.UnitFrame.healthBar then
+            local unit = nameplate.UnitFrame.unit
+            if not unit then
+                -- No unit, clear highlight
+                data.highlightColor = nil
+                data.isMouseover = false
+                if data.originalColor then
+                    self:RestoreHealthBarColor(nameplate, data.originalColor)
+                    data.originalColor = nil
+                end
+                return
+            end
+            
+            -- Verify this unit still has mouseover
+            local stillMouseover = UnitIsUnit(unit, "mouseover") == 1
+            
+            if not stillMouseover then
+                -- Lost mouseover - restore original color
+                data.highlightColor = nil
+                data.isMouseover = false
+                
+                if data.originalColor then
+                    self:RestoreHealthBarColor(nameplate, data.originalColor)
+                    data.originalColor = nil
+                end
+            else
+                -- Still has mouseover, maintain the highlight color
+                local healthBar = nameplate.UnitFrame.healthBar
+                local color = data.highlightColor
+                
+                -- Re-apply the highlight color every frame
+                healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+                
+                -- Also to texture
+                local texture = healthBar:GetStatusBarTexture()
+                if texture then
+                    texture:SetVertexColor(color[1], color[2], color[3], color[4])
+                end
+            end
+        end
+    end
+end
+
+function Module:SetupMouseoverHealthBarForNameplate(nameplate)
+    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
+        return
+    end
+    
+    if not self.mouseoverHealthBarData then
+        self.mouseoverHealthBarData = {}
+    end
+    
+    self.mouseoverHealthBarData[nameplate] = {
+        originalColor = nil,
+        isMouseover = false,
+    }
+end
+
+function Module:OnHealthBarMouseoverUpdate()
+    if not self.db.profile.mouseoverHealthBarHighlight.enabled then
+        return
+    end
+    
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame then
+            self:UpdateMouseoverHealthBar(nameplate)
+        end
+    end
+end
+
+function Module:UpdateMouseoverHealthBar(nameplate)
+    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
+        return
+    end
+    
+    local unit = nameplate.UnitFrame.unit
+    if not unit then
+        return
+    end
+    
+    -- Check if this is the mouseover unit (handle nil as false)
+    local isMouseover = UnitIsUnit(unit, "mouseover") == 1
+    local unitName = UnitName(unit) or "Unknown"
+    
+    -- print(string.format("[YATP Mouseover] Unit: %s, IsMouseover: %s", unitName, tostring(isMouseover)))
+    
+    -- CRITICAL: Don't highlight if this is the target
+    if UnitExists("target") and UnitIsUnit(unit, "target") then
+        -- Ensure we restore color if it was previously moused over
+        if self.mouseoverHealthBarData and self.mouseoverHealthBarData[nameplate] and 
+           self.mouseoverHealthBarData[nameplate].isMouseover then
+            self:RestoreHealthBarColorIfStored(nameplate)
+            self.mouseoverHealthBarData[nameplate].isMouseover = false
+        end
+        return
+    end
+    
+    -- Initialize data structure if needed
+    if not self.mouseoverHealthBarData then
+        self.mouseoverHealthBarData = {}
+    end
+    if not self.mouseoverHealthBarData[nameplate] then
+        self.mouseoverHealthBarData[nameplate] = {
+            originalColor = nil,
+            isMouseover = false,
+        }
+    end
+    
+    local data = self.mouseoverHealthBarData[nameplate]
+    
+    if isMouseover and not data.isMouseover then
+        -- Just became mouseover
+        self:ApplyMouseoverHealthBarHighlight(nameplate)
+        data.isMouseover = true
+    elseif not isMouseover and data.isMouseover then
+        -- No longer mouseover
+        data.highlightColor = nil
+        self:RestoreHealthBarColorIfStored(nameplate)
+        data.isMouseover = false
+    end
+end
+
+function Module:ApplyMouseoverHealthBarHighlight(nameplate)
+    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
+        return
+    end
+    
+    local healthBar = nameplate.UnitFrame.healthBar
+    
+    -- Get current color
+    local r, g, b, a = healthBar:GetStatusBarColor()
+    
+    -- Store original color
+    if not self.mouseoverHealthBarData[nameplate] then
+        self.mouseoverHealthBarData[nameplate] = {}
+    end
+    self.mouseoverHealthBarData[nameplate].originalColor = {r, g, b, a}
+    
+    -- Apply tint with white
+    local tintAmount = self.db.profile.mouseoverHealthBarHighlight.tintAmount or 0.5
+    local newR, newG, newB, newA = self:ApplyWhiteTint(r, g, b, a, tintAmount)
+    
+    -- Store the highlight color for maintenance
+    self.mouseoverHealthBarData[nameplate].highlightColor = {newR, newG, newB, newA}
+    
+    -- Apply new color
+    healthBar:SetStatusBarColor(newR, newG, newB, newA)
+    
+    -- Also apply to texture
+    local texture = healthBar:GetStatusBarTexture()
+    if texture then
+        texture:SetVertexColor(newR, newG, newB, newA)
+    end
+end
+
+function Module:RestoreHealthBarColorIfStored(nameplate)
+    if not nameplate or not self.mouseoverHealthBarData or not self.mouseoverHealthBarData[nameplate] then
+        return
+    end
+    
+    local data = self.mouseoverHealthBarData[nameplate]
+    if data.originalColor then
+        self:RestoreHealthBarColor(nameplate, data.originalColor)
+        data.originalColor = nil
+        
+        -- Re-apply threat colors if enabled
+        if self.db.profile.threatSystem and self.db.profile.threatSystem.enabled and nameplate.UnitFrame then
+            local unit = nameplate.UnitFrame.unit
+            if unit then
+                self:UpdateNameplateThreat(nameplate, unit)
+            end
+        end
+    end
+end
+
+function Module:RestoreHealthBarColor(nameplate, color)
+    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar or not color then
+        return
+    end
+    
+    local healthBar = nameplate.UnitFrame.healthBar
+    healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+    
+    -- Also restore texture color
+    local texture = healthBar:GetStatusBarTexture()
+    if texture then
+        texture:SetVertexColor(color[1], color[2], color[3], color[4])
+    end
+end
+
+-------------------------------------------------
+-- Color Manipulation Helper
+-------------------------------------------------
+
+-- White Tint Method
+-- Mixes the original color with white to create a lighter tint
+-- tintAmount: 0.0 = original color, 1.0 = pure white
+function Module:ApplyWhiteTint(r, g, b, a, tintAmount)
+    local newR = r + (1.0 - r) * tintAmount
+    local newG = g + (1.0 - g) * tintAmount
+    local newB = b + (1.0 - b) * tintAmount
+    return newR, newG, newB, a
+end
+
+-------------------------------------------------
+-- Block Mouseover Border Glow System
+-- Forces all nameplate borders to remain black
+-------------------------------------------------
+
+function Module:SetupMouseoverBorderBlock()
+    if not self.db.profile.enabled or not self.db.profile.blockMouseoverBorderGlow.enabled then
+        return
+    end
+    
+    -- Create OnUpdate frame to force black borders every frame
+    if not self.borderBlockFrame then
+        self.borderBlockFrame = CreateFrame("Frame")
+    end
+    
+    self.borderBlockFrame:SetScript("OnUpdate", function()
+        self:ForceBlackBordersOnAllNameplates()
+    end)
+    
+    -- Hook existing nameplates
+    C_Timer.After(0.5, function()
+        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+            if nameplate.UnitFrame then
+                self:BlockNameplateBorderGlow(nameplate)
+            end
+        end
+    end)
+end
+
+function Module:ForceBlackBordersOnAllNameplates()
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame and 
+           nameplate.UnitFrame.healthBar and 
+           nameplate.UnitFrame.healthBar.border and 
+           nameplate.UnitFrame.healthBar.border.Texture then
+            
+            local texture = nameplate.UnitFrame.healthBar.border.Texture
+            local r, g, b, a = texture:GetVertexColor()
+            
+            -- Force black if not already black
+            if r ~= 0 or g ~= 0 or b ~= 0 then
+                if texture.originalSetVertexColor then
+                    texture.originalSetVertexColor(texture, 0, 0, 0, 1)
+                else
+                    texture:SetVertexColor(0, 0, 0, 1)
+                end
+            end
+        end
+    end
+end
+
+function Module:CleanupMouseoverBorderBlock()
+    if self.borderBlockFrame then
+        self.borderBlockFrame:SetScript("OnUpdate", nil)
+    end
+end
+
+function Module:BlockNameplateBorderGlow(nameplate)
+    if not nameplate or not nameplate.UnitFrame then
+        return false
+    end
+    
+    local unitFrame = nameplate.UnitFrame
+    
+    if not unitFrame.healthBar or not unitFrame.healthBar.border or not unitFrame.healthBar.border.Texture then
+        return false
+    end
+    
+    local texture = unitFrame.healthBar.border.Texture
+    
+    -- Store original SetVertexColor if not already hooked
+    if not texture.originalSetVertexColor then
+        texture.originalSetVertexColor = texture.SetVertexColor
+        
+        -- Replace with function that always forces black
+        texture.SetVertexColor = function(self, r, g, b, a)
+            self.originalSetVertexColor(self, 0, 0, 0, 1)
+        end
+    end
+    
+    -- Force initial black color
+    texture:SetVertexColor(0, 0, 0, 1)
+    
+    return true
+end
+
+function Module:UnblockAllBorderGlows()
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame and 
+           nameplate.UnitFrame.healthBar and 
+           nameplate.UnitFrame.healthBar.border and
+           nameplate.UnitFrame.healthBar.border.Texture then
+            
+            local texture = nameplate.UnitFrame.healthBar.border.Texture
+            
+            if texture.originalSetVertexColor then
+                texture.SetVertexColor = texture.originalSetVertexColor
+                texture.originalSetVertexColor = nil
+            end
+        end
+    end
+end
+
+-------------------------------------------------
 -- Disable All Nameplate Glows
 -------------------------------------------------
 
@@ -666,8 +1086,7 @@ function Module:DisableAllNameplateGlows()
     end
 end
 
-function Module:OnNamePlateGlowDisable()
-    -- Disable glows whenever nameplates are added or target changes
+function Module:OnNamePlateGlowDisable(unit, nameplate)
     self:DisableGlowsOnAllNameplates()
 end
 
@@ -1026,6 +1445,17 @@ end
 function Module:ApplyThreatToHealthBar(unitFrame, threatLevel)
     if not unitFrame.healthBar then 
         return 
+    end
+    
+    -- CRITICAL: Don't override mouseover highlight colors
+    -- Check if this nameplate currently has mouseover highlight active
+    if self.db.profile.mouseoverHealthBarHighlight and self.db.profile.mouseoverHealthBarHighlight.enabled then
+        local unit = unitFrame.unit
+        if unit and UnitIsUnit(unit, "mouseover") then
+            local unitName = UnitName(unit) or "Unknown"
+            print(string.format("[YATP Threat] Skipping threat color for %s - mouseover highlight is active", unitName))
+            return -- Don't apply threat color while moused over
+        end
     end
     
     local color = self.db.profile.threatSystem.colors[threatLevel]
@@ -2068,7 +2498,7 @@ function Module:BuildGeneralTab()
         spacer3 = { type = "description", name = "\n", order = 25 },
         
         -- Threat System (YATP Custom Feature)
-        threatHeader = { type = "header", name = L["Threat System (YATP Custom)"] or "Threat System (YATP Custom)", order = 30 },
+        threatHeader = { type = "header", name = L["Threat System (YATP Custom)"] or "Threat System (YATP Custom)", order = 35 },
         
         threatEnabled = {
             type = "toggle",
@@ -2083,7 +2513,7 @@ function Module:BuildGeneralTab()
                     self:CleanupThreatSystem()
                 end
             end,
-            order = 31,
+            order = 36,
         },
         
         threatColors = {
@@ -2092,7 +2522,7 @@ function Module:BuildGeneralTab()
             desc = L["Configure colors for different threat levels"] or "Configure colors for different threat levels",
             inline = true,
             disabled = function() return not self.db.profile.threatSystem.enabled end,
-            order = 32,
+            order = 37,
             args = {
                 low = {
                     type = "color",
@@ -2151,6 +2581,33 @@ function Module:BuildGeneralTab()
                     order = 4,
                 },
             },
+        },
+        
+        spacer4 = { type = "description", name = "\n", order = 40 },
+        
+        -- Mouseover Health Bar Highlight (YATP Custom Feature)
+        mouseoverHighlightHeader = { type = "header", name = L["Mouseover Health Bar Highlight (YATP Custom)"] or "Mouseover Health Bar Highlight (YATP Custom)", order = 45 },
+        
+        mouseoverHighlightDesc = {
+            type = "description",
+            name = L["Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target."] or "Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target.",
+            order = 46,
+        },
+        
+        mouseoverHighlightEnabled = {
+            type = "toggle",
+            name = L["Enable Mouseover Highlight"] or "Enable Mouseover Highlight",
+            desc = L["Highlight the health bar when mousing over non-target nameplates. Uses a white tint effect (50% mix) for subtle visibility."] or "Highlight the health bar when mousing over non-target nameplates. Uses a white tint effect (50% mix) for subtle visibility.",
+            get = function() return self.db.profile.mouseoverHealthBarHighlight.enabled end,
+            set = function(_, value) 
+                self.db.profile.mouseoverHealthBarHighlight.enabled = value
+                if value then
+                    self:SetupMouseoverHealthBarHighlight()
+                else
+                    self:CleanupMouseoverHealthBarHighlight()
+                end
+            end,
+            order = 47,
         },
     }
 end
