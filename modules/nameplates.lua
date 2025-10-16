@@ -1490,15 +1490,15 @@ function Module:ResetHealthBarColor(unitFrame)
         return
     end
     
-    -- Reset to default nameplate health bar color
-    -- This will restore the original color (usually red for enemies)
-    unitFrame.healthBar:SetStatusBarColor(1, 0, 0, 1) -- Default red for enemies
+    -- DON'T force any color - let the game's default nameplate system handle it
+    -- The game automatically assigns colors based on faction:
+    -- - Red for hostile enemies
+    -- - Yellow for neutral NPCs
+    -- - Green for friendly units
+    -- By not calling SetStatusBarColor, we preserve the game's natural coloring
     
-    -- Also reset texture color
-    local texture = unitFrame.healthBar:GetStatusBarTexture()
-    if texture then
-        texture:SetVertexColor(1, 0, 0, 1)
-    end
+    -- Note: We intentionally do NOT call SetStatusBarColor here
+    -- This allows the nameplate system to restore its original color naturally
 end
 
 function Module:ApplyThreatToBorder(unitFrame, threatLevel)
@@ -1537,19 +1537,15 @@ function Module:ResetNameplateColors(nameplate)
     
     local unitFrame = nameplate.UnitFrame
     
-    -- Reset name color to default
-    if unitFrame.name then
-        -- Let the game handle default name coloring
-        unitFrame.name:SetTextColor(1, 1, 1, 1)
-    end
+    -- DON'T force any colors - let the game handle default coloring
+    -- The game automatically assigns colors based on faction and reaction:
+    -- - Health bars: red (hostile), yellow (neutral), green (friendly)
+    -- - Names: colored by class, reaction, or default white
     
-    -- Reset health bar color to default  
-    if unitFrame.healthBar then
-        -- Let the game handle default health bar coloring
-        unitFrame.healthBar:SetStatusBarColor(0, 1, 0, 1)
-    end
+    -- Note: We intentionally do NOT call SetStatusBarColor or SetTextColor
+    -- This allows the nameplate system to restore its original colors naturally
     
-    -- Hide threat border
+    -- Only clean up custom elements we added
     if unitFrame.threatBorder then
         unitFrame.threatBorder:Hide()
     end
@@ -1563,14 +1559,9 @@ end
 function Module:ClearAllThreatColors()
     -- Remove threat colors from all nameplates when going solo
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
-        if nameplate.UnitFrame and nameplate.UnitFrame.healthBar then
-            -- Use the dedicated reset function to properly restore default colors
-            self:ResetHealthBarColor(nameplate.UnitFrame)
-            
-            -- Also reset name color if it was modified
-            if nameplate.UnitFrame.name then
-                nameplate.UnitFrame.name:SetTextColor(1, 1, 1, 1)
-            end
+        if nameplate.UnitFrame then
+            -- DON'T force any colors - just clean up our custom elements
+            -- Let the game restore natural colors (red/yellow/green based on reaction)
             
             -- Hide threat border if it exists
             if nameplate.UnitFrame.threatBorder then
