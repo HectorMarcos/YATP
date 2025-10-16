@@ -673,7 +673,7 @@ function Module:HookMouseoverOnNameplate(nameplate)
             if Module.mouseoverDebugEnabled then
                 local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
                 local unitName = unit and UnitName(unit) or "Unknown"
-                print(string.format("[YATP NamePlates] Border SHOW called for: %s", unitName))
+                print(string.format("[YATP NamePlates] healthBar.border SHOW called for: %s", unitName))
             end
         end)
         
@@ -682,7 +682,7 @@ function Module:HookMouseoverOnNameplate(nameplate)
             if Module.mouseoverDebugEnabled then
                 local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
                 local unitName = unit and UnitName(unit) or "Unknown"
-                print(string.format("[YATP NamePlates] Border HIDE called for: %s", unitName))
+                print(string.format("[YATP NamePlates] healthBar.border HIDE called for: %s", unitName))
             end
         end)
         
@@ -691,7 +691,49 @@ function Module:HookMouseoverOnNameplate(nameplate)
             if Module.mouseoverDebugEnabled then
                 local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
                 local unitName = unit and UnitName(unit) or "Unknown"
-                print(string.format("[YATP NamePlates] Border SetAlpha(%.2f) called for: %s", alpha, unitName))
+                print(string.format("[YATP NamePlates] healthBar.border SetAlpha(%.2f) called for: %s", alpha, unitName))
+            end
+        end)
+    end
+    
+    -- Hook selectionHighlight Show/Hide/SetAlpha if it exists (THIS IS THE MOUSEOVER GLOW!)
+    if nameplate.UnitFrame.selectionHighlight then
+        local highlight = nameplate.UnitFrame.selectionHighlight
+        
+        -- Hook Show
+        hooksecurefunc(highlight, "Show", function()
+            if Module.mouseoverDebugEnabled then
+                local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
+                local unitName = unit and UnitName(unit) or "Unknown"
+                print(string.format("[YATP NamePlates] *** selectionHighlight SHOW called for: %s ***", unitName))
+            end
+        end)
+        
+        -- Hook Hide
+        hooksecurefunc(highlight, "Hide", function()
+            if Module.mouseoverDebugEnabled then
+                local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
+                local unitName = unit and UnitName(unit) or "Unknown"
+                print(string.format("[YATP NamePlates] *** selectionHighlight HIDE called for: %s ***", unitName))
+            end
+        end)
+        
+        -- Hook SetAlpha
+        hooksecurefunc(highlight, "SetAlpha", function(self, alpha)
+            if Module.mouseoverDebugEnabled then
+                local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
+                local unitName = unit and UnitName(unit) or "Unknown"
+                print(string.format("[YATP NamePlates] *** selectionHighlight SetAlpha(%.2f) called for: %s ***", alpha, unitName))
+            end
+        end)
+        
+        -- Hook SetVertexColor
+        hooksecurefunc(highlight, "SetVertexColor", function(self, r, g, b, a)
+            if Module.mouseoverDebugEnabled then
+                local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
+                local unitName = unit and UnitName(unit) or "Unknown"
+                print(string.format("[YATP NamePlates] *** selectionHighlight SetVertexColor(%.2f,%.2f,%.2f,%.2f) for: %s ***", 
+                    r or 0, g or 0, b or 0, a or 0, unitName))
             end
         end)
     end
@@ -711,13 +753,23 @@ function Module:DebugNameplateState(nameplate)
     
     print(string.format("[YATP NamePlates] ===== NAMEPLATE STATE DEBUG: %s =====", unitName))
     
-    -- Check selectionHighlight
+    -- Check selectionHighlight (this is likely the mouseover glow!)
     if unitFrame.selectionHighlight then
         local isShown = unitFrame.selectionHighlight:IsShown()
         local alpha = unitFrame.selectionHighlight:GetAlpha()
         local r, g, b, a = unitFrame.selectionHighlight:GetVertexColor()
         print(string.format("  selectionHighlight: Shown=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f)", 
             tostring(isShown), alpha, r, g, b, a))
+        
+        -- Check if it has a texture
+        if unitFrame.selectionHighlight.GetTexture then
+            local texture = unitFrame.selectionHighlight:GetTexture()
+            print(string.format("  selectionHighlight.Texture: %s", tostring(texture or "None")))
+        end
+        
+        -- Check its draw layer
+        local layer, sublayer = unitFrame.selectionHighlight:GetDrawLayer()
+        print(string.format("  selectionHighlight.DrawLayer: %s (sublayer: %d)", tostring(layer), sublayer or 0))
     else
         print("  selectionHighlight: NOT FOUND")
     end
@@ -777,9 +829,31 @@ function Module:DebugNameplateState(nameplate)
                 local shown = region:IsShown()
                 local alpha = region:GetAlpha()
                 if shown and alpha > 0 then
-                    print(string.format("    Texture[%d]: %s, Texture=%s, Alpha=%.2f", 
-                        i, name, tostring(texture or "None"), alpha))
+                    local layer, sublayer = region:GetDrawLayer()
+                    print(string.format("    Texture[%d]: %s, Texture=%s, Alpha=%.2f, Layer=%s", 
+                        i, name, tostring(texture or "None"), alpha, tostring(layer)))
                 end
+            end
+        end
+    end
+    
+    -- Scan ALL regions of the entire UnitFrame for mouseover effects
+    print("  UnitFrame ALL regions scan (looking for mouseover effects):")
+    local allRegions = {unitFrame:GetRegions()}
+    for i, region in ipairs(allRegions) do
+        if region:GetObjectType() == "Texture" then
+            local name = region:GetName() or "Anonymous"
+            local shown = region:IsShown()
+            local alpha = region:GetAlpha()
+            
+            -- Only show textures that are visible and might be mouseover related
+            if shown and alpha > 0 and (name:lower():find("highlight") or name:lower():find("glow") or 
+                name:lower():find("selection") or name:lower():find("border") or name:lower():find("mouseover")) then
+                local texture = region:GetTexture()
+                local r, g, b, a = region:GetVertexColor()
+                local layer, sublayer = region:GetDrawLayer()
+                print(string.format("    [%d] %s: Texture=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f), Layer=%s", 
+                    i, name, tostring(texture or "None"), alpha, r, g, b, a, tostring(layer)))
             end
         end
     end
