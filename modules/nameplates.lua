@@ -65,8 +65,7 @@ Module.defaults = {
     -- Target Border System
     targetGlow = {
         enabled = true,
-        color = {1, 1, 0, 0.6}, -- Yellow with 60% opacity
-        size = 2, -- Border thickness in pixels
+        color = {1, 1, 0, 0.6}, -- Yellow with 60% opacity (uses native border)
     },
     
     -- Target Arrows System
@@ -702,66 +701,27 @@ function Module:AddTargetGlow(nameplate)
         return 
     end
     
-    -- Don't add border if already exists
-    if self.targetGlowFrames and self.targetGlowFrames[nameplate] then
-        return
-    end
-    
     local healthBar = nameplate.UnitFrame.healthBar
-    if not healthBar then 
+    if not healthBar or not healthBar.border or not healthBar.border.Texture then
         return 
     end
     
-    -- Create border frame
-    local borderFrame = CreateFrame("Frame", nil, nameplate)
-    borderFrame:SetFrameLevel(healthBar:GetFrameLevel() + 1)
-    
-    -- Create border textures (4 sides)
-    local borderThickness = self.db.profile.targetGlow.size or 2
+    -- Use the native border texture instead of creating a new frame
+    local texture = healthBar.border.Texture
     local borderColor = self.db.profile.targetGlow.color or {1, 1, 0, 0.8}
     
-    -- Top border
-    local topBorder = borderFrame:CreateTexture(nil, "OVERLAY")
-    topBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
-    topBorder:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderThickness, borderThickness)
-    topBorder:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderThickness, borderThickness)
-    topBorder:SetHeight(borderThickness)
+    -- Apply custom target border color
+    if texture.originalSetVertexColor then
+        texture.originalSetVertexColor(texture, borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+    else
+        texture:SetVertexColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+    end
     
-    -- Bottom border
-    local bottomBorder = borderFrame:CreateTexture(nil, "OVERLAY")
-    bottomBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
-    bottomBorder:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderThickness, -borderThickness)
-    bottomBorder:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderThickness, -borderThickness)
-    bottomBorder:SetHeight(borderThickness)
-    
-    -- Left border
-    local leftBorder = borderFrame:CreateTexture(nil, "OVERLAY")
-    leftBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
-    leftBorder:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderThickness, borderThickness)
-    leftBorder:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderThickness, -borderThickness)
-    leftBorder:SetWidth(borderThickness)
-    
-    -- Right border
-    local rightBorder = borderFrame:CreateTexture(nil, "OVERLAY")
-    rightBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
-    rightBorder:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderThickness, borderThickness)
-    rightBorder:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderThickness, -borderThickness)
-    rightBorder:SetWidth(borderThickness)
-    
-    -- Store border data (always static)
+    -- Mark this nameplate as having target border
     if not self.targetGlowFrames then
         self.targetGlowFrames = {}
     end
-    
-    self.targetGlowFrames[nameplate] = {
-        borderFrame = borderFrame,
-        borders = {
-            top = topBorder,
-            bottom = bottomBorder,
-            left = leftBorder,
-            right = rightBorder
-        }
-    }
+    self.targetGlowFrames[nameplate] = true
 end
 
 function Module:RemoveTargetGlow(nameplate)
@@ -769,24 +729,17 @@ function Module:RemoveTargetGlow(nameplate)
         return
     end
     
-    local borderData = self.targetGlowFrames[nameplate]
-    
-    -- Remove border frame and all its textures
-    if borderData.borderFrame then
-        borderData.borderFrame:Hide()
-        -- The textures will be cleaned up with the frame
-    end
-    
     -- Remove from tracking
     self.targetGlowFrames[nameplate] = nil
     
-    -- Debug removed - too spammy for target border
+    -- Border will be reset to black by the border blocking system
+    -- or by game default if border blocking is disabled
 end
 
 function Module:UpdateAllTargetGlows()
-    -- Remove all existing borders
+    -- Clear all target border markers
     if self.targetGlowFrames then
-        for nameplate, borderData in pairs(self.targetGlowFrames) do
+        for nameplate, _ in pairs(self.targetGlowFrames) do
             self:RemoveTargetGlow(nameplate)
         end
     end
@@ -3071,17 +3024,12 @@ function Module:BuildEnemyTargetTab()
             order = 12,
         },
         
-        targetGlowSize = {
-            type = "range",
-            name = L["Border Thickness"] or "Border Thickness",
-            desc = L["Thickness of the border in pixels. Higher values create a thicker border"] or "Thickness of the border in pixels. Higher values create a thicker border",
-            min = 1, max = 5, step = 1,
-            get = function() return self.db.profile.targetGlow.size or 2 end,
-            set = function(_, value) 
-                self.db.profile.targetGlow.size = value
-                self:UpdateAllTargetGlows()
-            end,
-            disabled = function() return not self.db.profile.targetGlow.enabled end,
+        targetGlowInfo = {
+            type = "description",
+            name = "|cffFFD700" .. (L["Note"] or "Note") .. ":|r " .. 
+                   (L["Uses the native nameplate border (fixed size). Border thickness cannot be customized."] or 
+                   "Uses the native nameplate border (fixed size). Border thickness cannot be customized."),
+            fontSize = "medium",
             order = 13,
         },
         
