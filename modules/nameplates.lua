@@ -41,11 +41,12 @@ Module.defaults = {
         hideBorder = true, -- Hide mouseover border
     },
     
-    -- Mouseover Border Glow Block (NEW - blocks the border color change on mouseover)
+    -- Mouseover Border Glow Block (Always ON - blocks the border color change on mouseover)
+    -- This feature is always enabled and uses a fixed black color (0, 0, 0, 1)
     blockMouseoverBorderGlow = {
-        enabled = false, -- Block border color changes on mouseover
-        keepOriginalColor = true, -- Keep the original black border color
-        customColor = {0, 0, 0, 1}, -- Custom color if not keeping original (RGBA)
+        enabled = true, -- Always enabled
+        keepOriginalColor = false, -- Use custom color (black)
+        customColor = {0, 0, 0, 1}, -- Fixed black color (RGBA)
     },
     
     -- Enemy Target specific options (legacy - will be cleaned up)
@@ -658,10 +659,11 @@ end
 
 -------------------------------------------------
 -- Block Mouseover Border Glow System
+-- This system is always enabled and keeps borders black (0, 0, 0, 1)
 -------------------------------------------------
 
 function Module:SetupMouseoverBorderBlock()
-    if not self.db.profile.enabled or not self.db.profile.blockMouseoverBorderGlow.enabled then
+    if not self.db.profile.enabled then
         return
     end
     
@@ -682,10 +684,6 @@ function Module:CleanupMouseoverBorderBlock()
 end
 
 function Module:OnBorderBlockNameplateAdded(event, unit, nameplate)
-    if not self.db.profile.blockMouseoverBorderGlow.enabled then
-        return
-    end
-    
     self:BlockNameplateBorderGlow(nameplate)
 end
 
@@ -708,15 +706,8 @@ function Module:BlockNameplateBorderGlow(nameplate)
         return
     end
     
-    -- Get the color to use
-    local color = self.db.profile.blockMouseoverBorderGlow.customColor
-    if self.db.profile.blockMouseoverBorderGlow.keepOriginalColor then
-        -- Capture current color
-        if border.Texture and border.Texture.GetVertexColor then
-            local r, g, b, a = border.Texture:GetVertexColor()
-            color = {r, g, b, a}
-        end
-    end
+    -- Fixed black color: RGBA(0, 0, 0, 1)
+    local color = {0, 0, 0, 1}
     
     -- Store original SetVertexColor function
     if border.Texture and not border.Texture.originalSetVertexColor then
@@ -724,11 +715,11 @@ function Module:BlockNameplateBorderGlow(nameplate)
         
         -- Replace with our blocking version
         border.Texture.SetVertexColor = function(self, r, g, b, a)
-            -- Use our locked color instead
+            -- Always use black color
             self.originalSetVertexColor(self, color[1], color[2], color[3], color[4])
         end
         
-        -- Force initial color
+        -- Force initial black color
         border.Texture:SetVertexColor(color[1], color[2], color[3], color[4])
         
         border.glowBlocked = true
@@ -2175,75 +2166,6 @@ function Module:BuildGeneralTab()
         },
         
         spacer3 = { type = "description", name = "\n", order = 25 },
-        
-        -- Mouseover Border Glow Block (YATP Custom Feature)
-        mouseoverBorderBlockHeader = { type = "header", name = L["Block Mouseover Border Glow (YATP Custom)"] or "Block Mouseover Border Glow (YATP Custom)", order = 26 },
-        
-        mouseoverBorderBlockDesc = {
-            type = "description",
-            name = L["Blocks the health bar border from changing color when you mouseover a nameplate. This removes the white/yellow glow effect that appears on mouseover."] or "Blocks the health bar border from changing color when you mouseover a nameplate. This removes the white/yellow glow effect that appears on mouseover.",
-            order = 27,
-        },
-        
-        mouseoverBorderBlockEnabled = {
-            type = "toggle",
-            name = L["Block Mouseover Border Glow"] or "Block Mouseover Border Glow",
-            desc = L["Prevent the nameplate border from changing color on mouseover"] or "Prevent the nameplate border from changing color on mouseover",
-            get = function() return self.db.profile.blockMouseoverBorderGlow.enabled end,
-            set = function(_, value) 
-                self.db.profile.blockMouseoverBorderGlow.enabled = value
-                if value then
-                    self:SetupMouseoverBorderBlock()
-                else
-                    self:UnblockAllBorderGlows()
-                    self:CleanupMouseoverBorderBlock()
-                end
-            end,
-            order = 28,
-        },
-        
-        mouseoverBorderBlockKeepOriginal = {
-            type = "toggle",
-            name = L["Keep Original Border Color"] or "Keep Original Border Color",
-            desc = L["Keep the original border color (usually black). If disabled, you can set a custom color below."] or "Keep the original border color (usually black). If disabled, you can set a custom color below.",
-            get = function() return self.db.profile.blockMouseoverBorderGlow.keepOriginalColor end,
-            set = function(_, value) 
-                self.db.profile.blockMouseoverBorderGlow.keepOriginalColor = value
-                -- Re-apply to all nameplates
-                if self.db.profile.blockMouseoverBorderGlow.enabled then
-                    self:UnblockAllBorderGlows()
-                    self:SetupMouseoverBorderBlock()
-                end
-            end,
-            disabled = function() return not self.db.profile.blockMouseoverBorderGlow.enabled end,
-            order = 29,
-        },
-        
-        mouseoverBorderBlockColor = {
-            type = "color",
-            name = L["Custom Border Color"] or "Custom Border Color",
-            desc = L["Custom color for the border (only used if 'Keep Original Border Color' is disabled)"] or "Custom color for the border (only used if 'Keep Original Border Color' is disabled)",
-            hasAlpha = true,
-            get = function() 
-                local color = self.db.profile.blockMouseoverBorderGlow.customColor
-                return color[1], color[2], color[3], color[4]
-            end,
-            set = function(_, r, g, b, a) 
-                self.db.profile.blockMouseoverBorderGlow.customColor = {r, g, b, a}
-                -- Re-apply to all nameplates
-                if self.db.profile.blockMouseoverBorderGlow.enabled then
-                    self:UnblockAllBorderGlows()
-                    self:SetupMouseoverBorderBlock()
-                end
-            end,
-            disabled = function() 
-                return not self.db.profile.blockMouseoverBorderGlow.enabled or 
-                       self.db.profile.blockMouseoverBorderGlow.keepOriginalColor 
-            end,
-            order = 30,
-        },
-        
-        spacer3b = { type = "description", name = "\n", order = 31 },
         
         -- Threat System (YATP Custom Feature)
         threatHeader = { type = "header", name = L["Threat System (YATP Custom)"] or "Threat System (YATP Custom)", order = 35 },
