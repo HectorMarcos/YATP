@@ -132,12 +132,17 @@ function Module:OnEnable()
     
     -- Only initialize functionality if enabled
     if not self.db.profile.enabled then
+        print("[YATP] NamePlates module is DISABLED")
         return
     end
+    
+    print("[YATP] NamePlates module is ENABLED - Registering events")
     
     -- Register core nameplate events (needed for border blocking and other features)
     self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateAdded")
     self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateRemoved")
+    
+    print("[YATP] Events registered: NAME_PLATE_UNIT_ADDED, NAME_PLATE_UNIT_REMOVED")
     
     self:SetupTargetGlow()
     self:SetupTargetArrows()
@@ -276,9 +281,14 @@ function Module:OnTargetChanged()
 end
 
 function Module:OnNamePlateAdded(unit, nameplate)
+    print("[YATP] OnNamePlateAdded called for unit:", unit or "nil")
+    
     if not self.db.profile.enabled then 
+        print("[YATP] Module not enabled, skipping")
         return 
     end
+    
+    print("[YATP] Nameplate:", nameplate and "exists" or "nil", "UnitFrame:", nameplate and nameplate.UnitFrame and "exists" or "nil")
     
     -- Always block mouseover border glow on new nameplates
     self:BlockNameplateBorderGlow(nameplate)
@@ -677,12 +687,18 @@ function Module:SetupMouseoverBorderBlock()
         return
     end
     
+    print("[YATP] SetupMouseoverBorderBlock: Processing existing nameplates")
+    local count = 0
+    
     -- Apply to existing nameplates
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
         if nameplate.UnitFrame then
+            count = count + 1
             self:BlockNameplateBorderGlow(nameplate)
         end
     end
+    
+    print(string.format("[YATP] SetupMouseoverBorderBlock: Processed %d existing nameplates", count))
 end
 
 function Module:CleanupMouseoverBorderBlock()
