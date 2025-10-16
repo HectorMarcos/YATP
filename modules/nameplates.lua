@@ -1367,25 +1367,22 @@ function Module:ForceBlackBordersOnAllNameplates()
             
             -- Skip the current target if target border is enabled
             -- Target has its own custom border, don't force black on it
-            if self.db.profile.targetGlow.enabled and 
-               self.currentTargetFrame == nameplate then
-                -- This is the current target with custom border, skip it
-                goto continue
-            end
+            local isCurrentTarget = self.db.profile.targetGlow.enabled and 
+                                    self.currentTargetFrame == nameplate
             
-            local texture = nameplate.UnitFrame.healthBar.border.Texture
-            local r, g, b, a = texture:GetVertexColor()
-            
-            -- Force black if not already black
-            if r ~= 0 or g ~= 0 or b ~= 0 then
-                if texture.originalSetVertexColor then
-                    texture.originalSetVertexColor(texture, 0, 0, 0, 1)
-                else
-                    texture:SetVertexColor(0, 0, 0, 1)
+            if not isCurrentTarget then
+                local texture = nameplate.UnitFrame.healthBar.border.Texture
+                local r, g, b, a = texture:GetVertexColor()
+                
+                -- Force black if not already black
+                if r ~= 0 or g ~= 0 or b ~= 0 then
+                    if texture.originalSetVertexColor then
+                        texture.originalSetVertexColor(texture, 0, 0, 0, 1)
+                    else
+                        texture:SetVertexColor(0, 0, 0, 1)
+                    end
                 end
             end
-            
-            ::continue::
         end
     end
 end
