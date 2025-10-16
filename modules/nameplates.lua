@@ -470,23 +470,18 @@ function Module:UpdateQuestIcon(nameplate)
         return
     end
     
-    -- Get unit name from frame
-    local unitName = frame.name and frame.name:GetText()
-    if not unitName then
+    -- Get the actual unit ID for this nameplate
+    local unitID = frame.unit
+    if not unitID or not UnitExists(unitID) then
         qi:Hide()
         return
     end
     
-    -- Check if any tracked unit has this name and has quest
-    local hasQuest = false
-    for unitID, unitData in pairs(self.questTrackedUnits) do
-        if unitData.name == unitName and unitData.hasQuest then
-            hasQuest = true
-            break
-        end
-    end
+    -- ALWAYS re-scan the tooltip in real-time (don't trust cache)
+    -- This ensures we catch quest completions and changes immediately
+    local hasQuest = self:ScanUnitForQuest(unitID)
     
-    -- Show/hide icon
+    -- Show/hide icon based on current scan
     if hasQuest then
         self:UpdateQuestIconSize(nameplate)
         qi:Show()
@@ -576,22 +571,7 @@ function Module:ProcessNamePlateForQuests(unitID, nameplateFrame)
         self:CreateQuestIcon(nameplateFrame)
     end
     
-    -- Scan for quest objectives if custom quest icons are enabled
-    if self.db.profile.questIcons.enabled and unitID then
-        local unitName = UnitName(unitID)
-        if unitName then
-            -- Scan tooltip to check if unit has active quest
-            local hasQuest = self:ScanUnitForQuest(unitID)
-            
-            -- Store unit info
-            self.questTrackedUnits[unitID] = {
-                name = unitName,
-                hasQuest = hasQuest,
-            }
-        end
-    end
-    
-    -- Update quest icon for this nameplate
+    -- Update quest icon for this nameplate (will scan tooltip in real-time)
     if self.db.profile.questIcons.enabled then
         self:UpdateQuestIcon(nameplateFrame)
     end
@@ -645,26 +625,41 @@ function Module:SetupQuestIcons()
         if nameplate.UnitFrame then
             self:SetNativeQuestIconAlpha(nameplate, 0)
             self:CreateQuestIcon(nameplate)
-            
-            -- Scan for quest if unit exists
-            if nameplate.UnitFrame.unit then
-                local unitName = UnitName(nameplate.UnitFrame.unit)
-                if unitName then
-                    local hasQuest = self:ScanUnitForQuest(nameplate.UnitFrame.unit)
-                    self.questTrackedUnits[nameplate.UnitFrame.unit] = {
-                        name = unitName,
-                        hasQuest = hasQuest,
-                    }
-                end
-            end
-            
             self:UpdateQuestIcon(nameplate)
         end
+    end
+    
+    -- Create periodic update frame to refresh quest icons
+    -- This catches quest completions and changes in real-time
+    if not self.questIconUpdateFrame then
+        self.questIconUpdateFrame = CreateFrame("Frame")
+        self.questIconUpdateFrame:SetScript("OnUpdate", function(frame, elapsed)
+            frame.timeSinceLastUpdate = (frame.timeSinceLastUpdate or 0) + elapsed
+            
+            -- Update every 0.5 seconds (balance between responsiveness and performance)
+            if frame.timeSinceLastUpdate >= 0.5 then
+                frame.timeSinceLastUpdate = 0
+                
+                -- Update all visible nameplates
+                if Module.db.profile.questIcons.enabled then
+                    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+                        if nameplate.UnitFrame and nameplate.UnitFrame.YATPQuestIcon then
+                            Module:UpdateQuestIcon(nameplate)
+                        end
+                    end
+                end
+            end
+        end)
     end
 end
 
 -- Cleanup quest icon system
 function Module:CleanupQuestIcons()
+    -- Stop periodic updates
+    if self.questIconUpdateFrame then
+        self.questIconUpdateFrame:SetScript("OnUpdate", nil)
+    end
+    
     -- Hide all custom quest icons
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
         if nameplate.UnitFrame then
@@ -677,7 +672,7 @@ function Module:CleanupQuestIcons()
         end
     end
     
-    -- Clear tracked units
+    -- Clear tracked units (though we don't use cache anymore)
     self.questTrackedUnits = {}
 end
 
