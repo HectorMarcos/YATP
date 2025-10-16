@@ -2,9 +2,9 @@
 ## Title: YATP
 ## Notes: Yet Another Tweaks Pack
 ## Author: Zavah
-## Version: 0.7.0
+## Version: 0.8.0
 ## SavedVariables: YATP_DB
-## Notes-ESMX: Archivo duplicado raiz config.lua removido; usar core/config.lua
+## Notes-ESMX: Added nameplate mouseover customizations
 
 # Libs (ensure these exist under YATP\Libs\)
 Libs\LibStub\LibStub.lua

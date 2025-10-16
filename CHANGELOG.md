@@ -7,6 +7,97 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.8.0] - 2025-10-16
+
+### Added
+
+- **NamePlates**: Mouseover Border Glow Blocking (YATP Custom Enhancement)
+  - Forces all nameplate borders to remain black (0, 0, 0, 1) regardless of mouseover state
+  - Eliminates the distracting white/yellow border glow that appears when hovering over nameplates
+  - Uses aggressive OnUpdate frame system that forces black color every frame
+  - Intercepts all color change attempts via SetVertexColor hooks
+  - 100% consistent blocking - works on all nameplates including dynamically created ones
+  - Configurable via "Block Mouseover Border Glow" toggle in NamePlates settings
+
+- **NamePlates**: Mouseover Health Bar Highlight (YATP Custom Enhancement)
+  - Adds subtle visual feedback when mousing over non-target nameplates
+  - Applies white tint to health bar color for gentle highlighting effect
+  - Configurable tint amount (0.0 = no change, 1.0 = pure white), default 0.5 (50% white mix)
+  - Automatically excludes current target to avoid visual conflicts
+  - OnUpdate frame maintains color every frame to prevent overwrites from threat system
+  - Respects threat system colors - reapplies threat color after mouseover ends
+  - Smart color restoration system tracks original colors per nameplate
+  - Works seamlessly with Ascension's dynamic nameplate system
+
+### Technical Improvements
+
+- **NamePlates**: Border blocking uses dual-strategy approach
+  - OnUpdate frame scans all nameplates every frame checking for non-black borders
+  - SetVertexColor hook intercepts any color change attempts at the source
+  - Hook system stores original function reference for safe cleanup
+  - Frame-by-frame enforcement ensures 100% consistency even with external interference
+
+- **NamePlates**: Health bar highlight system architecture
+  - Event-driven via UPDATE_MOUSEOVER_UNIT for efficient state tracking
+  - Per-nameplate data structure stores original colors, highlight colors, and mouseover state
+  - OnUpdate frame verifies UnitIsUnit(unit, "mouseover") every frame for accuracy
+  - Automatic cleanup when mouseover lost - clears highlight and restores original
+  - Color application to both SetStatusBarColor AND texture.SetVertexColor for compatibility
+  - Integrated with threat system via conditional checks (skips threat color during mouseover)
+
+- **NamePlates**: Production-ready code cleanup
+  - Removed all debug print statements (silent operation)
+  - Eliminated unused retry functions (BlockNameplateBorderGlowWithRetry)
+  - Removed all event handler debug calls in NAME_PLATE_UNIT_ADDED handlers
+  - Cleaned up 248 lines of debug code while adding only 36 lines of production code
+  - Simplified function signatures (removed silent parameter, removed retry parameters)
+
+### Changed
+
+- **NamePlates**: Border blocking now uses OnUpdate frame as primary method
+  - Previous approach relied on event timing and retry logic
+  - New approach scans and corrects every frame for foolproof consistency
+  - Eliminates all timing-related edge cases and race conditions
+
+- **NamePlates**: Mouseover system no longer uses brightness method
+  - Removed brightness adjustment option (was redundant with tint)
+  - Simplified to single tint method for cleaner UX
+  - Fixed tint default value to 0.5 (50% white mix)
+
+### Fixed
+
+- **NamePlates**: Border blocking now works on ALL nameplates consistently
+  - Resolved issue where some nameplates (especially behind camera) failed to block
+  - Fixed event registration conflicts (multiple NAME_PLATE_UNIT_ADDED handlers)
+  - Eliminated dependency on unit availability timing
+  - OnUpdate approach catches and corrects any border color changes immediately
+
+- **NamePlates**: Mouseover color now persists correctly during hover
+  - Fixed threat system immediately overwriting mouseover colors
+  - OnUpdate frame now maintains highlight color every frame
+  - Added check in ApplyThreatToHealthBar to skip color during mouseover
+  - Proper cleanup of highlightColor in data when mouseover ends
+
+### Localization
+
+- **NamePlates**: Complete English localization for border blocking system
+  - "Block Mouseover Border Glow (YATP Custom)" section header
+  - "Enable Border Glow Blocking" toggle with detailed tooltip
+  - "Custom Border Color" picker (fixed to black, 0,0,0,1)
+
+- **NamePlates**: Complete English localization for mouseover highlight system
+  - "Mouseover Health Bar Highlight (YATP Custom)" section header
+  - "Enable Mouseover Highlight" toggle with behavior explanation
+  - "Tint" slider description (0.0-1.0 range, default 0.5)
+
+### Documentation
+
+- **NamePlates**: Border blocking intercepts color changes at two levels:
+  1. SetVertexColor hook prevents changes at the API level
+  2. OnUpdate frame scans and corrects any colors that slip through
+- **NamePlates**: Mouseover highlight designed to work alongside existing nameplate addons
+- **NamePlates**: Both features are YATP-specific enhancements to Ascension_NamePlates
+
 ## [0.7.0] - 2025-10-16
 
 ### Added
