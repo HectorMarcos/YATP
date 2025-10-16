@@ -53,8 +53,8 @@ Module.defaults = {
     mouseoverHealthBarHighlight = {
         enabled = true, -- Enable mouseover highlight on health bars
         method = "brightness", -- "brightness" or "tint"
-        brightnessMultiplier = 1.3, -- How much to brighten (1.0 = no change, 1.3 = 30% brighter)
-        tintAmount = 0.25, -- How much white to mix in for tint method (0.0 to 1.0)
+        brightnessMultiplier = 1.5, -- How much to brighten (1.0 = no change, 1.5 = 50% brighter for better visibility)
+        tintAmount = 0.4, -- How much white to mix in for tint method (0.0 to 1.0, 0.4 = 40% for better visibility)
     },
     
     -- Enemy Target specific options (legacy - will be cleaned up)
@@ -712,6 +712,18 @@ function Module:SetupMouseoverHealthBarHighlight()
     self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnHealthBarMouseoverUpdate")
     print("[YATP Mouseover] Registered UPDATE_MOUSEOVER_UNIT event")
     
+    -- Create OnUpdate frame to maintain colors every frame (prevents overwrites)
+    if not self.mouseoverUpdateFrame then
+        self.mouseoverUpdateFrame = CreateFrame("Frame")
+        self.mouseoverUpdateFrame:SetScript("OnUpdate", function()
+            if self.db.profile.mouseoverHealthBarHighlight.enabled then
+                self:MaintainMouseoverColors()
+            end
+        end)
+    end
+    self.mouseoverUpdateFrame:Show()
+    print("[YATP Mouseover] Created OnUpdate frame to maintain colors")
+    
     -- Process existing nameplates
     C_Timer.After(0.5, function()
         local count = 0
@@ -726,6 +738,12 @@ function Module:SetupMouseoverHealthBarHighlight()
 end
 
 function Module:CleanupMouseoverHealthBarHighlight()
+    -- Hide OnUpdate frame
+    if self.mouseoverUpdateFrame then
+        self.mouseoverUpdateFrame:Hide()
+        self.mouseoverUpdateFrame:SetScript("OnUpdate", nil)
+    end
+    
     -- Restore all health bar colors
     if self.mouseoverHealthBarData then
         for nameplate, data in pairs(self.mouseoverHealthBarData) do
@@ -738,6 +756,29 @@ function Module:CleanupMouseoverHealthBarHighlight()
     
     -- Unregister event
     self:UnregisterEvent("UPDATE_MOUSEOVER_UNIT")
+end
+
+function Module:MaintainMouseoverColors()
+    -- This runs every frame to maintain mouseover colors and prevent overwrites
+    if not self.mouseoverHealthBarData then
+        return
+    end
+    
+    for nameplate, data in pairs(self.mouseoverHealthBarData) do
+        if data.isMouseover and data.highlightColor and nameplate.UnitFrame and nameplate.UnitFrame.healthBar then
+            local healthBar = nameplate.UnitFrame.healthBar
+            local color = data.highlightColor
+            
+            -- Re-apply the highlight color every frame
+            healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+            
+            -- Also to texture
+            local texture = healthBar:GetStatusBarTexture()
+            if texture then
+                texture:SetVertexColor(color[1], color[2], color[3], color[4])
+            end
+        end
+    end
 end
 
 function Module:SetupMouseoverHealthBarForNameplate(nameplate)
@@ -863,24 +904,34 @@ function Module:ApplyMouseoverHealthBarHighlight(nameplate)
     
     if method == "brightness" then
         -- Method 1: Increase brightness
-        local multiplier = self.db.profile.mouseoverHealthBarHighlight.brightnessMultiplier or 1.3
+        local multiplier = self.db.profile.mouseoverHealthBarHighlight.brightnessMultiplier or 1.5
         print(string.format("[YATP Mouseover] Brightness multiplier: %.2f", multiplier))
         newR, newG, newB, newA = self:ApplyBrightnessMultiplier(r, g, b, a, multiplier)
     elseif method == "tint" then
         -- Method 2: Tint with white
-        local tintAmount = self.db.profile.mouseoverHealthBarHighlight.tintAmount or 0.25
+        local tintAmount = self.db.profile.mouseoverHealthBarHighlight.tintAmount or 0.4
         print(string.format("[YATP Mouseover] Tint amount: %.2f", tintAmount))
         newR, newG, newB, newA = self:ApplyWhiteTint(r, g, b, a, tintAmount)
     else
         -- Fallback to brightness
         print("[YATP Mouseover] WARNING: Unknown method, using brightness fallback")
-        newR, newG, newB, newA = self:ApplyBrightnessMultiplier(r, g, b, a, 1.3)
+        newR, newG, newB, newA = self:ApplyBrightnessMultiplier(r, g, b, a, 1.5)
     end
+    
+    -- Store the highlight color for maintenance
+    self.mouseoverHealthBarData[nameplate].highlightColor = {newR, newG, newB, newA}
     
     print(string.format("[YATP Mouseover] New color for %s: R=%.2f G=%.2f B=%.2f A=%.2f", unitName, newR, newG, newB, newA))
     
-    -- Apply new color
+    -- Apply new color to StatusBar
     healthBar:SetStatusBarColor(newR, newG, newB, newA)
+    
+    -- CRITICAL: Also apply to the texture directly (some addons need this)
+    local texture = healthBar:GetStatusBarTexture()
+    if texture then
+        texture:SetVertexColor(newR, newG, newB, newA)
+        print(string.format("[YATP Mouseover] Also applied to texture via SetVertexColor"))
+    end
     
     -- Verify the color was actually set
     local actualR, actualG, actualB, actualA = healthBar:GetStatusBarColor()
@@ -890,6 +941,11 @@ function Module:ApplyMouseoverHealthBarHighlight(nameplate)
     if math.abs(actualR - newR) > 0.01 or math.abs(actualG - newG) > 0.01 or math.abs(actualB - newB) > 0.01 then
         print(string.format("[YATP Mouseover] WARNING: Color was OVERWRITTEN immediately! Expected R=%.2f G=%.2f B=%.2f but got R=%.2f G=%.2f B=%.2f", 
             newR, newG, newB, actualR, actualG, actualB))
+    end
+    
+    -- Store that we need to maintain this color
+    if not nameplate.mouseoverColorLock then
+        nameplate.mouseoverColorLock = true
     end
 end
 
@@ -923,6 +979,17 @@ function Module:RestoreHealthBarColor(nameplate, color)
     
     local healthBar = nameplate.UnitFrame.healthBar
     healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+    
+    -- Also restore texture color
+    local texture = healthBar:GetStatusBarTexture()
+    if texture then
+        texture:SetVertexColor(color[1], color[2], color[3], color[4])
+    end
+    
+    -- Remove color lock
+    if nameplate.mouseoverColorLock then
+        nameplate.mouseoverColorLock = nil
+    end
 end
 
 -------------------------------------------------
