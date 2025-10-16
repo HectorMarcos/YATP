@@ -7,6 +7,42 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.8.1] - 2025-10-16
+
+### Fixed
+
+- **NamePlates**: Threat System no longer applies colors when player is solo (not in party/raid)
+  - Added multiple defensive checks in `OnGroupChanged()`, `UpdateAllThreatIndicators()`, and `OnThreatCombatStart()`
+  - `OnGroupChanged()` now clears colors BEFORE attempting updates to prevent race conditions
+  - Combat end now properly clears all threat colors instead of attempting to update them
+  - Eliminates brief flashes of threat colors when leaving groups or during combat transitions
+
+- **NamePlates**: Neutral NPCs now correctly maintain their yellow color
+  - Fixed `ResetHealthBarColor()`, `ResetNameplateColors()`, and `ClearAllThreatColors()` functions
+  - These functions were forcing red (1,0,0) or green (0,1,0) colors on all units
+  - Now correctly preserve game's natural faction-based coloring system:
+    * Red for hostile enemies
+    * Yellow for neutral NPCs
+    * Green for friendly units
+  - Reset functions no longer call `SetStatusBarColor()` or `SetTextColor()`
+  - Game's default nameplate system handles color restoration naturally
+
+- **NamePlates**: Missing localization entry for mouseover highlight description
+  - Added English translation for "Highlight the health bar when mousing over non-target nameplates. Uses a white tint effect (50% mix) for subtle visibility."
+  - Resolves AceLocale-3.0 missing entry error message
+
+### Technical Improvements
+
+- **NamePlates**: Threat system now implements defense-in-depth approach with multiple verification layers
+  - Group status checked at multiple points (event handlers, update functions, combat handlers)
+  - Immediate cleanup when going solo prevents any color persistence
+  - Combat end triggers cleanup instead of update to ensure clean state
+
+- **NamePlates**: Color reset philosophy changed from "force default" to "let game handle it"
+  - Removes dependency on hardcoded color values that don't account for faction/reaction states
+  - Preserves WoW's built-in nameplate color system for all unit types
+  - Only cleans up YATP-specific custom elements (threat borders)
+
 ## [0.8.0] - 2025-10-16
 
 ### Added

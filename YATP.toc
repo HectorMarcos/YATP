@@ -2,9 +2,9 @@
 ## Title: YATP
 ## Notes: Yet Another Tweaks Pack
 ## Author: Zavah
-## Version: 0.8.0
+## Version: 0.8.1
 ## SavedVariables: YATP_DB
-## Notes-ESMX: Added nameplate mouseover customizations
+## Notes-ESMX: Fixed threat system and neutral NPC colors
 
 # Libs (ensure these exist under YATP\Libs\)
 Libs\LibStub\LibStub.lua
