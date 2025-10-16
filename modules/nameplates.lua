@@ -699,22 +699,29 @@ end
 
 function Module:SetupMouseoverHealthBarHighlight()
     if not self.db.profile.enabled or not self.db.profile.mouseoverHealthBarHighlight.enabled then
+        print("[YATP Mouseover] Setup SKIPPED - module or feature disabled")
         return
     end
+    
+    print("[YATP Mouseover] Setting up mouseover health bar highlight system")
     
     -- Initialize tracking
     self.mouseoverHealthBarData = {}
     
     -- Register mouseover event
     self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnHealthBarMouseoverUpdate")
+    print("[YATP Mouseover] Registered UPDATE_MOUSEOVER_UNIT event")
     
     -- Process existing nameplates
     C_Timer.After(0.5, function()
+        local count = 0
         for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
             if nameplate.UnitFrame then
+                count = count + 1
                 self:SetupMouseoverHealthBarForNameplate(nameplate)
             end
         end
+        print(string.format("[YATP Mouseover] Setup complete - processed %d existing nameplates", count))
     end)
 end
 
@@ -753,32 +760,45 @@ end
 
 function Module:OnHealthBarMouseoverUpdate()
     if not self.db.profile.mouseoverHealthBarHighlight.enabled then
+        print("[YATP Mouseover] System disabled")
         return
     end
     
+    print("[YATP Mouseover] UPDATE_MOUSEOVER_UNIT fired")
+    
     -- Check all nameplates for mouseover state
+    local count = 0
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
         if nameplate.UnitFrame then
+            count = count + 1
             self:UpdateMouseoverHealthBar(nameplate)
         end
     end
+    
+    print(string.format("[YATP Mouseover] Processed %d nameplates", count))
 end
 
 function Module:UpdateMouseoverHealthBar(nameplate)
     if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
+        print("[YATP Mouseover] No nameplate or UnitFrame or healthBar")
         return
     end
     
     local unit = nameplate.UnitFrame.unit
     if not unit then
+        print("[YATP Mouseover] No unit")
         return
     end
     
     -- Check if this is the mouseover unit
     local isMouseover = UnitIsUnit(unit, "mouseover")
+    local unitName = UnitName(unit) or "Unknown"
+    
+    print(string.format("[YATP Mouseover] Unit: %s, IsMouseover: %s", unitName, tostring(isMouseover)))
     
     -- CRITICAL: Don't highlight if this is the target
     if UnitExists("target") and UnitIsUnit(unit, "target") then
+        print(string.format("[YATP Mouseover] %s is TARGET - skipping", unitName))
         -- Ensure we restore color if it was previously moused over
         if self.mouseoverHealthBarData and self.mouseoverHealthBarData[nameplate] and 
            self.mouseoverHealthBarData[nameplate].isMouseover then
@@ -803,24 +823,31 @@ function Module:UpdateMouseoverHealthBar(nameplate)
     
     if isMouseover and not data.isMouseover then
         -- Just became mouseover - store original color and apply highlight
+        print(string.format("[YATP Mouseover] APPLYING highlight to %s", unitName))
         self:ApplyMouseoverHealthBarHighlight(nameplate)
         data.isMouseover = true
     elseif not isMouseover and data.isMouseover then
         -- No longer mouseover - restore original color
+        print(string.format("[YATP Mouseover] RESTORING color for %s", unitName))
         self:RestoreHealthBarColorIfStored(nameplate)
         data.isMouseover = false
+    else
+        print(string.format("[YATP Mouseover] No state change for %s (isMouseover: %s, data.isMouseover: %s)", unitName, tostring(isMouseover), tostring(data.isMouseover)))
     end
 end
 
 function Module:ApplyMouseoverHealthBarHighlight(nameplate)
     if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
+        print("[YATP Mouseover] ApplyHighlight: No healthBar")
         return
     end
     
     local healthBar = nameplate.UnitFrame.healthBar
+    local unitName = UnitName(nameplate.UnitFrame.unit) or "Unknown"
     
     -- Get current color (this is the "original" we need to restore later)
     local r, g, b, a = healthBar:GetStatusBarColor()
+    print(string.format("[YATP Mouseover] Original color for %s: R=%.2f G=%.2f B=%.2f A=%.2f", unitName, r, g, b, a))
     
     -- Store original color
     if not self.mouseoverHealthBarData[nameplate] then
@@ -832,21 +859,30 @@ function Module:ApplyMouseoverHealthBarHighlight(nameplate)
     local method = self.db.profile.mouseoverHealthBarHighlight.method
     local newR, newG, newB, newA
     
+    print(string.format("[YATP Mouseover] Using method: %s", method))
+    
     if method == "brightness" then
         -- Method 1: Increase brightness
         local multiplier = self.db.profile.mouseoverHealthBarHighlight.brightnessMultiplier or 1.3
+        print(string.format("[YATP Mouseover] Brightness multiplier: %.2f", multiplier))
         newR, newG, newB, newA = self:ApplyBrightnessMultiplier(r, g, b, a, multiplier)
     elseif method == "tint" then
         -- Method 2: Tint with white
         local tintAmount = self.db.profile.mouseoverHealthBarHighlight.tintAmount or 0.25
+        print(string.format("[YATP Mouseover] Tint amount: %.2f", tintAmount))
         newR, newG, newB, newA = self:ApplyWhiteTint(r, g, b, a, tintAmount)
     else
         -- Fallback to brightness
+        print("[YATP Mouseover] WARNING: Unknown method, using brightness fallback")
         newR, newG, newB, newA = self:ApplyBrightnessMultiplier(r, g, b, a, 1.3)
     end
     
+    print(string.format("[YATP Mouseover] New color for %s: R=%.2f G=%.2f B=%.2f A=%.2f", unitName, newR, newG, newB, newA))
+    
     -- Apply new color
     healthBar:SetStatusBarColor(newR, newG, newB, newA)
+    
+    print(string.format("[YATP Mouseover] Color applied to %s health bar", unitName))
 end
 
 function Module:RestoreHealthBarColorIfStored(nameplate)
