@@ -296,7 +296,8 @@ function Module:OnAscensionNamePlateCreated(nameplate)
     end
     
     -- Block mouseover border glow (this is the perfect moment - UnitFrame just created)
-    self:BlockNameplateBorderGlow(nameplate)
+    -- But border.Texture might not be ready yet, so we'll try with delays
+    self:BlockNameplateBorderGlowWithRetry(nameplate)
     
     -- Setup mouseover health bar highlight for this nameplate
     self:SetupMouseoverHealthBarForNameplate(nameplate)
@@ -305,6 +306,12 @@ end
 function Module:OnNamePlateAdded(unit, nameplate)
     if not self.db.profile.enabled then 
         return 
+    end
+    
+    -- Also try to block border here as a fallback
+    -- This catches nameplates that weren't blocked by OnAscensionNamePlateCreated
+    if nameplate.UnitFrame then
+        self:BlockNameplateBorderGlowWithRetry(nameplate, 1) -- Try with shorter delay
     end
     
     -- Add target glow if enabled
@@ -1061,10 +1068,35 @@ function Module:CleanupMouseoverBorderBlock()
     -- Nothing to cleanup - callback will simply not be called when module is disabled
 end
 
-function Module:BlockNameplateBorderGlow(nameplate)
+function Module:BlockNameplateBorderGlowWithRetry(nameplate, maxAttempts)
+    maxAttempts = maxAttempts or 5
+    local attemptCount = 0
+    
+    local function tryBlock()
+        attemptCount = attemptCount + 1
+        local success = self:BlockNameplateBorderGlow(nameplate, true) -- silent mode
+        
+        if not success and attemptCount < maxAttempts then
+            -- Border not ready yet, try again
+            local unitName = nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
+            print(string.format("[YATP Border] %s - Retry %d/%d in 0.1s", unitName, attemptCount, maxAttempts))
+            C_Timer.After(0.1, tryBlock)
+        elseif not success then
+            local unitName = nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
+            print(string.format("[YATP Border] %s - Failed after %d attempts", unitName, maxAttempts))
+        end
+    end
+    
+    -- First attempt immediately
+    tryBlock()
+end
+
+function Module:BlockNameplateBorderGlow(nameplate, silent)
     if not nameplate or not nameplate.UnitFrame then
-        print("[YATP Border] No nameplate or UnitFrame")
-        return
+        if not silent then
+            print("[YATP Border] No nameplate or UnitFrame")
+        end
+        return false
     end
     
     local unitFrame = nameplate.UnitFrame
@@ -1072,16 +1104,20 @@ function Module:BlockNameplateBorderGlow(nameplate)
     
     -- Check if border exists
     if not unitFrame.healthBar or not unitFrame.healthBar.border then
-        print(string.format("[YATP Border] %s - No healthBar or border", unitName))
-        return
+        if not silent then
+            print(string.format("[YATP Border] %s - No healthBar or border", unitName))
+        end
+        return false
     end
     
     local border = unitFrame.healthBar.border
     
     -- Check if border has a Texture to hook
     if not border.Texture then
-        print(string.format("[YATP Border] %s - No border.Texture", unitName))
-        return
+        if not silent then
+            print(string.format("[YATP Border] %s - No border.Texture", unitName))
+        end
+        return false
     end
     
     -- Fixed black color: RGBA(0, 0, 0, 1)
@@ -1090,10 +1126,14 @@ function Module:BlockNameplateBorderGlow(nameplate)
     -- Store original SetVertexColor if not already stored
     if not border.Texture.originalSetVertexColor then
         border.Texture.originalSetVertexColor = border.Texture.SetVertexColor
-        print(string.format("[YATP Border] %s - Storing original SetVertexColor and hooking", unitName))
+        if not silent then
+            print(string.format("[YATP Border] %s - Storing original SetVertexColor and hooking", unitName))
+        end
     else
-        print(string.format("[YATP Border] %s - Already hooked, skipping", unitName))
-        return -- Already hooked
+        if not silent then
+            print(string.format("[YATP Border] %s - Already hooked, skipping", unitName))
+        end
+        return true -- Already hooked, consider it success
     end
     
     -- Replace with our blocking version that always uses black
@@ -1109,7 +1149,11 @@ function Module:BlockNameplateBorderGlow(nameplate)
     -- Mark as blocked
     border.glowBlocked = true
     
-    print(string.format("[YATP Border] %s - Border block successfully applied", unitName))
+    if not silent then
+        print(string.format("[YATP Border] %s - Border block successfully applied", unitName))
+    end
+    
+    return true
 end
 
 function Module:UnblockAllBorderGlows()
