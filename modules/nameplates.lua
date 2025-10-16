@@ -1068,7 +1068,17 @@ function Module:SetupMouseoverBorderBlock()
     
     print("[YATP Border] Border block feature is ENABLED - setting up")
     
-    -- Process existing nameplates after a short delay to ensure UnitFrames are created
+    -- Create OnUpdate frame to FORCE black borders every frame
+    if not self.borderBlockFrame then
+        self.borderBlockFrame = CreateFrame("Frame")
+        print("[YATP Border] Created OnUpdate frame to force black borders")
+    end
+    
+    self.borderBlockFrame:SetScript("OnUpdate", function()
+        self:ForceBlackBordersOnAllNameplates()
+    end)
+    
+    -- Process existing nameplates immediately
     C_Timer.After(0.5, function()
         local count = 0
         for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
@@ -1080,11 +1090,41 @@ function Module:SetupMouseoverBorderBlock()
         print(string.format("[YATP Border] Processed %d existing nameplates", count))
     end)
     
-    -- Note: New nameplates will be handled by OnAscensionNamePlateCreated callback
+    print("[YATP Border] OnUpdate frame will force black borders every frame")
+end
+
+function Module:ForceBlackBordersOnAllNameplates()
+    -- Go through all active nameplates and force black border color
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame and 
+           nameplate.UnitFrame.healthBar and 
+           nameplate.UnitFrame.healthBar.border and 
+           nameplate.UnitFrame.healthBar.border.Texture then
+            
+            local texture = nameplate.UnitFrame.healthBar.border.Texture
+            
+            -- Get current color
+            local r, g, b, a = texture:GetVertexColor()
+            
+            -- If it's not black, force it to black
+            if r ~= 0 or g ~= 0 or b ~= 0 then
+                -- Use the original function if hooked, otherwise use SetVertexColor
+                if texture.originalSetVertexColor then
+                    texture.originalSetVertexColor(texture, 0, 0, 0, 1)
+                else
+                    texture:SetVertexColor(0, 0, 0, 1)
+                end
+            end
+        end
+    end
 end
 
 function Module:CleanupMouseoverBorderBlock()
-    -- Nothing to cleanup - callback will simply not be called when module is disabled
+    -- Stop the OnUpdate frame
+    if self.borderBlockFrame then
+        self.borderBlockFrame:SetScript("OnUpdate", nil)
+        print("[YATP Border] Stopped OnUpdate frame")
+    end
 end
 
 function Module:BlockNameplateBorderGlowWithRetry(nameplate, maxAttempts)
