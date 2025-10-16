@@ -766,16 +766,46 @@ function Module:MaintainMouseoverColors()
     
     for nameplate, data in pairs(self.mouseoverHealthBarData) do
         if data.isMouseover and data.highlightColor and nameplate.UnitFrame and nameplate.UnitFrame.healthBar then
-            local healthBar = nameplate.UnitFrame.healthBar
-            local color = data.highlightColor
+            local unit = nameplate.UnitFrame.unit
+            if not unit then
+                -- No unit, clear highlight
+                data.highlightColor = nil
+                data.isMouseover = false
+                if data.originalColor then
+                    self:RestoreHealthBarColor(nameplate, data.originalColor)
+                    data.originalColor = nil
+                end
+                return
+            end
             
-            -- Re-apply the highlight color every frame
-            healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+            -- CRITICAL: Verify this unit still has mouseover
+            local stillMouseover = UnitIsUnit(unit, "mouseover") == 1
             
-            -- Also to texture
-            local texture = healthBar:GetStatusBarTexture()
-            if texture then
-                texture:SetVertexColor(color[1], color[2], color[3], color[4])
+            if not stillMouseover then
+                -- Lost mouseover but data still says it has it - fix this!
+                local unitName = UnitName(unit) or "Unknown"
+                print(string.format("[YATP Mouseover OnUpdate] %s lost mouseover - cleaning up", unitName))
+                
+                data.highlightColor = nil
+                data.isMouseover = false
+                
+                if data.originalColor then
+                    self:RestoreHealthBarColor(nameplate, data.originalColor)
+                    data.originalColor = nil
+                end
+            else
+                -- Still has mouseover, maintain the highlight color
+                local healthBar = nameplate.UnitFrame.healthBar
+                local color = data.highlightColor
+                
+                -- Re-apply the highlight color every frame
+                healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+                
+                -- Also to texture
+                local texture = healthBar:GetStatusBarTexture()
+                if texture then
+                    texture:SetVertexColor(color[1], color[2], color[3], color[4])
+                end
             end
         end
     end
@@ -821,25 +851,25 @@ end
 
 function Module:UpdateMouseoverHealthBar(nameplate)
     if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
-        print("[YATP Mouseover] No nameplate or UnitFrame or healthBar")
+        -- print("[YATP Mouseover] No nameplate or UnitFrame or healthBar")
         return
     end
     
     local unit = nameplate.UnitFrame.unit
     if not unit then
-        print("[YATP Mouseover] No unit")
+        -- print("[YATP Mouseover] No unit")
         return
     end
     
-    -- Check if this is the mouseover unit
-    local isMouseover = UnitIsUnit(unit, "mouseover")
+    -- Check if this is the mouseover unit (handle nil as false)
+    local isMouseover = UnitIsUnit(unit, "mouseover") == 1
     local unitName = UnitName(unit) or "Unknown"
     
-    print(string.format("[YATP Mouseover] Unit: %s, IsMouseover: %s", unitName, tostring(isMouseover)))
+    -- print(string.format("[YATP Mouseover] Unit: %s, IsMouseover: %s", unitName, tostring(isMouseover)))
     
     -- CRITICAL: Don't highlight if this is the target
     if UnitExists("target") and UnitIsUnit(unit, "target") then
-        print(string.format("[YATP Mouseover] %s is TARGET - skipping", unitName))
+        -- print(string.format("[YATP Mouseover] %s is TARGET - skipping", unitName))
         -- Ensure we restore color if it was previously moused over
         if self.mouseoverHealthBarData and self.mouseoverHealthBarData[nameplate] and 
            self.mouseoverHealthBarData[nameplate].isMouseover then
@@ -876,8 +906,8 @@ function Module:UpdateMouseoverHealthBar(nameplate)
         
         self:RestoreHealthBarColorIfStored(nameplate)
         data.isMouseover = false
-    else
-        print(string.format("[YATP Mouseover] No state change for %s (isMouseover: %s, data.isMouseover: %s)", unitName, tostring(isMouseover), tostring(data.isMouseover)))
+    -- else
+        -- print(string.format("[YATP Mouseover] No state change for %s (isMouseover: %s, data.isMouseover: %s)", unitName, tostring(isMouseover), tostring(data.isMouseover)))
     end
 end
 
