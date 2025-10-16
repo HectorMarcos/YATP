@@ -95,6 +95,10 @@ end
 -- OnEnable
 -------------------------------------------------
 function Module:OnEnable()
+    -- Register slash commands for debugging
+    self:RegisterChatCommand("yatpnp", "SlashCommand")
+    self:RegisterChatCommand("yatpnameplates", "SlashCommand")
+    
     -- AUTO-LOAD: Try to load Ascension_NamePlates if it's enabled but not loaded
     self:AutoLoadAscensionNamePlates()
     
@@ -262,6 +266,11 @@ function Module:OnTargetChanged()
 end
 
 function Module:OnNamePlateAdded(unit, nameplate)
+    -- DEBUG: Hook mouseover on newly added nameplates
+    if self.db.profile.enabled then
+        self:HookMouseoverOnNameplate(nameplate)
+    end
+    
     if not self.db.profile.enabled or not self.db.profile.targetGlow.enabled then 
         return 
     end
@@ -566,6 +575,152 @@ function Module:SetupMouseoverGlow()
     
     -- Hook into nameplate creation to control selectionHighlight
     self:SetupSelectionHighlightHooks()
+    
+    -- DEBUG: Hook mouseover detection
+    self:SetupMouseoverDebug()
+end
+
+-------------------------------------------------
+-- Mouseover Debug System
+-------------------------------------------------
+function Module:SetupMouseoverDebug()
+    -- Hook UPDATE_MOUSEOVER_UNIT event to catch mouseover changes
+    self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnMouseoverDebug")
+    
+    -- Hook nameplate frames to detect mouseover on the actual frame
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame then
+            self:HookMouseoverOnNameplate(nameplate)
+        end
+    end
+end
+
+function Module:OnMouseoverDebug()
+    -- Only print if debug mode is enabled
+    if not self.mouseoverDebugEnabled then
+        return
+    end
+    
+    if UnitExists("mouseover") then
+        local mouseoverName = UnitName("mouseover") or "Unknown"
+        local mouseoverGUID = UnitGUID("mouseover")
+        print(string.format("[YATP NamePlates] MOUSEOVER DETECTED: %s (GUID: %s)", mouseoverName, tostring(mouseoverGUID)))
+        
+        -- Check what's happening with the nameplate
+        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+            if nameplate.UnitFrame and nameplate.UnitFrame.unit then
+                if UnitIsUnit(nameplate.UnitFrame.unit, "mouseover") then
+                    print(string.format("[YATP NamePlates] Found matching nameplate for: %s", mouseoverName))
+                    self:DebugNameplateState(nameplate)
+                    break
+                end
+            end
+        end
+    else
+        print("[YATP NamePlates] MOUSEOVER CLEARED (no unit)")
+    end
+end
+
+function Module:HookMouseoverOnNameplate(nameplate)
+    if not nameplate.UnitFrame or nameplate.UnitFrame.mouseoverHooked then
+        return
+    end
+    
+    -- Hook OnEnter script
+    if nameplate.UnitFrame:HasScript("OnEnter") then
+        nameplate.UnitFrame:HookScript("OnEnter", function(frame)
+            -- Only print if debug mode is enabled
+            if not Module.mouseoverDebugEnabled then
+                return
+            end
+            
+            local unit = frame.unit or frame.displayedUnit
+            if unit then
+                local unitName = UnitName(unit) or "Unknown"
+                print(string.format("[YATP NamePlates] Frame OnEnter: %s", unitName))
+                Module:DebugNameplateState(nameplate)
+            end
+        end)
+    end
+    
+    -- Hook OnLeave script
+    if nameplate.UnitFrame:HasScript("OnLeave") then
+        nameplate.UnitFrame:HookScript("OnLeave", function(frame)
+            -- Only print if debug mode is enabled
+            if not Module.mouseoverDebugEnabled then
+                return
+            end
+            
+            local unit = frame.unit or frame.displayedUnit
+            if unit then
+                local unitName = UnitName(unit) or "Unknown"
+                print(string.format("[YATP NamePlates] Frame OnLeave: %s", unitName))
+            end
+        end)
+    end
+    
+    nameplate.UnitFrame.mouseoverHooked = true
+end
+
+function Module:DebugNameplateState(nameplate)
+    if not nameplate or not nameplate.UnitFrame then
+        print("[YATP NamePlates] DEBUG: Invalid nameplate")
+        return
+    end
+    
+    local unitFrame = nameplate.UnitFrame
+    local unit = unitFrame.unit or unitFrame.displayedUnit
+    local unitName = UnitName(unit) or "Unknown"
+    
+    print(string.format("[YATP NamePlates] ===== NAMEPLATE STATE DEBUG: %s =====", unitName))
+    
+    -- Check selectionHighlight
+    if unitFrame.selectionHighlight then
+        local isShown = unitFrame.selectionHighlight:IsShown()
+        local alpha = unitFrame.selectionHighlight:GetAlpha()
+        print(string.format("  selectionHighlight: Shown=%s, Alpha=%.2f", tostring(isShown), alpha))
+    else
+        print("  selectionHighlight: NOT FOUND")
+    end
+    
+    -- Check aggroHighlight
+    if unitFrame.aggroHighlight then
+        local isShown = unitFrame.aggroHighlight:IsShown()
+        local alpha = unitFrame.aggroHighlight:GetAlpha()
+        print(string.format("  aggroHighlight: Shown=%s, Alpha=%.2f", tostring(isShown), alpha))
+    else
+        print("  aggroHighlight: NOT FOUND")
+    end
+    
+    -- Check healthBar
+    if unitFrame.healthBar then
+        local r, g, b, a = unitFrame.healthBar:GetStatusBarColor()
+        print(string.format("  healthBar color: R=%.2f, G=%.2f, B=%.2f, A=%.2f", r, g, b, a))
+        
+        -- Check for border
+        if unitFrame.healthBar.border then
+            local borderShown = unitFrame.healthBar.border:IsShown()
+            local borderAlpha = unitFrame.healthBar.border:GetAlpha()
+            print(string.format("  healthBar.border: Shown=%s, Alpha=%.2f", tostring(borderShown), borderAlpha))
+        end
+    else
+        print("  healthBar: NOT FOUND")
+    end
+    
+    -- Check frame level and strata
+    print(string.format("  Frame Level: %d, Strata: %s", unitFrame:GetFrameLevel(), unitFrame:GetFrameStrata()))
+    
+    -- Check if unit is mouseover
+    local isMouseover = UnitIsUnit(unit, "mouseover")
+    print(string.format("  Is Mouseover: %s", tostring(isMouseover)))
+    
+    -- Check parent nameplate base frame
+    if nameplate.UnitFrame:GetParent() then
+        local parent = nameplate.UnitFrame:GetParent()
+        print(string.format("  Parent Frame: %s", tostring(parent:GetName() or "Anonymous")))
+    end
+    
+    print("[YATP NamePlates] ===== END DEBUG =====")
 end
 
 function Module:SetupSelectionHighlightHooks()
@@ -2348,4 +2503,54 @@ function Module:BuildEnemyTargetTab()
             order = 41,
         },
     }
+end
+
+-------------------------------------------------
+-- Slash Command Handler
+-------------------------------------------------
+function Module:SlashCommand(input)
+    local args = {}
+    for word in string.gmatch(input, "%S+") do
+        table.insert(args, string.lower(word))
+    end
+    
+    local command = args[1]
+    
+    if not command or command == "help" then
+        print("|cff00ff00[YATP NamePlates]|r Available commands:")
+        print("  |cffffcc00/yatpnp debug|r - Toggle mouseover debug mode")
+        print("  |cffffcc00/yatpnp test|r - Test debug on current mouseover")
+        print("  |cffffcc00/yatpnp hooks|r - Re-apply mouseover hooks to all nameplates")
+        print("  |cffffcc00/yatpnp help|r - Show this help message")
+    elseif command == "debug" then
+        -- Toggle debug mode
+        self.mouseoverDebugEnabled = not self.mouseoverDebugEnabled
+        if self.mouseoverDebugEnabled then
+            print("|cff00ff00[YATP NamePlates]|r Mouseover debug mode |cff00ff00ENABLED|r")
+            print("  Hover over nameplates to see detailed debug information")
+        else
+            print("|cff00ff00[YATP NamePlates]|r Mouseover debug mode |cffff0000DISABLED|r")
+        end
+    elseif command == "test" then
+        -- Test current mouseover
+        if UnitExists("mouseover") then
+            print("|cff00ff00[YATP NamePlates]|r Testing current mouseover...")
+            self:OnMouseoverDebug()
+        else
+            print("|cffff0000[YATP NamePlates]|r No unit under mouse cursor")
+        end
+    elseif command == "hooks" then
+        -- Re-apply hooks to all nameplates
+        print("|cff00ff00[YATP NamePlates]|r Re-applying mouseover hooks to all nameplates...")
+        local count = 0
+        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+            nameplate.UnitFrame.mouseoverHooked = nil -- Reset flag
+            self:HookMouseoverOnNameplate(nameplate)
+            count = count + 1
+        end
+        print("|cff00ff00[YATP NamePlates]|r Applied hooks to " .. count .. " nameplates")
+    else
+        print("|cffff0000[YATP NamePlates]|r Unknown command: " .. command)
+        print("Type |cffffcc00/yatpnp help|r for available commands")
+    end
 end
