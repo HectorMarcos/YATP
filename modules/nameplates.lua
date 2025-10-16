@@ -499,6 +499,11 @@ function Module:OnTargetArrowChanged()
 end
 
 function Module:OnNamePlateArrowAdded(unit, nameplate)
+    -- ALWAYS block border glow regardless of feature states
+    if nameplate and nameplate.UnitFrame then
+        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
+    end
+    
     if not self.db.profile.enabled or not self.db.profile.targetArrows.enabled then 
         return 
     end
@@ -1212,7 +1217,12 @@ function Module:DisableAllNameplateGlows()
     end
 end
 
-function Module:OnNamePlateGlowDisable()
+function Module:OnNamePlateGlowDisable(unit, nameplate)
+    -- ALWAYS block border glow regardless of feature states
+    if nameplate and nameplate.UnitFrame then
+        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
+    end
+    
     -- Disable glows whenever nameplates are added or target changes
     self:DisableGlowsOnAllNameplates()
 end
@@ -1412,6 +1422,11 @@ function Module:OnGroupChanged()
 end
 
 function Module:OnThreatNameplateAdded(event, unit, nameplate)
+    -- ALWAYS block border glow regardless of feature states
+    if nameplate and nameplate.UnitFrame then
+        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
+    end
+    
     if not self.db.profile.threatSystem.enabled then return end
     
     -- Update threat for the new nameplate
@@ -1818,6 +1833,11 @@ function Module:CleanupHealthTextPositioning()
 end
 
 function Module:OnHealthTextNameplateAdded(event, unit, nameplate)
+    -- ALWAYS block border glow regardless of feature states
+    if nameplate and nameplate.UnitFrame then
+        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
+    end
+    
     if not self.db.profile.healthTextPosition.enabled then
         return
     end
@@ -1942,6 +1962,11 @@ function Module:OnAlphaFadeTargetChanged()
 end
 
 function Module:OnAlphaFadeNameplateAdded(event, unit, nameplate)
+    -- ALWAYS block border glow regardless of feature states
+    if nameplate and nameplate.UnitFrame then
+        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
+    end
+    
     if not self.db.profile.nonTargetAlpha.enabled then
         return
     end
