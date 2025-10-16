@@ -882,7 +882,15 @@ function Module:ApplyMouseoverHealthBarHighlight(nameplate)
     -- Apply new color
     healthBar:SetStatusBarColor(newR, newG, newB, newA)
     
+    -- Verify the color was actually set
+    local actualR, actualG, actualB, actualA = healthBar:GetStatusBarColor()
     print(string.format("[YATP Mouseover] Color applied to %s health bar", unitName))
+    print(string.format("[YATP Mouseover] Verification: R=%.2f G=%.2f B=%.2f A=%.2f", actualR, actualG, actualB, actualA))
+    
+    if math.abs(actualR - newR) > 0.01 or math.abs(actualG - newG) > 0.01 or math.abs(actualB - newB) > 0.01 then
+        print(string.format("[YATP Mouseover] WARNING: Color was OVERWRITTEN immediately! Expected R=%.2f G=%.2f B=%.2f but got R=%.2f G=%.2f B=%.2f", 
+            newR, newG, newB, actualR, actualG, actualB))
+    end
 end
 
 function Module:RestoreHealthBarColorIfStored(nameplate)
@@ -892,8 +900,19 @@ function Module:RestoreHealthBarColorIfStored(nameplate)
     
     local data = self.mouseoverHealthBarData[nameplate]
     if data.originalColor then
+        local unitName = nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
+        print(string.format("[YATP Mouseover] Restoring original color for %s", unitName))
         self:RestoreHealthBarColor(nameplate, data.originalColor)
         data.originalColor = nil
+        
+        -- If threat system is enabled, re-apply threat colors after mouseover ends
+        if self.db.profile.threatSystem and self.db.profile.threatSystem.enabled and nameplate.UnitFrame then
+            local unit = nameplate.UnitFrame.unit
+            if unit then
+                print(string.format("[YATP Mouseover] Triggering threat update for %s after mouseover ended", unitName))
+                self:UpdateNameplateThreat(nameplate, unit)
+            end
+        end
     end
 end
 
@@ -1396,6 +1415,17 @@ end
 function Module:ApplyThreatToHealthBar(unitFrame, threatLevel)
     if not unitFrame.healthBar then 
         return 
+    end
+    
+    -- CRITICAL: Don't override mouseover highlight colors
+    -- Check if this nameplate currently has mouseover highlight active
+    if self.db.profile.mouseoverHealthBarHighlight and self.db.profile.mouseoverHealthBarHighlight.enabled then
+        local unit = unitFrame.unit
+        if unit and UnitIsUnit(unit, "mouseover") then
+            local unitName = UnitName(unit) or "Unknown"
+            print(string.format("[YATP Threat] Skipping threat color for %s - mouseover highlight is active", unitName))
+            return -- Don't apply threat color while moused over
+        end
     end
     
     local color = self.db.profile.threatSystem.colors[threatLevel]
