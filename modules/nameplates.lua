@@ -659,12 +659,9 @@ function Module:HookMouseoverOnNameplate(nameplate)
                 local unitName = UnitName(unit) or "Unknown"
                 print(string.format("[YATP NamePlates] UnitFrame OnEnter: %s", unitName))
                 
-                -- Capture state and show comparison
-                C_Timer.After(0.05, function()
-                    Module:DebugNameplateState(nameplate)
-                    Module:CompareNameplateStates(nameplate)
-                    Module:DebugAllNameplateChildren(nameplate)
-                end)
+                -- Debug immediately (don't wait)
+                Module:DebugAllNameplateChildren(nameplate)
+                Module:CompareNameplateStates(nameplate)
             end
         end)
     end
@@ -2935,6 +2932,7 @@ function Module:SlashCommand(input)
         print("  |cffffcc00/yatpnp test|r - Test debug on current mouseover")
         print("  |cffffcc00/yatpnp hooks|r - Re-apply mouseover hooks to all nameplates")
         print("  |cffffcc00/yatpnp capture|r - Manually capture pre-mouseover state for all nameplates")
+        print("  |cffffcc00/yatpnp blockborder|r - TEST: Block border color changes to test if that's the glow")
         print("  |cffffcc00/yatpnp help|r - Show this help message")
     elseif command == "debug" then
         -- Toggle debug mode
@@ -2956,6 +2954,15 @@ function Module:SlashCommand(input)
         if UnitExists("mouseover") then
             print("|cff00ff00[YATP NamePlates]|r Testing current mouseover...")
             self:OnMouseoverDebug()
+            
+            -- Also scan children
+            for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+                if nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, "mouseover") then
+                    print("|cff00ff00[YATP NamePlates]|r Scanning children of mouseover nameplate...")
+                    self:DebugAllNameplateChildren(nameplate)
+                    break
+                end
+            end
         else
             print("|cffff0000[YATP NamePlates]|r No unit under mouse cursor")
         end
@@ -2984,6 +2991,32 @@ function Module:SlashCommand(input)
         end
         print("|cff00ff00[YATP NamePlates]|r Captured state for " .. count .. " nameplates")
         print("  Now hover over a nameplate to see what changes!")
+    elseif command == "blockborder" then
+        -- TEST: Force all borders to stay black to see if that removes the glow
+        print("|cff00ff00[YATP NamePlates]|r BLOCKING border color changes on all nameplates...")
+        local count = 0
+        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+            if nameplate.UnitFrame and nameplate.UnitFrame.healthBar and nameplate.UnitFrame.healthBar.border then
+                local border = nameplate.UnitFrame.healthBar.border
+                
+                -- Force black and lock it
+                if border.Texture then
+                    border.Texture:SetVertexColor(0, 0, 0, 1)
+                    
+                    -- Hook to prevent changes
+                    border.Texture.SetVertexColor = function(self, r, g, b, a)
+                        -- Do nothing - block all color changes
+                    end
+                end
+                
+                border:SetAlpha(1)
+                border:Show()
+                count = count + 1
+            end
+        end
+        print("|cff00ff00[YATP NamePlates]|r Blocked border changes on " .. count .. " nameplates")
+        print("  Now try mousing over nameplates. If the glow disappears, we found it!")
+        print("  Type |cffffcc00/reload|r to restore normal behavior")
     else
         print("|cffff0000[YATP NamePlates]|r Unknown command: " .. command)
         print("Type |cffffcc00/yatpnp help|r for available commands")
