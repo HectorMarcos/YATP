@@ -703,29 +703,39 @@ function Module:BlockNameplateBorderGlow(nameplate)
     
     local border = unitFrame.healthBar.border
     
-    -- Don't block if already blocked
-    if border.glowBlocked then
+    -- Check if border has a Texture to hook
+    if not border.Texture then
         return
     end
     
     -- Fixed black color: RGBA(0, 0, 0, 1)
     local color = {0, 0, 0, 1}
     
-    -- Store original SetVertexColor function
-    if border.Texture and not border.Texture.originalSetVertexColor then
+    -- DEBUG: Print when we're applying the hook
+    local unit = unitFrame.unit or unitFrame.displayedUnit
+    local unitName = unit and UnitName(unit) or "Unknown"
+    print(string.format("[YATP] Blocking border glow for: %s", unitName))
+    
+    -- Always apply the hook, even if already hooked (in case nameplate was recreated)
+    if not border.Texture.originalSetVertexColor then
+        -- First time hooking - store original
         border.Texture.originalSetVertexColor = border.Texture.SetVertexColor
-        
-        -- Replace with our blocking version
-        border.Texture.SetVertexColor = function(self, r, g, b, a)
-            -- Always use black color
-            self.originalSetVertexColor(self, color[1], color[2], color[3], color[4])
-        end
-        
-        -- Force initial black color
-        border.Texture:SetVertexColor(color[1], color[2], color[3], color[4])
-        
-        border.glowBlocked = true
+        print(string.format("[YATP] Stored original SetVertexColor for: %s", unitName))
     end
+    
+    -- Replace with our blocking version
+    border.Texture.SetVertexColor = function(self, r, g, b, a)
+        -- DEBUG: Print when color change is attempted
+        print(string.format("[YATP] Blocked color change attempt: RGBA(%.2f,%.2f,%.2f,%.2f) -> BLACK", r or 0, g or 0, b or 0, a or 0))
+        -- Always use black color, ignore any color change attempts
+        self.originalSetVertexColor(self, color[1], color[2], color[3], color[4])
+    end
+    
+    -- Force initial black color
+    border.Texture:SetVertexColor(color[1], color[2], color[3], color[4])
+    
+    -- Mark as blocked
+    border.glowBlocked = true
 end
 
 function Module:UnblockAllBorderGlows()
