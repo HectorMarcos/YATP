@@ -1262,26 +1262,34 @@ end
 function Module:OnThreatCombatStart()
     if not self.db.profile.threatSystem.enabled then return end
     
+    -- Only update if in a group
+    if not IsInGroup() and not IsInRaid() then
+        return
+    end
+    
     self:UpdateAllThreatIndicators()
 end
 
 function Module:OnThreatCombatEnd()
     if not self.db.profile.threatSystem.enabled then return end
     
-    self:UpdateAllThreatIndicators()
+    -- Clear threat colors when combat ends
+    self:ClearAllThreatColors()
 end
 
 function Module:OnGroupChanged()
     if not self.db.profile.threatSystem.enabled then return end
     
+    -- CRITICAL FIX: Check group status FIRST before updating
+    -- If player is now solo, immediately clear all threat colors and return
+    if not IsInGroup() and not IsInRaid() then
+        self:ClearAllThreatColors()
+        return
+    end
+    
     -- When group status changes, update all threat indicators
     -- This will automatically enable/disable threat colors based on group status
     self:UpdateAllThreatIndicators()
-    
-    -- If player is now solo, clear any existing threat colors
-    if not IsInGroup() and not IsInRaid() then
-        self:ClearAllThreatColors()
-    end
 end
 
 function Module:OnThreatNameplateAdded(event, unit, nameplate)
@@ -1301,6 +1309,13 @@ end
 function Module:UpdateAllThreatIndicators()
     if not self.db.profile.threatSystem.enabled then 
         return 
+    end
+    
+    -- CRITICAL FIX: Double-check group status before updating
+    -- Never apply threat colors when solo, even if called accidentally
+    if not IsInGroup() and not IsInRaid() then
+        self:ClearAllThreatColors()
+        return
     end
     
     -- Update threat for all active nameplates
@@ -1548,8 +1563,19 @@ end
 function Module:ClearAllThreatColors()
     -- Remove threat colors from all nameplates when going solo
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
-        if nameplate.UnitFrame then
-            self:ResetNameplateColors(nameplate)
+        if nameplate.UnitFrame and nameplate.UnitFrame.healthBar then
+            -- Use the dedicated reset function to properly restore default colors
+            self:ResetHealthBarColor(nameplate.UnitFrame)
+            
+            -- Also reset name color if it was modified
+            if nameplate.UnitFrame.name then
+                nameplate.UnitFrame.name:SetTextColor(1, 1, 1, 1)
+            end
+            
+            -- Hide threat border if it exists
+            if nameplate.UnitFrame.threatBorder then
+                nameplate.UnitFrame.threatBorder:Hide()
+            end
         end
     end
     
