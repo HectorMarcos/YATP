@@ -1807,9 +1807,8 @@ function Module:ApplyThreatToHealthBar(unitFrame, threatLevel)
     if self.db.profile.mouseoverHealthBarHighlight and self.db.profile.mouseoverHealthBarHighlight.enabled then
         local unit = unitFrame.unit
         if unit and UnitIsUnit(unit, "mouseover") then
-            local unitName = UnitName(unit) or "Unknown"
-            print(string.format("[YATP Threat] Skipping threat color for %s - mouseover highlight is active", unitName))
-            return -- Don't apply threat color while moused over
+            -- Skip applying threat color while moused over (silent)
+            return
         end
     end
     
