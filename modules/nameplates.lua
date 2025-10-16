@@ -646,7 +646,7 @@ function Module:HookMouseoverOnNameplate(nameplate)
     -- Store state before mouseover for comparison
     nameplate.preMouseoverState = nil
     
-    -- Hook OnEnter script
+    -- Hook OnEnter script on UnitFrame
     if nameplate.UnitFrame:HasScript("OnEnter") then
         nameplate.UnitFrame:HookScript("OnEnter", function(frame)
             -- Only print if debug mode is enabled
@@ -657,15 +657,33 @@ function Module:HookMouseoverOnNameplate(nameplate)
             local unit = frame.unit or frame.displayedUnit
             if unit then
                 local unitName = UnitName(unit) or "Unknown"
-                print(string.format("[YATP NamePlates] Frame OnEnter: %s", unitName))
+                print(string.format("[YATP NamePlates] UnitFrame OnEnter: %s", unitName))
                 
                 -- Capture state and show comparison
                 C_Timer.After(0.05, function()
                     Module:DebugNameplateState(nameplate)
                     Module:CompareNameplateStates(nameplate)
+                    Module:DebugAllNameplateChildren(nameplate)
                 end)
             end
         end)
+    end
+    
+    -- CRITICAL: Hook OnEnter on the BASE nameplate frame too!
+    if nameplate:HasScript("OnEnter") then
+        nameplate:HookScript("OnEnter", function(frame)
+            if Module.mouseoverDebugEnabled then
+                print("[YATP NamePlates] *** BASE NAMEPLATE OnEnter ***")
+            end
+        end)
+    end
+    
+    -- Try to enable mouse on base frame if it's disabled
+    if not nameplate:IsMouseEnabled() then
+        nameplate:EnableMouse(true)
+        if Module.mouseoverDebugEnabled then
+            print("[YATP NamePlates] Enabled mouse on base nameplate frame")
+        end
     end
     
     -- Hook OnLeave script
@@ -719,6 +737,30 @@ function Module:HookMouseoverOnNameplate(nameplate)
                 print(string.format("[YATP NamePlates] healthBar.border SetAlpha(%.2f) called for: %s", alpha, unitName))
             end
         end)
+        
+        -- Hook SetVertexColor to detect color changes
+        if border.SetVertexColor then
+            hooksecurefunc(border, "SetVertexColor", function(self, r, g, b, a)
+                if Module.mouseoverDebugEnabled then
+                    local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
+                    local unitName = unit and UnitName(unit) or "Unknown"
+                    print(string.format("[YATP NamePlates] healthBar.border SetVertexColor(%.2f,%.2f,%.2f,%.2f) for: %s", 
+                        r or 0, g or 0, b or 0, a or 0, unitName))
+                end
+            end)
+        end
+        
+        -- Hook the Texture if it exists
+        if border.Texture then
+            hooksecurefunc(border.Texture, "SetVertexColor", function(self, r, g, b, a)
+                if Module.mouseoverDebugEnabled then
+                    local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
+                    local unitName = unit and UnitName(unit) or "Unknown"
+                    print(string.format("[YATP NamePlates] *** border.Texture SetVertexColor(%.2f,%.2f,%.2f,%.2f) for: %s ***", 
+                        r or 0, g or 0, b or 0, a or 0, unitName))
+                end
+            end)
+        end
     end
     
     -- Hook selectionHighlight Show/Hide/SetAlpha if it exists (THIS IS THE MOUSEOVER GLOW!)
@@ -818,6 +860,49 @@ function Module:CaptureNameplateState(nameplate)
     end
     
     return state
+end
+
+function Module:DebugAllNameplateChildren(nameplate)
+    if not nameplate then
+        return
+    end
+    
+    print("[YATP NamePlates] ===== ALL CHILD FRAMES SCAN =====")
+    
+    -- Get all children of the base nameplate
+    local children = {nameplate:GetChildren()}
+    print(string.format("  Base nameplate has %d child frame(s)", #children))
+    
+    for i, child in ipairs(children) do
+        local childName = child:GetName() or ("Anonymous Child " .. i)
+        local childType = child:GetObjectType()
+        local isShown = child:IsShown()
+        local alpha = child:GetAlpha()
+        
+        print(string.format("  [%d] %s (Type: %s, Shown: %s, Alpha: %.2f)", 
+            i, childName, childType, tostring(isShown), alpha))
+        
+        -- If this child is visible, scan its regions
+        if isShown and alpha > 0 then
+            local childRegions = {child:GetRegions()}
+            for j, region in ipairs(childRegions) do
+                if region:GetObjectType() == "Texture" then
+                    local regionName = region:GetName() or "Anonymous Texture"
+                    local regionShown = region:IsShown()
+                    local regionAlpha = region:GetAlpha()
+                    
+                    if regionShown and regionAlpha > 0 then
+                        local texture = region:GetTexture()
+                        local r, g, b, a = region:GetVertexColor()
+                        print(string.format("      Texture: %s, Path=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f)",
+                            regionName, tostring(texture), regionAlpha, r, g, b, a))
+                    end
+                end
+            end
+        end
+    end
+    
+    print("[YATP NamePlates] ===== END CHILD FRAMES =====")
 end
 
 function Module:CompareNameplateStates(nameplate)
