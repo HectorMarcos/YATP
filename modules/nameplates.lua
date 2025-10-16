@@ -52,7 +52,7 @@ Module.defaults = {
     -- Mouseover Health Bar Highlight (subtle color change on non-target nameplates)
     mouseoverHealthBarHighlight = {
         enabled = true, -- Enable mouseover highlight on health bars
-        method = "brightness", -- "brightness" or "tint"
+        method = "pink", -- "brightness", "tint", or "pink" (debug mode)
         brightnessMultiplier = 1.5, -- How much to brighten (1.0 = no change, 1.5 = 50% brighter for better visibility)
         tintAmount = 0.4, -- How much white to mix in for tint method (0.0 to 1.0, 0.4 = 40% for better visibility)
     },
@@ -902,7 +902,11 @@ function Module:ApplyMouseoverHealthBarHighlight(nameplate)
     
     print(string.format("[YATP Mouseover] Using method: %s", method))
     
-    if method == "brightness" then
+    if method == "pink" then
+        -- DEBUG MODE: Force bright pink color for easy identification
+        print("[YATP Mouseover] DEBUG MODE: Using BRIGHT PINK color")
+        newR, newG, newB, newA = 1.0, 0.0, 1.0, 1.0  -- Magenta/Pink
+    elseif method == "brightness" then
         -- Method 1: Increase brightness
         local multiplier = self.db.profile.mouseoverHealthBarHighlight.brightnessMultiplier or 1.5
         print(string.format("[YATP Mouseover] Brightness multiplier: %.2f", multiplier))
@@ -913,9 +917,9 @@ function Module:ApplyMouseoverHealthBarHighlight(nameplate)
         print(string.format("[YATP Mouseover] Tint amount: %.2f", tintAmount))
         newR, newG, newB, newA = self:ApplyWhiteTint(r, g, b, a, tintAmount)
     else
-        -- Fallback to brightness
-        print("[YATP Mouseover] WARNING: Unknown method, using brightness fallback")
-        newR, newG, newB, newA = self:ApplyBrightnessMultiplier(r, g, b, a, 1.5)
+        -- Fallback to pink for debugging
+        print("[YATP Mouseover] WARNING: Unknown method, using PINK fallback")
+        newR, newG, newB, newA = 1.0, 0.0, 1.0, 1.0  -- Magenta/Pink
     end
     
     -- Store the highlight color for maintenance
@@ -1044,13 +1048,16 @@ end
 
 function Module:BlockNameplateBorderGlow(nameplate)
     if not nameplate or not nameplate.UnitFrame then
+        print("[YATP Border] No nameplate or UnitFrame")
         return
     end
     
     local unitFrame = nameplate.UnitFrame
+    local unitName = unitFrame.unit and UnitName(unitFrame.unit) or "Unknown"
     
     -- Check if border exists
     if not unitFrame.healthBar or not unitFrame.healthBar.border then
+        print(string.format("[YATP Border] %s - No healthBar or border", unitName))
         return
     end
     
@@ -1058,6 +1065,7 @@ function Module:BlockNameplateBorderGlow(nameplate)
     
     -- Check if border has a Texture to hook
     if not border.Texture then
+        print(string.format("[YATP Border] %s - No border.Texture", unitName))
         return
     end
     
@@ -1067,11 +1075,16 @@ function Module:BlockNameplateBorderGlow(nameplate)
     -- Store original SetVertexColor if not already stored
     if not border.Texture.originalSetVertexColor then
         border.Texture.originalSetVertexColor = border.Texture.SetVertexColor
+        print(string.format("[YATP Border] %s - Storing original SetVertexColor and hooking", unitName))
+    else
+        print(string.format("[YATP Border] %s - Already hooked, skipping", unitName))
+        return -- Already hooked
     end
     
     -- Replace with our blocking version that always uses black
     border.Texture.SetVertexColor = function(self, r, g, b, a)
         -- Always use black color, silently ignore any color change attempts
+        -- print(string.format("[YATP Border] Blocked color change attempt: R=%.2f G=%.2f B=%.2f -> forcing black", r, g, b))
         self.originalSetVertexColor(self, color[1], color[2], color[3], color[4])
     end
     
@@ -1080,6 +1093,8 @@ function Module:BlockNameplateBorderGlow(nameplate)
     
     -- Mark as blocked
     border.glowBlocked = true
+    
+    print(string.format("[YATP Border] %s - Border block successfully applied", unitName))
 end
 
 function Module:UnblockAllBorderGlows()
@@ -2652,6 +2667,7 @@ function Module:BuildGeneralTab()
             name = L["Highlight Method"] or "Highlight Method",
             desc = L["Choose how the health bar color changes on mouseover"] or "Choose how the health bar color changes on mouseover",
             values = {
+                pink = "PINK (Debug Mode - easy to see)",
                 brightness = L["Brightness"] or "Brightness (multiply RGB values to make color brighter)",
                 tint = L["Tint"] or "Tint (mix with white for a lighter shade)",
             },
