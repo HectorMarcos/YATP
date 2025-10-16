@@ -307,12 +307,6 @@ function Module:OnNamePlateAdded(unit, nameplate)
         return 
     end
     
-    -- Block border here - this is when the unit is actually assigned
-    if nameplate.UnitFrame then
-        -- Use full retry attempts since this is now the primary method
-        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
-    end
-    
     -- Add target glow if enabled
     if self.db.profile.targetGlow.enabled then
         -- Check if this nameplate is for our current target
@@ -499,11 +493,6 @@ function Module:OnTargetArrowChanged()
 end
 
 function Module:OnNamePlateArrowAdded(unit, nameplate)
-    -- ALWAYS block border glow regardless of feature states
-    if nameplate and nameplate.UnitFrame then
-        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
-    end
-    
     if not self.db.profile.enabled or not self.db.profile.targetArrows.enabled then 
         return 
     end
@@ -708,20 +697,16 @@ end
 
 function Module:SetupMouseoverHealthBarHighlight()
     if not self.db.profile.enabled or not self.db.profile.mouseoverHealthBarHighlight.enabled then
-        print("[YATP Mouseover] Setup SKIPPED - module or feature disabled")
         return
     end
-    
-    print("[YATP Mouseover] Setting up mouseover health bar highlight system")
     
     -- Initialize tracking
     self.mouseoverHealthBarData = {}
     
     -- Register mouseover event
     self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnHealthBarMouseoverUpdate")
-    print("[YATP Mouseover] Registered UPDATE_MOUSEOVER_UNIT event")
     
-    -- Create OnUpdate frame to maintain colors every frame (prevents overwrites)
+    -- Create OnUpdate frame to maintain colors every frame
     if not self.mouseoverUpdateFrame then
         self.mouseoverUpdateFrame = CreateFrame("Frame")
         self.mouseoverUpdateFrame:SetScript("OnUpdate", function()
@@ -731,18 +716,14 @@ function Module:SetupMouseoverHealthBarHighlight()
         end)
     end
     self.mouseoverUpdateFrame:Show()
-    print("[YATP Mouseover] Created OnUpdate frame to maintain colors")
     
     -- Process existing nameplates
     C_Timer.After(0.5, function()
-        local count = 0
         for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
             if nameplate.UnitFrame then
-                count = count + 1
                 self:SetupMouseoverHealthBarForNameplate(nameplate)
             end
         end
-        print(string.format("[YATP Mouseover] Setup complete - processed %d existing nameplates", count))
     end)
 end
 
@@ -787,14 +768,11 @@ function Module:MaintainMouseoverColors()
                 return
             end
             
-            -- CRITICAL: Verify this unit still has mouseover
+            -- Verify this unit still has mouseover
             local stillMouseover = UnitIsUnit(unit, "mouseover") == 1
             
             if not stillMouseover then
-                -- Lost mouseover but data still says it has it - fix this!
-                local unitName = UnitName(unit) or "Unknown"
-                print(string.format("[YATP Mouseover OnUpdate] %s lost mouseover - cleaning up", unitName))
-                
+                -- Lost mouseover - restore original color
                 data.highlightColor = nil
                 data.isMouseover = false
                 
@@ -825,48 +803,35 @@ function Module:SetupMouseoverHealthBarForNameplate(nameplate)
         return
     end
     
-    local healthBar = nameplate.UnitFrame.healthBar
-    
-    -- Store original color getter (we'll capture it on first mouseover)
     if not self.mouseoverHealthBarData then
         self.mouseoverHealthBarData = {}
     end
     
     self.mouseoverHealthBarData[nameplate] = {
-        originalColor = nil, -- Will be captured on mouseover
+        originalColor = nil,
         isMouseover = false,
     }
 end
 
 function Module:OnHealthBarMouseoverUpdate()
     if not self.db.profile.mouseoverHealthBarHighlight.enabled then
-        print("[YATP Mouseover] System disabled")
         return
     end
     
-    print("[YATP Mouseover] UPDATE_MOUSEOVER_UNIT fired")
-    
-    -- Check all nameplates for mouseover state
-    local count = 0
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
         if nameplate.UnitFrame then
-            count = count + 1
             self:UpdateMouseoverHealthBar(nameplate)
         end
     end
-    
-    print(string.format("[YATP Mouseover] Processed %d nameplates", count))
 end
 
 function Module:UpdateMouseoverHealthBar(nameplate)
     if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
-        -- print("[YATP Mouseover] No nameplate or UnitFrame or healthBar")
         return
     end
     
     local unit = nameplate.UnitFrame.unit
     if not unit then
-        -- print("[YATP Mouseover] No unit")
         return
     end
     
@@ -878,7 +843,6 @@ function Module:UpdateMouseoverHealthBar(nameplate)
     
     -- CRITICAL: Don't highlight if this is the target
     if UnitExists("target") and UnitIsUnit(unit, "target") then
-        -- print(string.format("[YATP Mouseover] %s is TARGET - skipping", unitName))
         -- Ensure we restore color if it was previously moused over
         if self.mouseoverHealthBarData and self.mouseoverHealthBarData[nameplate] and 
            self.mouseoverHealthBarData[nameplate].isMouseover then
@@ -902,36 +866,26 @@ function Module:UpdateMouseoverHealthBar(nameplate)
     local data = self.mouseoverHealthBarData[nameplate]
     
     if isMouseover and not data.isMouseover then
-        -- Just became mouseover - store original color and apply highlight
-        print(string.format("[YATP Mouseover] APPLYING highlight to %s", unitName))
+        -- Just became mouseover
         self:ApplyMouseoverHealthBarHighlight(nameplate)
         data.isMouseover = true
     elseif not isMouseover and data.isMouseover then
-        -- No longer mouseover - restore original color
-        print(string.format("[YATP Mouseover] RESTORING color for %s", unitName))
-        
-        -- Clear the highlight color so OnUpdate stops re-applying it
+        -- No longer mouseover
         data.highlightColor = nil
-        
         self:RestoreHealthBarColorIfStored(nameplate)
         data.isMouseover = false
-    -- else
-        -- print(string.format("[YATP Mouseover] No state change for %s (isMouseover: %s, data.isMouseover: %s)", unitName, tostring(isMouseover), tostring(data.isMouseover)))
     end
 end
 
 function Module:ApplyMouseoverHealthBarHighlight(nameplate)
     if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
-        print("[YATP Mouseover] ApplyHighlight: No healthBar")
         return
     end
     
     local healthBar = nameplate.UnitFrame.healthBar
-    local unitName = UnitName(nameplate.UnitFrame.unit) or "Unknown"
     
-    -- Get current color (this is the "original" we need to restore later)
+    -- Get current color
     local r, g, b, a = healthBar:GetStatusBarColor()
-    print(string.format("[YATP Mouseover] Original color for %s: R=%.2f G=%.2f B=%.2f A=%.2f", unitName, r, g, b, a))
     
     -- Store original color
     if not self.mouseoverHealthBarData[nameplate] then
@@ -939,96 +893,56 @@ function Module:ApplyMouseoverHealthBarHighlight(nameplate)
     end
     self.mouseoverHealthBarData[nameplate].originalColor = {r, g, b, a}
     
-    -- Apply tint with white (fixed at 0.5 = 50%)
+    -- Apply tint with white
     local tintAmount = self.db.profile.mouseoverHealthBarHighlight.tintAmount or 0.5
-    print(string.format("[YATP Mouseover] Applying tint: %.2f", tintAmount))
     local newR, newG, newB, newA = self:ApplyWhiteTint(r, g, b, a, tintAmount)
     
     -- Store the highlight color for maintenance
     self.mouseoverHealthBarData[nameplate].highlightColor = {newR, newG, newB, newA}
     
-    print(string.format("[YATP Mouseover] New color for %s: R=%.2f G=%.2f B=%.2f A=%.2f", unitName, newR, newG, newB, newA))
-    
-    -- Apply new color to StatusBar
+    -- Apply new color
     healthBar:SetStatusBarColor(newR, newG, newB, newA)
     
-    -- CRITICAL: Also apply to the texture directly (some addons need this)
+    -- Also apply to texture
     local texture = healthBar:GetStatusBarTexture()
     if texture then
         texture:SetVertexColor(newR, newG, newB, newA)
-        print(string.format("[YATP Mouseover] Also applied to texture via SetVertexColor"))
-    end
-    
-    -- Verify the color was actually set
-    local actualR, actualG, actualB, actualA = healthBar:GetStatusBarColor()
-    print(string.format("[YATP Mouseover] Color applied to %s health bar", unitName))
-    print(string.format("[YATP Mouseover] Verification: R=%.2f G=%.2f B=%.2f A=%.2f", actualR, actualG, actualB, actualA))
-    
-    if math.abs(actualR - newR) > 0.01 or math.abs(actualG - newG) > 0.01 or math.abs(actualB - newB) > 0.01 then
-        print(string.format("[YATP Mouseover] WARNING: Color was OVERWRITTEN immediately! Expected R=%.2f G=%.2f B=%.2f but got R=%.2f G=%.2f B=%.2f", 
-            newR, newG, newB, actualR, actualG, actualB))
-    end
-    
-    -- Store that we need to maintain this color
-    if not nameplate.mouseoverColorLock then
-        nameplate.mouseoverColorLock = true
     end
 end
 
 function Module:RestoreHealthBarColorIfStored(nameplate)
     if not nameplate or not self.mouseoverHealthBarData or not self.mouseoverHealthBarData[nameplate] then
-        print("[YATP Mouseover] RestoreColor: No nameplate or data")
         return
     end
     
     local data = self.mouseoverHealthBarData[nameplate]
     if data.originalColor then
-        local unitName = nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
-        print(string.format("[YATP Mouseover] Restoring original color for %s: R=%.2f G=%.2f B=%.2f", unitName, data.originalColor[1], data.originalColor[2], data.originalColor[3]))
         self:RestoreHealthBarColor(nameplate, data.originalColor)
         data.originalColor = nil
         
-        -- If threat system is enabled, re-apply threat colors after mouseover ends
+        -- Re-apply threat colors if enabled
         if self.db.profile.threatSystem and self.db.profile.threatSystem.enabled and nameplate.UnitFrame then
             local unit = nameplate.UnitFrame.unit
             if unit then
-                print(string.format("[YATP Mouseover] Triggering threat update for %s after mouseover ended", unitName))
                 self:UpdateNameplateThreat(nameplate, unit)
             end
         end
-    else
-        print("[YATP Mouseover] RestoreColor: No original color stored")
     end
 end
 
 function Module:RestoreHealthBarColor(nameplate, color)
     if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar or not color then
-        print("[YATP Mouseover] RestoreHealthBarColor: Missing component")
         return
     end
     
     local healthBar = nameplate.UnitFrame.healthBar
-    local unitName = nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
-    
-    print(string.format("[YATP Mouseover] Restoring %s to R=%.2f G=%.2f B=%.2f A=%.2f", unitName, color[1], color[2], color[3], color[4]))
-    
     healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
     
     -- Also restore texture color
     local texture = healthBar:GetStatusBarTexture()
     if texture then
         texture:SetVertexColor(color[1], color[2], color[3], color[4])
-        print(string.format("[YATP Mouseover] Also restored texture color for %s", unitName))
     end
-    
-    -- Remove color lock
-    if nameplate.mouseoverColorLock then
-        nameplate.mouseoverColorLock = nil
-    end
-    
-    -- Verify restoration
-    local actualR, actualG, actualB, actualA = healthBar:GetStatusBarColor()
-    print(string.format("[YATP Mouseover] Verification after restore: R=%.2f G=%.2f B=%.2f A=%.2f", actualR, actualG, actualB, actualA))
 end
 
 -------------------------------------------------
@@ -1047,54 +961,34 @@ end
 
 -------------------------------------------------
 -- Block Mouseover Border Glow System
--- This system is always enabled and keeps borders black (0, 0, 0, 1)
--- Border blocking is applied via OnAscensionNamePlateCreated callback
+-- Forces all nameplate borders to remain black
 -------------------------------------------------
 
 function Module:SetupMouseoverBorderBlock()
-    print("[YATP Border] SetupMouseoverBorderBlock called")
-    print(string.format("[YATP Border] Module enabled: %s", tostring(self.db.profile.enabled)))
-    print(string.format("[YATP Border] Block enabled: %s", tostring(self.db.profile.blockMouseoverBorderGlow.enabled)))
-    
-    if not self.db.profile.enabled then
-        print("[YATP Border] Module is disabled - skipping border block setup")
+    if not self.db.profile.enabled or not self.db.profile.blockMouseoverBorderGlow.enabled then
         return
     end
     
-    if not self.db.profile.blockMouseoverBorderGlow.enabled then
-        print("[YATP Border] Border block feature is disabled - skipping setup")
-        return
-    end
-    
-    print("[YATP Border] Border block feature is ENABLED - setting up")
-    
-    -- Create OnUpdate frame to FORCE black borders every frame
+    -- Create OnUpdate frame to force black borders every frame
     if not self.borderBlockFrame then
         self.borderBlockFrame = CreateFrame("Frame")
-        print("[YATP Border] Created OnUpdate frame to force black borders")
     end
     
     self.borderBlockFrame:SetScript("OnUpdate", function()
         self:ForceBlackBordersOnAllNameplates()
     end)
     
-    -- Process existing nameplates immediately
+    -- Hook existing nameplates
     C_Timer.After(0.5, function()
-        local count = 0
         for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
             if nameplate.UnitFrame then
                 self:BlockNameplateBorderGlow(nameplate)
-                count = count + 1
             end
         end
-        print(string.format("[YATP Border] Processed %d existing nameplates", count))
     end)
-    
-    print("[YATP Border] OnUpdate frame will force black borders every frame")
 end
 
 function Module:ForceBlackBordersOnAllNameplates()
-    -- Go through all active nameplates and force black border color
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
         if nameplate.UnitFrame and 
            nameplate.UnitFrame.healthBar and 
@@ -1102,13 +996,10 @@ function Module:ForceBlackBordersOnAllNameplates()
            nameplate.UnitFrame.healthBar.border.Texture then
             
             local texture = nameplate.UnitFrame.healthBar.border.Texture
-            
-            -- Get current color
             local r, g, b, a = texture:GetVertexColor()
             
-            -- If it's not black, force it to black
+            -- Force black if not already black
             if r ~= 0 or g ~= 0 or b ~= 0 then
-                -- Use the original function if hooked, otherwise use SetVertexColor
                 if texture.originalSetVertexColor then
                     texture.originalSetVertexColor(texture, 0, 0, 0, 1)
                 else
@@ -1120,129 +1011,52 @@ function Module:ForceBlackBordersOnAllNameplates()
 end
 
 function Module:CleanupMouseoverBorderBlock()
-    -- Stop the OnUpdate frame
     if self.borderBlockFrame then
         self.borderBlockFrame:SetScript("OnUpdate", nil)
-        print("[YATP Border] Stopped OnUpdate frame")
     end
 end
 
-function Module:BlockNameplateBorderGlowWithRetry(nameplate, maxAttempts)
-    maxAttempts = maxAttempts or 10
-    local attemptCount = 0
-    local delaySeconds = 0.05 -- Faster retries
-    
-    local function tryBlock()
-        attemptCount = attemptCount + 1
-        
-        -- Check if unit is available yet
-        if not nameplate.UnitFrame or not nameplate.UnitFrame.unit then
-            if attemptCount < maxAttempts then
-                -- Only print every 5 attempts to reduce spam
-                if attemptCount % 5 == 1 then
-                    print(string.format("[YATP Border] Unit not ready yet - Retry %d/%d", attemptCount, maxAttempts))
-                end
-                C_Timer.After(delaySeconds, tryBlock)
-            else
-                print(string.format("[YATP Border] Unit never became ready after %d attempts", maxAttempts))
-            end
-            return
-        end
-        
-        local success = self:BlockNameplateBorderGlow(nameplate, true) -- silent mode
-        
-        if not success and attemptCount < maxAttempts then
-            -- Border not ready yet, try again
-            local unitName = nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
-            -- Only print every 3 attempts to reduce spam
-            if attemptCount % 3 == 1 then
-                print(string.format("[YATP Border] %s - Border not ready, retry %d/%d", unitName, attemptCount, maxAttempts))
-            end
-            C_Timer.After(delaySeconds, tryBlock)
-        elseif not success then
-            local unitName = nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
-            print(string.format("[YATP Border] %s - Failed after %d attempts", unitName, maxAttempts))
-        else
-            -- Success! Show message
-            local unitName = nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
-            print(string.format("[YATP Border] %s - Blocked successfully (attempt %d)", unitName, attemptCount))
-        end
-    end
-    
-    -- First attempt immediately
-    tryBlock()
-end
-
-function Module:BlockNameplateBorderGlow(nameplate, silent)
+function Module:BlockNameplateBorderGlow(nameplate)
     if not nameplate or not nameplate.UnitFrame then
-        if not silent then
-            print("[YATP Border] No nameplate or UnitFrame")
-        end
         return false
     end
     
     local unitFrame = nameplate.UnitFrame
-    local unitName = unitFrame.unit and UnitName(unitFrame.unit) or "Unknown"
     
-    -- Check if border exists
-    if not unitFrame.healthBar or not unitFrame.healthBar.border then
-        if not silent then
-            print(string.format("[YATP Border] %s - No healthBar or border", unitName))
-        end
+    if not unitFrame.healthBar or not unitFrame.healthBar.border or not unitFrame.healthBar.border.Texture then
         return false
     end
     
-    local border = unitFrame.healthBar.border
+    local texture = unitFrame.healthBar.border.Texture
     
-    -- Check if border has a Texture to hook
-    if not border.Texture then
-        if not silent then
-            print(string.format("[YATP Border] %s - No border.Texture", unitName))
+    -- Store original SetVertexColor if not already hooked
+    if not texture.originalSetVertexColor then
+        texture.originalSetVertexColor = texture.SetVertexColor
+        
+        -- Replace with function that always forces black
+        texture.SetVertexColor = function(self, r, g, b, a)
+            self.originalSetVertexColor(self, 0, 0, 0, 1)
         end
-        return false
-    end
-    
-    -- Fixed black color: RGBA(0, 0, 0, 1)
-    local color = {0, 0, 0, 1}
-    
-    -- Store original SetVertexColor if not already stored
-    if not border.Texture.originalSetVertexColor then
-        border.Texture.originalSetVertexColor = border.Texture.SetVertexColor
-        -- Don't print in silent mode for initial hook
-    else
-        -- Already hooked, consider it success
-        return true
-    end
-    
-    -- Replace with our blocking version that always uses black
-    border.Texture.SetVertexColor = function(self, r, g, b, a)
-        -- Always use black color, silently ignore any color change attempts
-        -- print(string.format("[YATP Border] Blocked color change attempt: R=%.2f G=%.2f B=%.2f -> forcing black", r, g, b))
-        self.originalSetVertexColor(self, color[1], color[2], color[3], color[4])
     end
     
     -- Force initial black color
-    border.Texture:SetVertexColor(color[1], color[2], color[3], color[4])
-    
-    -- Mark as blocked
-    border.glowBlocked = true
-    
-    -- Success message is now handled by the retry function
+    texture:SetVertexColor(0, 0, 0, 1)
     
     return true
 end
 
 function Module:UnblockAllBorderGlows()
-    -- Restore original SetVertexColor for all nameplates
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
-        if nameplate.UnitFrame and nameplate.UnitFrame.healthBar and nameplate.UnitFrame.healthBar.border then
-            local border = nameplate.UnitFrame.healthBar.border
+        if nameplate.UnitFrame and 
+           nameplate.UnitFrame.healthBar and 
+           nameplate.UnitFrame.healthBar.border and
+           nameplate.UnitFrame.healthBar.border.Texture then
             
-            if border.Texture and border.Texture.originalSetVertexColor then
-                -- Restore original function
-                border.Texture.SetVertexColor = border.Texture.originalSetVertexColor
-                border.Texture.originalSetVertexColor = nil
-                border.glowBlocked = nil
+            local texture = nameplate.UnitFrame.healthBar.border.Texture
+            
+            if texture.originalSetVertexColor then
+                texture.SetVertexColor = texture.originalSetVertexColor
+                texture.originalSetVertexColor = nil
             end
         end
     end
@@ -1273,12 +1087,6 @@ function Module:DisableAllNameplateGlows()
 end
 
 function Module:OnNamePlateGlowDisable(unit, nameplate)
-    -- ALWAYS block border glow regardless of feature states
-    if nameplate and nameplate.UnitFrame then
-        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
-    end
-    
-    -- Disable glows whenever nameplates are added or target changes
     self:DisableGlowsOnAllNameplates()
 end
 
@@ -1477,11 +1285,6 @@ function Module:OnGroupChanged()
 end
 
 function Module:OnThreatNameplateAdded(event, unit, nameplate)
-    -- ALWAYS block border glow regardless of feature states
-    if nameplate and nameplate.UnitFrame then
-        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
-    end
-    
     if not self.db.profile.threatSystem.enabled then return end
     
     -- Update threat for the new nameplate
@@ -1888,11 +1691,6 @@ function Module:CleanupHealthTextPositioning()
 end
 
 function Module:OnHealthTextNameplateAdded(event, unit, nameplate)
-    -- ALWAYS block border glow regardless of feature states
-    if nameplate and nameplate.UnitFrame then
-        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
-    end
-    
     if not self.db.profile.healthTextPosition.enabled then
         return
     end
@@ -2017,16 +1815,6 @@ function Module:OnAlphaFadeTargetChanged()
 end
 
 function Module:OnAlphaFadeNameplateAdded(event, unit, nameplate)
-    print("[YATP Border DEBUG] OnAlphaFadeNameplateAdded called!")
-    
-    -- ALWAYS block border glow regardless of feature states
-    if nameplate and nameplate.UnitFrame then
-        print("[YATP Border DEBUG] Calling BlockNameplateBorderGlowWithRetry from OnAlphaFadeNameplateAdded")
-        self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
-    else
-        print("[YATP Border DEBUG] No UnitFrame yet in OnAlphaFadeNameplateAdded")
-    end
-    
     if not self.db.profile.nonTargetAlpha.enabled then
         return
     end
