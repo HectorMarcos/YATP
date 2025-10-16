@@ -279,6 +279,8 @@ L["NamePlates"] = "Ascension NamePlates"
 L["Enable NamePlates Integration"] = true
 L["Enable integration with Ascension NamePlates addon through YATP"] = true
 L["Configure Ascension NamePlates addon integration"] = true
+
+-- Status Tab
 L["Addon Status"] = true
 L["Status"] = true
 L["Loaded"] = true
@@ -287,11 +289,15 @@ L["Not Available"] = true
 L["Title"] = true
 L["Notes"] = true
 L["Actions"] = true
+L["Load NamePlates Now"] = true
+L["Force load Ascension NamePlates immediately. Use this for the first time setup or if auto-load is disabled."] = true
 L["Load NamePlates Addon"] = true
 L["Attempt to load the Ascension NamePlates addon"] = true
 L["Open Original Configuration"] = true
-L["Open the original configuration panel for Ascension NamePlates"] = true
+L["Open the original Ascension NamePlates configuration panel in Blizzard options"] = true
 L["Settings"] = true
+L["Auto-Load on Startup"] = true
+L["Automatically load Ascension_NamePlates addon on every UI reload (recommended if you fixed LoadOnDemand issue)"] = true
 L["Auto-open Config"] = true
 L["Automatically open NamePlates configuration when clicking the YATP integration"] = true
 L["Quick Access"] = true
@@ -304,6 +310,10 @@ L["Enemy"] = true
 L["Settings for enemy unit nameplates"] = true
 L["Personal"] = true
 L["Settings for your own nameplate"] = true
+L["Diagnostics"] = true
+L["Check for Conflicts"] = true
+L["Scan for other nameplate addons that might conflict with Ascension NamePlates (Plater, TidyPlates, etc)"] = true
+L["Troubleshooting"] = true
 
 -- Embedded NamePlates Configuration
 L["Embedded Configuration"] = true
@@ -452,6 +462,27 @@ L["Vertical Offset (Y)"] = true
 L["Vertical offset from center. Negative values move down, positive values move up. Default: 1"] = true
 L["Reset to Default"] = true
 L["Reset health text position to default values (X: 0, Y: 1)"] = true
+
+-- Target Arrows System
+L["Target Arrows (YATP Custom)"] = true
+L["Enable Target Arrows"] = true
+L["Show arrow indicators on both sides of your current target's nameplate for better visibility"] = true
+L["Arrow Size"] = true
+L["Size of the arrow indicators in pixels"] = true
+L["Horizontal Distance"] = true
+L["Distance of arrows from the nameplate edges"] = true
+L["Vertical Offset"] = true
+L["Vertical offset of arrows from nameplate center. Negative moves down, positive moves up."] = true
+L["Arrow Color"] = true
+L["Color tint applied to the arrow textures"] = true
+
+-- Non-Target Alpha Fade System
+L["Non-Target Alpha Fade (YATP Custom)"] = true
+L["Fade out nameplates that are not your current target. This helps you focus on your target by dimming other enemy nameplates. Only active when you have a target selected - when no target exists, all nameplates remain at full opacity."] = true
+L["Enable Non-Target Alpha Fade"] = true
+L["Reduce the opacity of enemy nameplates that are not your current target. Only applies when you have a target selected."] = true
+L["Non-Target Alpha"] = true
+L["Transparency level for non-target nameplates. 0.0 = fully transparent (invisible), 1.0 = fully opaque (no fade). Only applies when you have a target selected."] = true
 
 -- Error messages
 L["Cannot enable NamePlates Integration:"] = true

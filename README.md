@@ -19,6 +19,8 @@ Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Ena
 | WAAdiFixes | Extras | Small compat shims (WA / AdiBags). |
 | BackgroundFPSFix | Extras | Adjustable background FPS cap. |
 | Target Border | Ascension NamePlates | Colored border around current target nameplate. Configurable color & thickness. |
+| Target Arrows | Ascension NamePlates | Arrow indicators on both sides of target nameplate pointing inward. Configurable size, distance, offset & color. |
+| Non-Target Alpha Fade | Ascension NamePlates | Reduce opacity of non-targeted nameplates for improved focus. Only active when target exists. |
 | Threat System | Ascension NamePlates | Color nameplates by threat level (party/raid only). Configurable colors for low/medium/high/tanking. |
 | Health Text Position | Ascension NamePlates | Fine-tune health text position with X/Y offsets (-50 to +50, -20 to +20 pixels). |
 | Global Health Texture | Ascension NamePlates | Override health bar texture for ALL nameplate types (friendly/enemy/personal). |
