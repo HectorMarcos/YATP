@@ -135,6 +135,10 @@ function Module:OnEnable()
         return
     end
     
+    -- Register core nameplate events (needed for border blocking and other features)
+    self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateAdded")
+    self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateRemoved")
+    
     self:SetupTargetGlow()
     self:SetupTargetArrows()
     self:SetupMouseoverGlow()
@@ -217,9 +221,8 @@ function Module:SetupTargetGlow()
     self.currentTargetFrame = nil
     
     -- Register events for target border
+    -- Note: NAME_PLATE_UNIT_ADDED/REMOVED are registered in OnEnable() as core events
     self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnTargetChanged")
-    self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateAdded") 
-    self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateRemoved")
     
     -- Test current target if any
     if UnitExists("target") then
@@ -273,14 +276,20 @@ function Module:OnTargetChanged()
 end
 
 function Module:OnNamePlateAdded(unit, nameplate)
-    if not self.db.profile.enabled or not self.db.profile.targetGlow.enabled then 
+    if not self.db.profile.enabled then 
         return 
     end
     
-    -- Check if this nameplate is for our current target
-    if UnitExists("target") and nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, "target") then
-        self:AddTargetGlow(nameplate)
-        self.currentTargetFrame = nameplate
+    -- Always block mouseover border glow on new nameplates
+    self:BlockNameplateBorderGlow(nameplate)
+    
+    -- Add target glow if enabled
+    if self.db.profile.targetGlow.enabled then
+        -- Check if this nameplate is for our current target
+        if UnitExists("target") and nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, "target") then
+            self:AddTargetGlow(nameplate)
+            self.currentTargetFrame = nameplate
+        end
     end
 end
 
@@ -660,15 +669,13 @@ end
 -------------------------------------------------
 -- Block Mouseover Border Glow System
 -- This system is always enabled and keeps borders black (0, 0, 0, 1)
+-- Border blocking is applied in OnNamePlateAdded() for each new nameplate
 -------------------------------------------------
 
 function Module:SetupMouseoverBorderBlock()
     if not self.db.profile.enabled then
         return
     end
-    
-    -- Register events to apply border block
-    self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnBorderBlockNameplateAdded")
     
     -- Apply to existing nameplates
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
@@ -679,12 +686,7 @@ function Module:SetupMouseoverBorderBlock()
 end
 
 function Module:CleanupMouseoverBorderBlock()
-    -- Unregister events (careful not to unregister shared events)
-    -- NAME_PLATE_UNIT_ADDED is shared, so we handle it in the callback
-end
-
-function Module:OnBorderBlockNameplateAdded(event, unit, nameplate)
-    self:BlockNameplateBorderGlow(nameplate)
+    -- Nothing to cleanup since border blocking is handled in OnNamePlateAdded
 end
 
 function Module:BlockNameplateBorderGlow(nameplate)
