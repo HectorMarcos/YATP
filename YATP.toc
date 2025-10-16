@@ -2,9 +2,9 @@
 ## Title: YATP
 ## Notes: Yet Another Tweaks Pack
 ## Author: Zavah
-## Version: 0.9.0
+## Version: 0.9.1
 ## SavedVariables: YATP_DB
-## Notes-ESMX: Custom quest icons on nameplates with tooltip scanning
+## Notes-ESMX: Quest icon and border fixes
 
 # Libs (ensure these exist under YATP\Libs\)
 Libs\LibStub\LibStub.lua

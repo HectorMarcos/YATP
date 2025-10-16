@@ -7,6 +7,41 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.9.1] - 2025-10-17
+
+### Fixed
+
+- **NamePlates**: Quest icon cache system causing incorrect display
+  - Icons not appearing when they should (stale cache)
+  - Icons appearing on mobs without quests (name-based matching instead of unit ID)
+  - Icons not updating after quest completion (no re-scan)
+  - Solution: Removed cache system, now scans tooltip in real-time with 0.5s periodic updates
+  - Icons now update immediately (<0.5s) when quests are completed or abandoned
+
+- **NamePlates**: Border blocking system overwriting custom target border
+  - Black border system was forcing ALL nameplates to black including target
+  - Target's custom colored border (yellow/configurable) was being replaced by black
+  - Solution: ForceBlackBordersOnAllNameplates() now skips current target
+  - BlockNameplateBorderGlow() hook checks if nameplate is target before forcing black
+  - OnTargetChanged() forces previous target back to black when switching
+
+- **NamePlates**: Lua 5.1 compatibility error
+  - Error: "'=' expected near 'continue'"
+  - WoW 3.3.5 uses Lua 5.1 which doesn't support goto/continue statements
+  - Solution: Replaced goto-continue pattern with conditional if-not structure
+
+### Changed
+
+- **NamePlates**: Removed debug spam from threat system
+  - Eliminated "[YATP Threat] Skipping threat color for X - mouseover highlight is active" messages
+  - System now operates silently without chat spam
+
+### Technical Notes
+
+- Quest icon system now uses direct unit ID matching instead of name-based lookup
+- Periodic OnUpdate frame (0.5s interval) keeps quest icons synchronized
+- Target border uses custom 4-texture frame overlay for better visibility (reverted from native border experiment)
+
 ## [0.9.0] - 2025-10-16
 
 ### Added
