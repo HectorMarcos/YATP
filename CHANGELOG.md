@@ -7,6 +7,60 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.9.0] - 2025-10-16
+
+### Added
+
+- **NamePlates**: Custom Quest Icon System (YATP Enhancement)
+  - Displays custom quest objective icons on nameplates for NPCs you need to kill or interact with
+  - Automatically scans nameplate tooltips (without requiring mouseover) to detect quest objectives
+  - Looks for quest progress patterns like '0/6' or '5/10' and only shows icon when objective is incomplete
+  - Icons automatically disappear when quest objective is complete (e.g., '6/6') or quest is abandoned
+  - Replaces unreliable native Ascension_NamePlates quest icons with robust custom implementation
+  - Configurable icon size (12-48px), position (TOP/BOTTOM/LEFT/RIGHT), and X/Y offsets (-50 to +50px)
+  - Hidden tooltip scanning system for efficient quest detection without interfering with gameplay
+  - Native quest icons automatically hidden (alpha 0) when custom system enabled, restored (alpha 1) when disabled
+
+### Technical Improvements
+
+- **NamePlates**: Implemented comprehensive EventRegistry callback system for nameplate tracking
+  - `NamePlateDriver.UnitFrameCreated` callback stores frames by `_unit` identifier for later retrieval
+  - `NamePlateManager.UnitAdded` callback processes nameplates with proper timing delays (0.15-0.2s)
+  - `NamePlateManager.UnitRemoved` callback cleans up quest tracking data
+  - Manual frame storage system replaces non-existent `C_NamePlateManager.GetNamePlateForUnit()` API
+  - Dual storage keys: both `_unit` (nameplate1, nameplate2) and `UnitFrame.unit` for compatibility
+
+- **NamePlates**: Quest icon architecture with race condition handling
+  - Hidden tooltip (`YATPQuestScanTooltip`) created once on module init for efficient scanning
+  - Frame-by-frame tracking via `questTrackedUnits` table (unitID → {name, hasQuest})
+  - Frame retrieval with retry logic handles timing between frame creation and unit assignment
+  - High frame strata/level (HIGH strata, level 100) ensures icons display above other elements
+  - Dynamic position/size updates apply immediately when settings changed
+
+- **NamePlates**: Native icon control system
+  - `SetNativeQuestIconAlpha()` function controls visibility of Ascension_NamePlates quest icons
+  - Batch update function `UpdateAllNativeQuestIconAlphas()` applies alpha to all active nameplates
+  - Alpha values: 0 = hidden (custom icons active), 1 = visible (custom icons disabled)
+  - Preserves native icons (doesn't delete) for seamless toggle between systems
+
+### Documentation
+
+- **NamePlates**: Comprehensive API documentation added (`ASCENSION_NAMEPLATE_API.md`)
+  - Complete EventRegistry system reference with callback patterns and parameters
+  - Frame storage patterns and timing considerations for race condition handling
+  - Quest detection implementation details and tooltip scanning patterns
+  - Common pitfalls, solutions, and testing checklist
+  - Performance considerations and memory management best practices
+  - Debug patterns and troubleshooting guide
+
+### Localization
+
+- **NamePlates**: Complete English localization for Quest Icons system
+  - "Quest Icons" tab with full configuration options
+  - "Enable Quest Icons" toggle with detailed behavior explanation
+  - Size, position, and offset slider descriptions
+  - "How It Works" informational section explaining quest detection and native icon replacement
+
 ## [0.8.1] - 2025-10-16
 
 ### Fixed

@@ -96,13 +96,38 @@ Module.defaults = {
         enabled = false,
         alpha = 0.5, -- Alpha value for non-target nameplates (0.0 to 1.0)
     },
+    
+    -- Quest Icon System
+    questIcons = {
+        enabled = true,
+        size = 24, -- Icon size in pixels
+        position = "TOP", -- TOP, BOTTOM, LEFT, RIGHT
+        offsetX = 0,
+        offsetY = 8,
+    },
 }
+
+-------------------------------------------------
+-- State Variables
+-------------------------------------------------
+-- Track nameplates by unitID for quest icon system
+Module.questTrackedUnits = {}
+
+-- Track nameplate frames by their ID (nameplate1, nameplate2, etc.)
+Module.nameplateFrames = {}
+
+-- Hidden tooltip for scanning quest objectives without mouseover
+Module.questScanTooltip = nil
 
 -------------------------------------------------
 -- OnInitialize
 -------------------------------------------------
 function Module:OnInitialize()
     self.db = YATP.db:RegisterNamespace("NamePlates", { profile = Module.defaults })
+    
+    -- Create hidden tooltip for quest scanning
+    self.questScanTooltip = CreateFrame("GameTooltip", "YATPQuestScanTooltip", nil, "GameTooltipTemplate")
+    self.questScanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
 end
 
 -------------------------------------------------
@@ -141,15 +166,42 @@ function Module:OnEnable()
         return
     end
     
-    -- Register core nameplate events (needed for border blocking and other features)
+    -- Register core nameplate events (needed for compatibility)
     self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateAdded")
     self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateRemoved")
     
-    -- Register Ascension NamePlates callback for when UnitFrame is actually created
+    -- Register to Ascension_NamePlates custom events
     if EventRegistry then
-        EventRegistry:RegisterCallback("NamePlateDriver.UnitFrameCreated", function(nameplate)
-            self:OnAscensionNamePlateCreated(nameplate)
-        end, self)
+        local module = self
+        
+        EventRegistry:RegisterCallback("NamePlateManager.UnitAdded", function(unit, nameplateID)
+            module:OnNamePlateAdded(unit, nameplateID, nil)
+        end)
+        
+        EventRegistry:RegisterCallback("NamePlateManager.UnitRemoved", function(unit, nameplate)
+            module:OnNamePlateRemoved(unit, nameplate)
+        end)
+        
+        -- Register callback for when nameplate frames are created
+        EventRegistry:RegisterCallback("NamePlateDriver.UnitFrameCreated", function(...)
+            local nameplateFrame = select(2, ...)
+            
+            if nameplateFrame then
+                -- Store frame by _unit identifier ("nameplate1", "nameplate2", etc.)
+                local nameplateID = nameplateFrame._unit
+                if nameplateID then
+                    module.nameplateFrames[nameplateID] = nameplateFrame
+                end
+                
+                -- Also store by UnitFrame.unit when available
+                if nameplateFrame.UnitFrame and nameplateFrame.UnitFrame.unit then
+                    local unitID = nameplateFrame.UnitFrame.unit
+                    module.nameplateFrames[unitID] = nameplateFrame
+                end
+                
+                module:OnAscensionNamePlateCreated(nameplateFrame)
+            end
+        end)
     end
     
     self:SetupTargetGlow()
@@ -157,6 +209,7 @@ function Module:OnEnable()
     self:SetupMouseoverGlow()
     self:SetupMouseoverBorderBlock()
     self:SetupMouseoverHealthBarHighlight()
+    self:SetupQuestIcons()
     self:DisableAllNameplateGlows()
     
     -- Setup everything after a longer delay to ensure all addons are loaded
@@ -290,29 +343,265 @@ function Module:OnTargetChanged()
     end
 end
 
+-------------------------------------------------
+-- Quest Icon System
+-------------------------------------------------
+
+-- Scan unit's tooltip to detect quest objectives
+-- Returns true if unit is a quest objective that is NOT complete
+function Module:ScanUnitForQuest(unitID)
+    if not unitID or not UnitExists(unitID) then
+        return false
+    end
+    
+    if not self.questScanTooltip then
+        return false
+    end
+    
+    self.questScanTooltip:ClearLines()
+    self.questScanTooltip:SetUnit(unitID)
+    
+    local numLines = self.questScanTooltip:NumLines()
+    
+    -- Look for quest progress lines (examples: " - Salty Scorpid Venom: 0/6", "Kill count: 5/10")
+    for i = 1, numLines do
+        local leftText = _G["YATPQuestScanTooltipTextLeft" .. i]
+        if leftText then
+            local text = leftText:GetText()
+            if text then
+                -- Check if line contains quest progress pattern (e.g., "6/6" or "0/10")
+                local current, total = text:match("(%d+)/(%d+)")
+                if current and total then
+                    current = tonumber(current)
+                    total = tonumber(total)
+                    
+                    -- Only show icon if quest is NOT complete
+                    if current < total then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Create quest icon on a nameplate
+function Module:CreateQuestIcon(nameplate)
+    if not nameplate or not nameplate.UnitFrame then
+        return
+    end
+    
+    local frame = nameplate.UnitFrame
+    
+    -- Don't create if already exists
+    if frame.YATPQuestIcon then
+        return
+    end
+    
+    -- Create container frame with proper parent and strata
+    frame.YATPQuestIcon = CreateFrame("Frame", nil, frame)
+    local qi = frame.YATPQuestIcon
+    qi:SetFrameStrata("HIGH")
+    qi:SetFrameLevel(frame:GetFrameLevel() + 10)
+    
+    -- Create icon texture
+    qi.icon = qi:CreateTexture(nil, "OVERLAY")
+    qi.icon:SetTexture("Interface\\AddOns\\YATP\\media\\questionmark")
+    qi.icon:SetAllPoints(qi)
+    
+    -- Update size and position
+    self:UpdateQuestIconSize(nameplate)
+    
+    -- Initially hidden
+    qi:Hide()
+end
+
+-- Update quest icon size and position based on config
+function Module:UpdateQuestIconSize(nameplate)
+    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.YATPQuestIcon then
+        return
+    end
+    
+    local qi = nameplate.UnitFrame.YATPQuestIcon
+    local config = self.db.profile.questIcons
+    
+    -- Set size
+    qi:SetSize(config.size, config.size)
+    
+    -- Position relative to health bar
+    local healthBar = nameplate.UnitFrame.healthBar
+    if not healthBar then
+        return
+    end
+    
+    qi:ClearAllPoints()
+    if config.position == "TOP" then
+        qi:SetPoint("BOTTOM", healthBar, "TOP", config.offsetX, config.offsetY)
+    elseif config.position == "BOTTOM" then
+        qi:SetPoint("TOP", healthBar, "BOTTOM", config.offsetX, -config.offsetY)
+    elseif config.position == "LEFT" then
+        qi:SetPoint("RIGHT", healthBar, "LEFT", -config.offsetX, config.offsetY)
+    elseif config.position == "RIGHT" then
+        qi:SetPoint("LEFT", healthBar, "RIGHT", config.offsetX, config.offsetY)
+    end
+end
+
+-- Update quest icon visibility for a specific nameplate
+function Module:UpdateQuestIcon(nameplate)
+    if not self.db.profile.questIcons.enabled then
+        return
+    end
+    
+    if not nameplate or not nameplate.UnitFrame then
+        return
+    end
+    
+    local frame = nameplate.UnitFrame
+    
+    -- Create quest icon if it doesn't exist
+    if not frame.YATPQuestIcon then
+        self:CreateQuestIcon(nameplate)
+    end
+    
+    local qi = frame.YATPQuestIcon
+    if not qi then
+        return
+    end
+    
+    -- Get unit name from frame
+    local unitName = frame.name and frame.name:GetText()
+    if not unitName then
+        qi:Hide()
+        return
+    end
+    
+    -- Check if any tracked unit has this name and has quest
+    local hasQuest = false
+    for unitID, unitData in pairs(self.questTrackedUnits) do
+        if unitData.name == unitName and unitData.hasQuest then
+            hasQuest = true
+            break
+        end
+    end
+    
+    -- Show/hide icon
+    if hasQuest then
+        self:UpdateQuestIconSize(nameplate)
+        qi:Show()
+    else
+        qi:Hide()
+    end
+end
+
+-- Control quest icons from Ascension_NamePlates system
+-- Alpha: 0 = hide (when using custom icons), 1 = show (when using native icons)
+function Module:SetNativeQuestIconAlpha(nameplate, alpha)
+    if not nameplate or not nameplate.UnitFrame then
+        return
+    end
+    
+    local frame = nameplate.UnitFrame
+    
+    -- The quest icon is stored as frame.questIcon (see NamePlateTemplates.xml)
+    if frame.questIcon then
+        frame.questIcon:SetAlpha(alpha)
+    end
+end
+
+-- Update all native quest icon alphas based on custom quest icon setting
+function Module:UpdateAllNativeQuestIconAlphas()
+    -- If custom quest icons are enabled, hide native icons (alpha 0)
+    -- If custom quest icons are disabled, show native icons (alpha 1)
+    local alpha = self.db.profile.questIcons.enabled and 0 or 1
+    
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        self:SetNativeQuestIconAlpha(nameplate, alpha)
+    end
+end
+
 function Module:OnAscensionNamePlateCreated(nameplate)
     if not self.db.profile.enabled then 
         return 
     end
     
-    -- Don't try to block border here - unit is not ready yet
-    -- It will be handled by OnNamePlateAdded when the unit is actually assigned
-    
     -- Setup mouseover health bar highlight for this nameplate
     self:SetupMouseoverHealthBarForNameplate(nameplate)
+    
+    -- NOTE: Quest icon setup is handled in OnNamePlateAdded with a delay
+    -- because UnitFrame may not be ready at this point
 end
 
-function Module:OnNamePlateAdded(unit, nameplate)
+function Module:OnNamePlateAdded(unit, nameplateID, nameplateFrame)
+    -- Note: In Ascension's callback, 'unit' is a number and 'nameplateID' is the unitID string (nameplate1, nameplate2, etc.)
+    local unitID = type(nameplateID) == "string" and nameplateID or tostring(nameplateID)
+    
     if not self.db.profile.enabled then 
         return 
+    end
+    
+    -- Try to get the nameplate frame from our stored cache
+    local frame = self.nameplateFrames[unitID] or nameplateFrame
+    
+    if not frame then
+        -- Retry after a delay
+        C_Timer.After(0.2, function()
+            frame = self.nameplateFrames[unitID]
+            if frame then
+                self:ProcessNamePlateForQuests(unitID, frame)
+            end
+        end)
+        return
+    end
+    
+    -- Wait a bit for UnitFrame to be fully set up
+    C_Timer.After(0.15, function()
+        self:ProcessNamePlateForQuests(unitID, frame)
+    end)
+end
+
+-- Process a nameplate for quest icons
+function Module:ProcessNamePlateForQuests(unitID, nameplateFrame)
+    if not nameplateFrame or not nameplateFrame.UnitFrame then
+        return
+    end
+    
+    -- Set native quest icons alpha based on our custom quest icon setting
+    local alpha = self.db.profile.questIcons.enabled and 0 or 1
+    self:SetNativeQuestIconAlpha(nameplateFrame, alpha)
+    
+    -- Create custom quest icon if it doesn't exist
+    if self.db.profile.questIcons.enabled and not nameplateFrame.UnitFrame.YATPQuestIcon then
+        self:CreateQuestIcon(nameplateFrame)
+    end
+    
+    -- Scan for quest objectives if custom quest icons are enabled
+    if self.db.profile.questIcons.enabled and unitID then
+        local unitName = UnitName(unitID)
+        if unitName then
+            -- Scan tooltip to check if unit has active quest
+            local hasQuest = self:ScanUnitForQuest(unitID)
+            
+            -- Store unit info
+            self.questTrackedUnits[unitID] = {
+                name = unitName,
+                hasQuest = hasQuest,
+            }
+        end
+    end
+    
+    -- Update quest icon for this nameplate
+    if self.db.profile.questIcons.enabled then
+        self:UpdateQuestIcon(nameplateFrame)
     end
     
     -- Add target glow if enabled
     if self.db.profile.targetGlow.enabled then
         -- Check if this nameplate is for our current target
-        if UnitExists("target") and nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, "target") then
-            self:AddTargetGlow(nameplate)
-            self.currentTargetFrame = nameplate
+        if UnitExists("target") and nameplateFrame.UnitFrame and nameplateFrame.UnitFrame.unit and UnitIsUnit(nameplateFrame.UnitFrame.unit, "target") then
+            self:AddTargetGlow(nameplateFrame)
+            self.currentTargetFrame = nameplateFrame
         end
     end
 end
@@ -325,7 +614,76 @@ function Module:OnNamePlateRemoved(unit, nameplate)
             self.currentTargetFrame = nil
         end
     end
+    
+    -- Clean up quest icon if this nameplate had one
+    if nameplate and nameplate.UnitFrame and nameplate.UnitFrame.YATPQuestIcon then
+        nameplate.UnitFrame.YATPQuestIcon:Hide()
+    end
+    
+    -- Clean up quest tracking data
+    if unit and self.questTrackedUnits then
+        self.questTrackedUnits[unit] = nil
+    end
 end
+
+-------------------------------------------------
+-- Quest Icon Event Handlers
+-------------------------------------------------
+
+-- Setup quest icon system
+function Module:SetupQuestIcons()
+    if not self.db.profile.enabled then
+        return
+    end
+    
+    if not self.db.profile.questIcons.enabled then
+        return
+    end
+    
+    -- Hide native quest icons (alpha 0) and create custom icons on all existing nameplates
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame then
+            self:SetNativeQuestIconAlpha(nameplate, 0)
+            self:CreateQuestIcon(nameplate)
+            
+            -- Scan for quest if unit exists
+            if nameplate.UnitFrame.unit then
+                local unitName = UnitName(nameplate.UnitFrame.unit)
+                if unitName then
+                    local hasQuest = self:ScanUnitForQuest(nameplate.UnitFrame.unit)
+                    self.questTrackedUnits[nameplate.UnitFrame.unit] = {
+                        name = unitName,
+                        hasQuest = hasQuest,
+                    }
+                end
+            end
+            
+            self:UpdateQuestIcon(nameplate)
+        end
+    end
+end
+
+-- Cleanup quest icon system
+function Module:CleanupQuestIcons()
+    -- Hide all custom quest icons
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame then
+            -- Hide custom quest icon
+            if nameplate.UnitFrame.YATPQuestIcon then
+                nameplate.UnitFrame.YATPQuestIcon:Hide()
+            end
+            -- Show native quest icons (alpha 1)
+            self:SetNativeQuestIconAlpha(nameplate, 1)
+        end
+    end
+    
+    -- Clear tracked units
+    self.questTrackedUnits = {}
+end
+
+-------------------------------------------------
+-- Target Glow System
+-------------------------------------------------
 
 function Module:AddTargetGlow(nameplate)
     if not nameplate or not nameplate.UnitFrame then 
@@ -2099,6 +2457,14 @@ function Module:BuildTabStructure()
             order = 3,
             args = self:BuildEnemyTargetTab()
         }
+        
+        tabs.questIcons = {
+            type = "group",
+            name = L["Quest Icons"] or "Quest Icons",
+            desc = L["Custom quest objective icons on nameplates"] or "Custom quest objective icons on nameplates",
+            order = 4,
+            args = self:BuildQuestIconsTab()
+        }
     else
         tabs.info = {
             type = "group",
@@ -2157,6 +2523,7 @@ function Module:BuildStatusTab()
                         self:SetupTargetArrows()
                         self:SetupMouseoverGlow()
                         self:SetupThreatSystem()
+                        self:SetupQuestIcons()
                         self:DisableAllNameplateGlows()
                         self:ApplyGlobalHealthBarTexture()
                         self:SetupHealthTextPositioning()
@@ -2166,6 +2533,7 @@ function Module:BuildStatusTab()
                         self:CleanupTargetGlow()
                         self:CleanupTargetArrows()
                         self:CleanupThreatSystem()
+                        self:CleanupQuestIcons()
                         self:CleanupHealthTextPositioning()
                         self:CleanupNonTargetAlpha()
                         if self.glowDisableTimer then
@@ -2823,3 +3191,140 @@ function Module:BuildEnemyTargetTab()
         },
     }
 end
+
+-------------------------------------------------
+-- Build Quest Icons Tab
+-------------------------------------------------
+function Module:BuildQuestIconsTab()
+    return {
+        desc = {
+            type = "description",
+            name = "Display custom quest objective icons on nameplates for NPCs you need to kill or interact with for quests. " ..
+                   "This replaces the unreliable native quest icons with a custom system that scans tooltips to detect quest objectives.",
+            order = 1,
+        },
+        
+        spacer1 = { type = "description", name = "\n", order = 5 },
+        
+        questIconsHeader = { type = "header", name = L["Quest Icon Settings"] or "Quest Icon Settings", order = 10 },
+        
+        questIconsEnabled = {
+            type = "toggle",
+            name = L["Enable Quest Icons"] or "Enable Quest Icons",
+            desc = L["Show custom quest objective icons on nameplates. When enabled, native Ascension_NamePlates quest icons are hidden. When disabled, native icons are restored."] or "Show custom quest objective icons on nameplates. When enabled, native Ascension_NamePlates quest icons are hidden. When disabled, native icons are restored.",
+            get = function() return self.db.profile.questIcons.enabled end,
+            set = function(_, value) 
+                self.db.profile.questIcons.enabled = value
+                if value then
+                    self:SetupQuestIcons()
+                else
+                    self:CleanupQuestIcons()
+                end
+                -- Update all native quest icon alphas (0 if enabled, 1 if disabled)
+                self:UpdateAllNativeQuestIconAlphas()
+            end,
+            order = 11,
+        },
+        
+        questIconsSize = {
+            type = "range",
+            name = L["Icon Size"] or "Icon Size",
+            desc = L["Size of the quest icon in pixels"] or "Size of the quest icon in pixels",
+            min = 12, max = 48, step = 2,
+            get = function() return self.db.profile.questIcons.size end,
+            set = function(_, value) 
+                self.db.profile.questIcons.size = value
+                -- Update all quest icons
+                for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+                    if nameplate.UnitFrame then
+                        self:UpdateQuestIconSize(nameplate)
+                    end
+                end
+            end,
+            disabled = function() return not self.db.profile.questIcons.enabled end,
+            order = 12,
+        },
+        
+        questIconsPosition = {
+            type = "select",
+            name = L["Icon Position"] or "Icon Position",
+            desc = L["Where to position the quest icon relative to the health bar"] or "Where to position the quest icon relative to the health bar",
+            values = {
+                ["TOP"] = L["Top"] or "Top",
+                ["BOTTOM"] = L["Bottom"] or "Bottom",
+                ["LEFT"] = L["Left"] or "Left",
+                ["RIGHT"] = L["Right"] or "Right",
+            },
+            get = function() return self.db.profile.questIcons.position end,
+            set = function(_, value) 
+                self.db.profile.questIcons.position = value
+                -- Update all quest icons
+                for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+                    if nameplate.UnitFrame then
+                        self:UpdateQuestIconSize(nameplate)
+                    end
+                end
+            end,
+            disabled = function() return not self.db.profile.questIcons.enabled end,
+            order = 13,
+        },
+        
+        questIconsOffsetX = {
+            type = "range",
+            name = L["Horizontal Offset"] or "Horizontal Offset",
+            desc = L["Horizontal offset from the icon position"] or "Horizontal offset from the icon position",
+            min = -50, max = 50, step = 1,
+            get = function() return self.db.profile.questIcons.offsetX end,
+            set = function(_, value) 
+                self.db.profile.questIcons.offsetX = value
+                -- Update all quest icons
+                for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+                    if nameplate.UnitFrame then
+                        self:UpdateQuestIconSize(nameplate)
+                    end
+                end
+            end,
+            disabled = function() return not self.db.profile.questIcons.enabled end,
+            order = 14,
+        },
+        
+        questIconsOffsetY = {
+            type = "range",
+            name = L["Vertical Offset"] or "Vertical Offset",
+            desc = L["Vertical offset from the icon position"] or "Vertical offset from the icon position",
+            min = -50, max = 50, step = 1,
+            get = function() return self.db.profile.questIcons.offsetY end,
+            set = function(_, value) 
+                self.db.profile.questIcons.offsetY = value
+                -- Update all quest icons
+                for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+                    if nameplate.UnitFrame then
+                        self:UpdateQuestIconSize(nameplate)
+                    end
+                end
+            end,
+            disabled = function() return not self.db.profile.questIcons.enabled end,
+            order = 15,
+        },
+        
+        spacer2 = { type = "description", name = "\n", order = 20 },
+        
+        questIconsInfoHeader = { type = "header", name = L["How It Works"] or "How It Works", order = 21 },
+        
+        questIconsInfo = {
+            type = "description",
+            name = "|cff00ff00" .. (L["Quest Detection"] or "Quest Detection") .. ":|r\n" ..
+                   (L["The system scans nameplate tooltips (without requiring mouseover) to detect quest objectives. " ..
+                   "It looks for quest progress patterns like '0/6' or '5/10' and only shows the icon when the objective is incomplete. " ..
+                   "Once a quest objective is complete (e.g., '6/6'), the icon automatically disappears."] or 
+                   "The system scans nameplate tooltips (without requiring mouseover) to detect quest objectives. " ..
+                   "It looks for quest progress patterns like '0/6' or '5/10' and only shows the icon when the objective is incomplete. " ..
+                   "Once a quest objective is complete (e.g., '6/6'), the icon automatically disappears.") .. "\n\n" ..
+                   "|cffFFD700" .. (L["Note"] or "Note") .. ":|r " ..
+                   (L["This custom system replaces the native Ascension_NamePlates quest icons, which are automatically hidden when this feature is enabled."] or
+                   "This custom system replaces the native Ascension_NamePlates quest icons, which are automatically hidden when this feature is enabled."),
+            order = 22,
+        },
+    }
+end
+

@@ -618,3 +618,26 @@ L["Brightness Multiplier"] = true
 L["How much to brighten the color. 1.0 = no change, 1.3 = 30% brighter (recommended). Higher values may wash out dark colors."] = true
 L["Tint Amount"] = true
 L["How much white to mix in. 0.0 = original color, 1.0 = pure white. 0.25 (25%) is recommended for a subtle effect."] = true
+
+-- Quest Icon System
+L["Quest Icons"] = true
+L["Custom quest objective icons on nameplates"] = true
+L["Quest Icon Settings"] = true
+L["Enable Quest Icons"] = true
+L["Show custom quest objective icons on nameplates. When enabled, native Ascension_NamePlates quest icons are hidden. When disabled, native icons are restored."] = true
+L["Icon Size"] = true
+L["Size of the quest icon in pixels"] = true
+L["Icon Position"] = true
+L["Where to position the quest icon relative to the health bar"] = true
+L["Top"] = true
+L["Bottom"] = true
+L["Horizontal Offset"] = true
+L["Horizontal offset from the icon position"] = true
+L["Vertical Offset"] = true
+L["Vertical offset from the icon position"] = true
+L["How It Works"] = true
+L["Quest Detection"] = true
+L["The system scans nameplate tooltips (without requiring mouseover) to detect quest objectives. It looks for quest progress patterns like '0/6' or '5/10' and only shows the icon when the objective is incomplete. Once a quest objective is complete (e.g., '6/6'), the icon automatically disappears."] = true
+L["Note"] = true
+L["This custom system replaces the native Ascension_NamePlates quest icons, which are automatically hidden when this feature is enabled."] = true
+

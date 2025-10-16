@@ -26,6 +26,7 @@ Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Ena
 | Threat System | Ascension NamePlates | Color nameplates by threat level (party/raid only). Configurable colors for low/medium/high/tanking. |
 | Health Text Position | Ascension NamePlates | Fine-tune health text position with X/Y offsets (-50 to +50, -20 to +20 pixels). |
 | Global Health Texture | Ascension NamePlates | Override health bar texture for ALL nameplate types (friendly/enemy/personal). |
+| Quest Icons | Ascension NamePlates | Custom quest objective icons with tooltip scanning. Auto-hides when complete. Replaces native icons. Configurable size & position. |
 
 ## Install
 
