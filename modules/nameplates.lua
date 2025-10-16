@@ -142,6 +142,14 @@ function Module:OnEnable()
     self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateAdded")
     self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateRemoved")
     
+    -- Register Ascension NamePlates callback for when UnitFrame is actually created
+    if EventRegistry then
+        EventRegistry:RegisterCallback("NamePlateDriver.UnitFrameCreated", function(nameplate)
+            self:OnAscensionNamePlateCreated(nameplate)
+        end, self)
+        print("[YATP] Registered callback: NamePlateDriver.UnitFrameCreated")
+    end
+    
     print("[YATP] Events registered: NAME_PLATE_UNIT_ADDED, NAME_PLATE_UNIT_REMOVED")
     
     self:SetupTargetGlow()
@@ -280,18 +288,21 @@ function Module:OnTargetChanged()
     end
 end
 
-function Module:OnNamePlateAdded(unit, nameplate)
-    print("[YATP] OnNamePlateAdded called for unit:", unit or "nil")
-    
+function Module:OnAscensionNamePlateCreated(nameplate)
     if not self.db.profile.enabled then 
-        print("[YATP] Module not enabled, skipping")
         return 
     end
     
-    print("[YATP] Nameplate:", nameplate and "exists" or "nil", "UnitFrame:", nameplate and nameplate.UnitFrame and "exists" or "nil")
+    print("[YATP] OnAscensionNamePlateCreated - UnitFrame created for nameplate")
     
-    -- Always block mouseover border glow on new nameplates
+    -- Block mouseover border glow (this is the perfect moment - UnitFrame just created)
     self:BlockNameplateBorderGlow(nameplate)
+end
+
+function Module:OnNamePlateAdded(unit, nameplate)
+    if not self.db.profile.enabled then 
+        return 
+    end
     
     -- Add target glow if enabled
     if self.db.profile.targetGlow.enabled then
@@ -679,7 +690,7 @@ end
 -------------------------------------------------
 -- Block Mouseover Border Glow System
 -- This system is always enabled and keeps borders black (0, 0, 0, 1)
--- Border blocking is applied in OnNamePlateAdded() for each new nameplate
+-- Border blocking is applied via OnAscensionNamePlateCreated callback
 -------------------------------------------------
 
 function Module:SetupMouseoverBorderBlock()
@@ -687,9 +698,9 @@ function Module:SetupMouseoverBorderBlock()
         return
     end
     
-    print("[YATP] SetupMouseoverBorderBlock: Setting up border glow blocker")
+    print("[YATP] SetupMouseoverBorderBlock: Processing existing nameplates")
     
-    -- Process existing nameplates after a delay
+    -- Process existing nameplates after a short delay to ensure UnitFrames are created
     C_Timer.After(0.5, function()
         local count = 0
         for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
@@ -698,34 +709,14 @@ function Module:SetupMouseoverBorderBlock()
                 self:BlockNameplateBorderGlow(nameplate)
             end
         end
-        print(string.format("[YATP] Initial pass: Blocked %d existing nameplates", count))
+        print(string.format("[YATP] Blocked %d existing nameplates", count))
     end)
     
-    -- Create a ticker that checks for new nameplates every 1 second
-    -- This ensures we catch nameplates that are created after initialization
-    if not self.borderBlockTicker then
-        print("[YATP] Creating ticker to monitor nameplates")
-        self.borderBlockTicker = C_Timer.NewTicker(1.0, function()
-            for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
-                if nameplate.UnitFrame and nameplate.UnitFrame.healthBar and nameplate.UnitFrame.healthBar.border then
-                    local border = nameplate.UnitFrame.healthBar.border
-                    -- Only apply if not already blocked
-                    if not border.glowBlocked then
-                        self:BlockNameplateBorderGlow(nameplate)
-                    end
-                end
-            end
-        end)
-    end
+    -- Note: New nameplates will be handled by OnAscensionNamePlateCreated callback
 end
 
 function Module:CleanupMouseoverBorderBlock()
-    -- Cancel the ticker if it exists
-    if self.borderBlockTicker then
-        self.borderBlockTicker:Cancel()
-        self.borderBlockTicker = nil
-        print("[YATP] Cancelled border block ticker")
-    end
+    -- Nothing to cleanup - callback will simply not be called when module is disabled
 end
 
 function Module:BlockNameplateBorderGlow(nameplate)
