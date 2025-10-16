@@ -320,10 +320,27 @@ function Module:OnTargetChanged()
         return 
     end
     
+    local previousTarget = self.currentTargetFrame
+    
     -- Remove glow from previous target
     if self.currentTargetFrame then
         self:RemoveTargetGlow(self.currentTargetFrame)
         self.currentTargetFrame = nil
+    end
+    
+    -- If border blocking is enabled, force previous target back to black
+    if previousTarget and self.db.profile.blockMouseoverBorderGlow.enabled then
+        if previousTarget.UnitFrame and 
+           previousTarget.UnitFrame.healthBar and 
+           previousTarget.UnitFrame.healthBar.border and 
+           previousTarget.UnitFrame.healthBar.border.Texture then
+            local texture = previousTarget.UnitFrame.healthBar.border.Texture
+            if texture.originalSetVertexColor then
+                texture.originalSetVertexColor(texture, 0, 0, 0, 1)
+            else
+                texture:SetVertexColor(0, 0, 0, 1)
+            end
+        end
     end
     
     -- Add glow to new target
@@ -1348,6 +1365,14 @@ function Module:ForceBlackBordersOnAllNameplates()
            nameplate.UnitFrame.healthBar.border and 
            nameplate.UnitFrame.healthBar.border.Texture then
             
+            -- Skip the current target if target border is enabled
+            -- Target has its own custom border, don't force black on it
+            if self.db.profile.targetGlow.enabled and 
+               self.currentTargetFrame == nameplate then
+                -- This is the current target with custom border, skip it
+                goto continue
+            end
+            
             local texture = nameplate.UnitFrame.healthBar.border.Texture
             local r, g, b, a = texture:GetVertexColor()
             
@@ -1359,6 +1384,8 @@ function Module:ForceBlackBordersOnAllNameplates()
                     texture:SetVertexColor(0, 0, 0, 1)
                 end
             end
+            
+            ::continue::
         end
     end
 end
@@ -1386,14 +1413,24 @@ function Module:BlockNameplateBorderGlow(nameplate)
     if not texture.originalSetVertexColor then
         texture.originalSetVertexColor = texture.SetVertexColor
         
-        -- Replace with function that always forces black
+        -- Replace with function that forces black EXCEPT for current target
         texture.SetVertexColor = function(self, r, g, b, a)
-            self.originalSetVertexColor(self, 0, 0, 0, 1)
+            -- Check if this nameplate is the current target with custom border
+            if Module.db.profile.targetGlow.enabled and 
+               Module.currentTargetFrame == nameplate then
+                -- Allow target border to have its own color
+                self.originalSetVertexColor(self, r, g, b, a)
+            else
+                -- Force black for all other nameplates
+                self.originalSetVertexColor(self, 0, 0, 0, 1)
+            end
         end
     end
     
-    -- Force initial black color
-    texture:SetVertexColor(0, 0, 0, 1)
+    -- Force initial black color (unless it's the target)
+    if not (self.db.profile.targetGlow.enabled and self.currentTargetFrame == nameplate) then
+        texture:SetVertexColor(0, 0, 0, 1)
+    end
     
     return true
 end
