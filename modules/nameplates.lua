@@ -870,6 +870,10 @@ function Module:UpdateMouseoverHealthBar(nameplate)
     elseif not isMouseover and data.isMouseover then
         -- No longer mouseover - restore original color
         print(string.format("[YATP Mouseover] RESTORING color for %s", unitName))
+        
+        -- Clear the highlight color so OnUpdate stops re-applying it
+        data.highlightColor = nil
+        
         self:RestoreHealthBarColorIfStored(nameplate)
         data.isMouseover = false
     else
@@ -955,13 +959,14 @@ end
 
 function Module:RestoreHealthBarColorIfStored(nameplate)
     if not nameplate or not self.mouseoverHealthBarData or not self.mouseoverHealthBarData[nameplate] then
+        print("[YATP Mouseover] RestoreColor: No nameplate or data")
         return
     end
     
     local data = self.mouseoverHealthBarData[nameplate]
     if data.originalColor then
         local unitName = nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
-        print(string.format("[YATP Mouseover] Restoring original color for %s", unitName))
+        print(string.format("[YATP Mouseover] Restoring original color for %s: R=%.2f G=%.2f B=%.2f", unitName, data.originalColor[1], data.originalColor[2], data.originalColor[3]))
         self:RestoreHealthBarColor(nameplate, data.originalColor)
         data.originalColor = nil
         
@@ -973,27 +978,39 @@ function Module:RestoreHealthBarColorIfStored(nameplate)
                 self:UpdateNameplateThreat(nameplate, unit)
             end
         end
+    else
+        print("[YATP Mouseover] RestoreColor: No original color stored")
     end
 end
 
 function Module:RestoreHealthBarColor(nameplate, color)
     if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar or not color then
+        print("[YATP Mouseover] RestoreHealthBarColor: Missing component")
         return
     end
     
     local healthBar = nameplate.UnitFrame.healthBar
+    local unitName = nameplate.UnitFrame.unit and UnitName(nameplate.UnitFrame.unit) or "Unknown"
+    
+    print(string.format("[YATP Mouseover] Restoring %s to R=%.2f G=%.2f B=%.2f A=%.2f", unitName, color[1], color[2], color[3], color[4]))
+    
     healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
     
     -- Also restore texture color
     local texture = healthBar:GetStatusBarTexture()
     if texture then
         texture:SetVertexColor(color[1], color[2], color[3], color[4])
+        print(string.format("[YATP Mouseover] Also restored texture color for %s", unitName))
     end
     
     -- Remove color lock
     if nameplate.mouseoverColorLock then
         nameplate.mouseoverColorLock = nil
     end
+    
+    -- Verify restoration
+    local actualR, actualG, actualB, actualA = healthBar:GetStatusBarColor()
+    print(string.format("[YATP Mouseover] Verification after restore: R=%.2f G=%.2f B=%.2f A=%.2f", actualR, actualG, actualB, actualA))
 end
 
 -------------------------------------------------
