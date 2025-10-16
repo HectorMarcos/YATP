@@ -767,37 +767,54 @@ function Module:HookMouseoverOnNameplate(nameplate)
 end
 
 function Module:CaptureNameplateState(nameplate)
-    if not nameplate or not nameplate.UnitFrame then
+    if not nameplate then
         return nil
     end
     
     local state = {
-        textures = {}
+        textures = {},
+        baseTextures = {}
     }
     
-    -- Capture all visible textures from UnitFrame
-    local allRegions = {nameplate.UnitFrame:GetRegions()}
-    for i, region in ipairs(allRegions) do
-        if region:GetObjectType() == "Texture" then
-            local shown = region:IsShown()
-            local alpha = region:GetAlpha()
-            if shown and alpha > 0 then
-                local name = region:GetName() or ("Anonymous_" .. i)
-                local texture = region:GetTexture()
-                local r, g, b, a = region:GetVertexColor()
-                state.textures[name] = {
-                    texture = texture,
-                    alpha = alpha,
-                    r = r, g = g, b = b, a = a
-                }
+    -- Capture all visible textures from UnitFrame (if exists)
+    if nameplate.UnitFrame then
+        local allRegions = {nameplate.UnitFrame:GetRegions()}
+        for i, region in ipairs(allRegions) do
+            if region:GetObjectType() == "Texture" then
+                local shown = region:IsShown()
+                local alpha = region:GetAlpha()
+                if shown and alpha > 0 then
+                    local name = region:GetName() or ("UF_Anonymous_" .. i)
+                    local texture = region:GetTexture()
+                    local r, g, b, a = region:GetVertexColor()
+                    state.textures[name] = {
+                        texture = texture,
+                        alpha = alpha,
+                        r = r, g = g, b = b, a = a
+                    }
+                end
             end
         end
     end
     
-    -- Capture base nameplate frame state
-    if nameplate.GetChildren then
-        local children = {nameplate:GetChildren()}
-        state.childCount = #children
+    -- IMPORTANT: Capture textures from the BASE NAMEPLATE FRAME (where mouseover glow might be!)
+    local baseRegions = {nameplate:GetRegions()}
+    for i, region in ipairs(baseRegions) do
+        if region:GetObjectType() == "Texture" then
+            local shown = region:IsShown()
+            local alpha = region:GetAlpha()
+            if shown and alpha > 0 then
+                local name = region:GetName() or ("Base_Anonymous_" .. i)
+                local texture = region:GetTexture()
+                local r, g, b, a = region:GetVertexColor()
+                state.baseTextures[name] = {
+                    texture = texture,
+                    alpha = alpha,
+                    r = r, g = g, b = b, a = a,
+                    source = "base nameplate frame"
+                }
+            end
+        end
     end
     
     return state
@@ -814,16 +831,17 @@ function Module:CompareNameplateStates(nameplate)
         return
     end
     
-    local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
-    local unitName = UnitName(unit) or "Unknown"
+    local unit = nameplate.UnitFrame and (nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit)
+    local unitName = unit and UnitName(unit) or "Unknown"
     
     print(string.format("[YATP NamePlates] ===== CHANGES DETECTED for %s =====", unitName))
     
-    -- Find new textures that appeared
     local foundChanges = false
+    
+    -- Check UnitFrame textures
     for name, data in pairs(currentState.textures) do
         if not nameplate.preMouseoverState.textures[name] then
-            print(string.format("  [NEW] %s: Texture=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f)",
+            print(string.format("  [NEW UnitFrame] %s: Texture=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f)",
                 name, tostring(data.texture), data.alpha, data.r, data.g, data.b, data.a))
             foundChanges = true
         else
@@ -842,8 +860,30 @@ function Module:CompareNameplateStates(nameplate)
         end
     end
     
+    -- Check BASE nameplate frame textures (THIS IS KEY!)
+    for name, data in pairs(currentState.baseTextures) do
+        if not nameplate.preMouseoverState.baseTextures[name] then
+            print(string.format("  [NEW BASE FRAME] *** %s ***: Texture=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f)",
+                name, tostring(data.texture), data.alpha, data.r, data.g, data.b, data.a))
+            foundChanges = true
+        else
+            -- Check if alpha or color changed
+            local old = nameplate.preMouseoverState.baseTextures[name]
+            if math.abs(old.alpha - data.alpha) > 0.01 then
+                print(string.format("  [ALPHA CHANGE BASE] *** %s ***: %.2f -> %.2f", name, old.alpha, data.alpha))
+                foundChanges = true
+            end
+            if math.abs(old.r - data.r) > 0.01 or math.abs(old.g - data.g) > 0.01 or 
+               math.abs(old.b - data.b) > 0.01 or math.abs(old.a - data.a) > 0.01 then
+                print(string.format("  [COLOR CHANGE BASE] *** %s ***: RGBA(%.2f,%.2f,%.2f,%.2f) -> RGBA(%.2f,%.2f,%.2f,%.2f)",
+                    name, old.r, old.g, old.b, old.a, data.r, data.g, data.b, data.a))
+                foundChanges = true
+            end
+        end
+    end
+    
     if not foundChanges then
-        print("  No visual changes detected!")
+        print("  No visual changes detected in UnitFrame or base nameplate frame!")
     end
     
     print("[YATP NamePlates] ===== END CHANGES =====")
@@ -948,6 +988,7 @@ function Module:DebugNameplateState(nameplate)
     -- Scan ALL regions of the entire UnitFrame for mouseover effects
     print("  UnitFrame ALL regions scan (looking for mouseover effects):")
     local allRegions = {unitFrame:GetRegions()}
+    local foundAny = false
     for i, region in ipairs(allRegions) do
         if region:GetObjectType() == "Texture" then
             local name = region:GetName() or "Anonymous"
@@ -962,8 +1003,36 @@ function Module:DebugNameplateState(nameplate)
                 local layer, sublayer = region:GetDrawLayer()
                 print(string.format("    [%d] %s: Texture=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f), Layer=%s", 
                     i, name, tostring(texture or "None"), alpha, r, g, b, a, tostring(layer)))
+                foundAny = true
             end
         end
+    end
+    if not foundAny then
+        print("    (none found)")
+    end
+    
+    -- CRITICAL: Scan BASE NAMEPLATE FRAME (parent) for mouseover effects
+    print("  BASE nameplate frame regions scan:")
+    local baseRegions = {nameplate:GetRegions()}
+    local foundBaseTextures = false
+    for i, region in ipairs(baseRegions) do
+        if region:GetObjectType() == "Texture" then
+            local name = region:GetName() or ("Base_Anonymous_" .. i)
+            local shown = region:IsShown()
+            local alpha = region:GetAlpha()
+            
+            if shown and alpha > 0 then
+                local texture = region:GetTexture()
+                local r, g, b, a = region:GetVertexColor()
+                local layer, sublayer = region:GetDrawLayer()
+                print(string.format("    [%d] *** %s ***: Texture=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f), Layer=%s", 
+                    i, name, tostring(texture or "None"), alpha, r, g, b, a, tostring(layer)))
+                foundBaseTextures = true
+            end
+        end
+    end
+    if not foundBaseTextures then
+        print("    (no visible textures in base frame)")
     end
     
     -- Check frame level and strata
