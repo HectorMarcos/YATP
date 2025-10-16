@@ -52,9 +52,7 @@ Module.defaults = {
     -- Mouseover Health Bar Highlight (subtle color change on non-target nameplates)
     mouseoverHealthBarHighlight = {
         enabled = true, -- Enable mouseover highlight on health bars
-        method = "pink", -- "brightness", "tint", or "pink" (debug mode)
-        brightnessMultiplier = 1.5, -- How much to brighten (1.0 = no change, 1.5 = 50% brighter for better visibility)
-        tintAmount = 0.4, -- How much white to mix in for tint method (0.0 to 1.0, 0.4 = 40% for better visibility)
+        tintAmount = 0.5, -- Fixed tint amount: mix 50% white for visibility
     },
     
     -- Enemy Target specific options (legacy - will be cleaned up)
@@ -930,31 +928,10 @@ function Module:ApplyMouseoverHealthBarHighlight(nameplate)
     end
     self.mouseoverHealthBarData[nameplate].originalColor = {r, g, b, a}
     
-    -- Apply highlight based on method
-    local method = self.db.profile.mouseoverHealthBarHighlight.method
-    local newR, newG, newB, newA
-    
-    print(string.format("[YATP Mouseover] Using method: %s", method))
-    
-    if method == "pink" then
-        -- DEBUG MODE: Force bright pink color for easy identification
-        print("[YATP Mouseover] DEBUG MODE: Using BRIGHT PINK color")
-        newR, newG, newB, newA = 1.0, 0.0, 1.0, 1.0  -- Magenta/Pink
-    elseif method == "brightness" then
-        -- Method 1: Increase brightness
-        local multiplier = self.db.profile.mouseoverHealthBarHighlight.brightnessMultiplier or 1.5
-        print(string.format("[YATP Mouseover] Brightness multiplier: %.2f", multiplier))
-        newR, newG, newB, newA = self:ApplyBrightnessMultiplier(r, g, b, a, multiplier)
-    elseif method == "tint" then
-        -- Method 2: Tint with white
-        local tintAmount = self.db.profile.mouseoverHealthBarHighlight.tintAmount or 0.4
-        print(string.format("[YATP Mouseover] Tint amount: %.2f", tintAmount))
-        newR, newG, newB, newA = self:ApplyWhiteTint(r, g, b, a, tintAmount)
-    else
-        -- Fallback to pink for debugging
-        print("[YATP Mouseover] WARNING: Unknown method, using PINK fallback")
-        newR, newG, newB, newA = 1.0, 0.0, 1.0, 1.0  -- Magenta/Pink
-    end
+    -- Apply tint with white (fixed at 0.5 = 50%)
+    local tintAmount = self.db.profile.mouseoverHealthBarHighlight.tintAmount or 0.5
+    print(string.format("[YATP Mouseover] Applying tint: %.2f", tintAmount))
+    local newR, newG, newB, newA = self:ApplyWhiteTint(r, g, b, a, tintAmount)
     
     -- Store the highlight color for maintenance
     self.mouseoverHealthBarData[nameplate].highlightColor = {newR, newG, newB, newA}
@@ -1044,19 +1021,10 @@ function Module:RestoreHealthBarColor(nameplate, color)
 end
 
 -------------------------------------------------
--- Color Manipulation Helpers
+-- Color Manipulation Helper
 -------------------------------------------------
 
--- Method 1: Brightness Multiplier
--- Multiplies RGB values to make them brighter (capped at 1.0)
-function Module:ApplyBrightnessMultiplier(r, g, b, a, multiplier)
-    local newR = math.min(r * multiplier, 1.0)
-    local newG = math.min(g * multiplier, 1.0)
-    local newB = math.min(b * multiplier, 1.0)
-    return newR, newG, newB, a
-end
-
--- Method 2: White Tint
+-- White Tint Method
 -- Mixes the original color with white to create a lighter tint
 -- tintAmount: 0.0 = original color, 1.0 = pure white
 function Module:ApplyWhiteTint(r, g, b, a, tintAmount)
@@ -2696,7 +2664,7 @@ function Module:BuildGeneralTab()
         mouseoverHighlightEnabled = {
             type = "toggle",
             name = L["Enable Mouseover Highlight"] or "Enable Mouseover Highlight",
-            desc = L["Highlight the health bar when mousing over non-target nameplates"] or "Highlight the health bar when mousing over non-target nameplates",
+            desc = L["Highlight the health bar when mousing over non-target nameplates. Uses a white tint effect (50% mix) for subtle visibility."] or "Highlight the health bar when mousing over non-target nameplates. Uses a white tint effect (50% mix) for subtle visibility.",
             get = function() return self.db.profile.mouseoverHealthBarHighlight.enabled end,
             set = function(_, value) 
                 self.db.profile.mouseoverHealthBarHighlight.enabled = value
@@ -2707,49 +2675,6 @@ function Module:BuildGeneralTab()
                 end
             end,
             order = 47,
-        },
-        
-        mouseoverHighlightMethod = {
-            type = "select",
-            name = L["Highlight Method"] or "Highlight Method",
-            desc = L["Choose how the health bar color changes on mouseover"] or "Choose how the health bar color changes on mouseover",
-            values = {
-                pink = "PINK (Debug Mode - easy to see)",
-                brightness = L["Brightness"] or "Brightness (multiply RGB values to make color brighter)",
-                tint = L["Tint"] or "Tint (mix with white for a lighter shade)",
-            },
-            get = function() return self.db.profile.mouseoverHealthBarHighlight.method end,
-            set = function(_, value) 
-                self.db.profile.mouseoverHealthBarHighlight.method = value
-            end,
-            disabled = function() return not self.db.profile.mouseoverHealthBarHighlight.enabled end,
-            order = 48,
-        },
-        
-        mouseoverHighlightBrightness = {
-            type = "range",
-            name = L["Brightness Multiplier"] or "Brightness Multiplier",
-            desc = L["How much to brighten the color. 1.0 = no change, 1.3 = 30% brighter (recommended). Higher values may wash out dark colors."] or "How much to brighten the color. 1.0 = no change, 1.3 = 30% brighter (recommended). Higher values may wash out dark colors.",
-            min = 1.0, max = 2.0, step = 0.05,
-            get = function() return self.db.profile.mouseoverHealthBarHighlight.brightnessMultiplier end,
-            set = function(_, value) 
-                self.db.profile.mouseoverHealthBarHighlight.brightnessMultiplier = value
-            end,
-            disabled = function() return not self.db.profile.mouseoverHealthBarHighlight.enabled or self.db.profile.mouseoverHealthBarHighlight.method ~= "brightness" end,
-            order = 49,
-        },
-        
-        mouseoverHighlightTint = {
-            type = "range",
-            name = L["Tint Amount"] or "Tint Amount",
-            desc = L["How much white to mix in. 0.0 = original color, 1.0 = pure white. 0.25 (25%) is recommended for a subtle effect."] or "How much white to mix in. 0.0 = original color, 1.0 = pure white. 0.25 (25%) is recommended for a subtle effect.",
-            min = 0.0, max = 1.0, step = 0.05,
-            get = function() return self.db.profile.mouseoverHealthBarHighlight.tintAmount end,
-            set = function(_, value) 
-                self.db.profile.mouseoverHealthBarHighlight.tintAmount = value
-            end,
-            disabled = function() return not self.db.profile.mouseoverHealthBarHighlight.enabled or self.db.profile.mouseoverHealthBarHighlight.method ~= "tint" end,
-            order = 50,
         },
     }
 end
