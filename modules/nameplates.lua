@@ -49,6 +49,14 @@ Module.defaults = {
         customColor = {0, 0, 0, 1}, -- Fixed black color (RGBA)
     },
     
+    -- Mouseover Health Bar Highlight (subtle color change on non-target nameplates)
+    mouseoverHealthBarHighlight = {
+        enabled = true, -- Enable mouseover highlight on health bars
+        method = "brightness", -- "brightness" or "tint"
+        brightnessMultiplier = 1.3, -- How much to brighten (1.0 = no change, 1.3 = 30% brighter)
+        tintAmount = 0.25, -- How much white to mix in for tint method (0.0 to 1.0)
+    },
+    
     -- Enemy Target specific options (legacy - will be cleaned up)
     highlightEnemyTarget = false,
     highlightColor = {1, 1, 0, 0.8}, -- Yellow with 80% opacity
@@ -150,6 +158,7 @@ function Module:OnEnable()
     self:SetupTargetArrows()
     self:SetupMouseoverGlow()
     self:SetupMouseoverBorderBlock()
+    self:SetupMouseoverHealthBarHighlight()
     self:DisableAllNameplateGlows()
     
     -- Setup everything after a longer delay to ensure all addons are loaded
@@ -179,6 +188,7 @@ function Module:OnDisable()
     self:CleanupHealthTextPositioning()
     self:CleanupNonTargetAlpha()
     self:CleanupMouseoverBorderBlock()
+    self:CleanupMouseoverHealthBarHighlight()
     self:UnblockAllBorderGlows()
     
     -- Restore original C_NamePlateManager.UpdateAll if we hooked it
@@ -289,6 +299,9 @@ function Module:OnAscensionNamePlateCreated(nameplate)
     
     -- Block mouseover border glow (this is the perfect moment - UnitFrame just created)
     self:BlockNameplateBorderGlow(nameplate)
+    
+    -- Setup mouseover health bar highlight for this nameplate
+    self:SetupMouseoverHealthBarForNameplate(nameplate)
 end
 
 function Module:OnNamePlateAdded(unit, nameplate)
@@ -677,6 +690,207 @@ end
 function Module:UpdateMouseoverGlowSettings()
     -- Update all nameplate selection highlights immediately
     self:OnMouseoverUpdate()
+end
+
+-------------------------------------------------
+-- Mouseover Health Bar Highlight System
+-- Provides subtle visual feedback when mousing over non-target nameplates
+-------------------------------------------------
+
+function Module:SetupMouseoverHealthBarHighlight()
+    if not self.db.profile.enabled or not self.db.profile.mouseoverHealthBarHighlight.enabled then
+        return
+    end
+    
+    -- Initialize tracking
+    self.mouseoverHealthBarData = {}
+    
+    -- Register mouseover event
+    self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnHealthBarMouseoverUpdate")
+    
+    -- Process existing nameplates
+    C_Timer.After(0.5, function()
+        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+            if nameplate.UnitFrame then
+                self:SetupMouseoverHealthBarForNameplate(nameplate)
+            end
+        end
+    end)
+end
+
+function Module:CleanupMouseoverHealthBarHighlight()
+    -- Restore all health bar colors
+    if self.mouseoverHealthBarData then
+        for nameplate, data in pairs(self.mouseoverHealthBarData) do
+            if data.originalColor then
+                self:RestoreHealthBarColor(nameplate, data.originalColor)
+            end
+        end
+        self.mouseoverHealthBarData = {}
+    end
+    
+    -- Unregister event
+    self:UnregisterEvent("UPDATE_MOUSEOVER_UNIT")
+end
+
+function Module:SetupMouseoverHealthBarForNameplate(nameplate)
+    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
+        return
+    end
+    
+    local healthBar = nameplate.UnitFrame.healthBar
+    
+    -- Store original color getter (we'll capture it on first mouseover)
+    if not self.mouseoverHealthBarData then
+        self.mouseoverHealthBarData = {}
+    end
+    
+    self.mouseoverHealthBarData[nameplate] = {
+        originalColor = nil, -- Will be captured on mouseover
+        isMouseover = false,
+    }
+end
+
+function Module:OnHealthBarMouseoverUpdate()
+    if not self.db.profile.mouseoverHealthBarHighlight.enabled then
+        return
+    end
+    
+    -- Check all nameplates for mouseover state
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame then
+            self:UpdateMouseoverHealthBar(nameplate)
+        end
+    end
+end
+
+function Module:UpdateMouseoverHealthBar(nameplate)
+    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
+        return
+    end
+    
+    local unit = nameplate.UnitFrame.unit
+    if not unit then
+        return
+    end
+    
+    -- Check if this is the mouseover unit
+    local isMouseover = UnitIsUnit(unit, "mouseover")
+    
+    -- CRITICAL: Don't highlight if this is the target
+    if UnitExists("target") and UnitIsUnit(unit, "target") then
+        -- Ensure we restore color if it was previously moused over
+        if self.mouseoverHealthBarData and self.mouseoverHealthBarData[nameplate] and 
+           self.mouseoverHealthBarData[nameplate].isMouseover then
+            self:RestoreHealthBarColorIfStored(nameplate)
+            self.mouseoverHealthBarData[nameplate].isMouseover = false
+        end
+        return
+    end
+    
+    -- Initialize data structure if needed
+    if not self.mouseoverHealthBarData then
+        self.mouseoverHealthBarData = {}
+    end
+    if not self.mouseoverHealthBarData[nameplate] then
+        self.mouseoverHealthBarData[nameplate] = {
+            originalColor = nil,
+            isMouseover = false,
+        }
+    end
+    
+    local data = self.mouseoverHealthBarData[nameplate]
+    
+    if isMouseover and not data.isMouseover then
+        -- Just became mouseover - store original color and apply highlight
+        self:ApplyMouseoverHealthBarHighlight(nameplate)
+        data.isMouseover = true
+    elseif not isMouseover and data.isMouseover then
+        -- No longer mouseover - restore original color
+        self:RestoreHealthBarColorIfStored(nameplate)
+        data.isMouseover = false
+    end
+end
+
+function Module:ApplyMouseoverHealthBarHighlight(nameplate)
+    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
+        return
+    end
+    
+    local healthBar = nameplate.UnitFrame.healthBar
+    
+    -- Get current color (this is the "original" we need to restore later)
+    local r, g, b, a = healthBar:GetStatusBarColor()
+    
+    -- Store original color
+    if not self.mouseoverHealthBarData[nameplate] then
+        self.mouseoverHealthBarData[nameplate] = {}
+    end
+    self.mouseoverHealthBarData[nameplate].originalColor = {r, g, b, a}
+    
+    -- Apply highlight based on method
+    local method = self.db.profile.mouseoverHealthBarHighlight.method
+    local newR, newG, newB, newA
+    
+    if method == "brightness" then
+        -- Method 1: Increase brightness
+        local multiplier = self.db.profile.mouseoverHealthBarHighlight.brightnessMultiplier or 1.3
+        newR, newG, newB, newA = self:ApplyBrightnessMultiplier(r, g, b, a, multiplier)
+    elseif method == "tint" then
+        -- Method 2: Tint with white
+        local tintAmount = self.db.profile.mouseoverHealthBarHighlight.tintAmount or 0.25
+        newR, newG, newB, newA = self:ApplyWhiteTint(r, g, b, a, tintAmount)
+    else
+        -- Fallback to brightness
+        newR, newG, newB, newA = self:ApplyBrightnessMultiplier(r, g, b, a, 1.3)
+    end
+    
+    -- Apply new color
+    healthBar:SetStatusBarColor(newR, newG, newB, newA)
+end
+
+function Module:RestoreHealthBarColorIfStored(nameplate)
+    if not nameplate or not self.mouseoverHealthBarData or not self.mouseoverHealthBarData[nameplate] then
+        return
+    end
+    
+    local data = self.mouseoverHealthBarData[nameplate]
+    if data.originalColor then
+        self:RestoreHealthBarColor(nameplate, data.originalColor)
+        data.originalColor = nil
+    end
+end
+
+function Module:RestoreHealthBarColor(nameplate, color)
+    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar or not color then
+        return
+    end
+    
+    local healthBar = nameplate.UnitFrame.healthBar
+    healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+end
+
+-------------------------------------------------
+-- Color Manipulation Helpers
+-------------------------------------------------
+
+-- Method 1: Brightness Multiplier
+-- Multiplies RGB values to make them brighter (capped at 1.0)
+function Module:ApplyBrightnessMultiplier(r, g, b, a, multiplier)
+    local newR = math.min(r * multiplier, 1.0)
+    local newG = math.min(g * multiplier, 1.0)
+    local newB = math.min(b * multiplier, 1.0)
+    return newR, newG, newB, a
+end
+
+-- Method 2: White Tint
+-- Mixes the original color with white to create a lighter tint
+-- tintAmount: 0.0 = original color, 1.0 = pure white
+function Module:ApplyWhiteTint(r, g, b, a, tintAmount)
+    local newR = r + (1.0 - r) * tintAmount
+    local newG = g + (1.0 - g) * tintAmount
+    local newB = b + (1.0 - b) * tintAmount
+    return newR, newG, newB, a
 end
 
 -------------------------------------------------
@@ -2271,6 +2485,75 @@ function Module:BuildGeneralTab()
                     order = 4,
                 },
             },
+        },
+        
+        spacer4 = { type = "description", name = "\n", order = 40 },
+        
+        -- Mouseover Health Bar Highlight (YATP Custom Feature)
+        mouseoverHighlightHeader = { type = "header", name = L["Mouseover Health Bar Highlight (YATP Custom)"] or "Mouseover Health Bar Highlight (YATP Custom)", order = 45 },
+        
+        mouseoverHighlightDesc = {
+            type = "description",
+            name = L["Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target."] or "Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target.",
+            order = 46,
+        },
+        
+        mouseoverHighlightEnabled = {
+            type = "toggle",
+            name = L["Enable Mouseover Highlight"] or "Enable Mouseover Highlight",
+            desc = L["Highlight the health bar when mousing over non-target nameplates"] or "Highlight the health bar when mousing over non-target nameplates",
+            get = function() return self.db.profile.mouseoverHealthBarHighlight.enabled end,
+            set = function(_, value) 
+                self.db.profile.mouseoverHealthBarHighlight.enabled = value
+                if value then
+                    self:SetupMouseoverHealthBarHighlight()
+                else
+                    self:CleanupMouseoverHealthBarHighlight()
+                end
+            end,
+            order = 47,
+        },
+        
+        mouseoverHighlightMethod = {
+            type = "select",
+            name = L["Highlight Method"] or "Highlight Method",
+            desc = L["Choose how the health bar color changes on mouseover"] or "Choose how the health bar color changes on mouseover",
+            values = {
+                brightness = L["Brightness"] or "Brightness (multiply RGB values to make color brighter)",
+                tint = L["Tint"] or "Tint (mix with white for a lighter shade)",
+            },
+            get = function() return self.db.profile.mouseoverHealthBarHighlight.method end,
+            set = function(_, value) 
+                self.db.profile.mouseoverHealthBarHighlight.method = value
+            end,
+            disabled = function() return not self.db.profile.mouseoverHealthBarHighlight.enabled end,
+            order = 48,
+        },
+        
+        mouseoverHighlightBrightness = {
+            type = "range",
+            name = L["Brightness Multiplier"] or "Brightness Multiplier",
+            desc = L["How much to brighten the color. 1.0 = no change, 1.3 = 30% brighter (recommended). Higher values may wash out dark colors."] or "How much to brighten the color. 1.0 = no change, 1.3 = 30% brighter (recommended). Higher values may wash out dark colors.",
+            min = 1.0, max = 2.0, step = 0.05,
+            get = function() return self.db.profile.mouseoverHealthBarHighlight.brightnessMultiplier end,
+            set = function(_, value) 
+                self.db.profile.mouseoverHealthBarHighlight.brightnessMultiplier = value
+            end,
+            disabled = function() return not self.db.profile.mouseoverHealthBarHighlight.enabled or self.db.profile.mouseoverHealthBarHighlight.method ~= "brightness" end,
+            order = 49,
+        },
+        
+        mouseoverHighlightTint = {
+            type = "range",
+            name = L["Tint Amount"] or "Tint Amount",
+            desc = L["How much white to mix in. 0.0 = original color, 1.0 = pure white. 0.25 (25%) is recommended for a subtle effect."] or "How much white to mix in. 0.0 = original color, 1.0 = pure white. 0.25 (25%) is recommended for a subtle effect.",
+            min = 0.0, max = 1.0, step = 0.05,
+            get = function() return self.db.profile.mouseoverHealthBarHighlight.tintAmount end,
+            set = function(_, value) 
+                self.db.profile.mouseoverHealthBarHighlight.tintAmount = value
+            end,
+            disabled = function() return not self.db.profile.mouseoverHealthBarHighlight.enabled or self.db.profile.mouseoverHealthBarHighlight.method ~= "tint" end,
+            order = 50,
         },
     }
 end
