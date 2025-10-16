@@ -593,6 +593,23 @@ function Module:SetupMouseoverDebug()
             self:HookMouseoverOnNameplate(nameplate)
         end
     end
+    
+    -- Start a timer to periodically capture pre-mouseover state
+    if not self.stateCaptureTicker then
+        self.stateCaptureTicker = C_Timer.NewTicker(0.5, function()
+            if Module.mouseoverDebugEnabled then
+                -- Capture state of all nameplates that are NOT mouseover
+                for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+                    if nameplate.UnitFrame and nameplate.UnitFrame.unit then
+                        local isMouseover = UnitIsUnit(nameplate.UnitFrame.unit, "mouseover")
+                        if not isMouseover then
+                            nameplate.preMouseoverState = Module:CaptureNameplateState(nameplate)
+                        end
+                    end
+                end
+            end
+        end)
+    end
 end
 
 function Module:OnMouseoverDebug()
@@ -626,6 +643,9 @@ function Module:HookMouseoverOnNameplate(nameplate)
         return
     end
     
+    -- Store state before mouseover for comparison
+    nameplate.preMouseoverState = nil
+    
     -- Hook OnEnter script
     if nameplate.UnitFrame:HasScript("OnEnter") then
         nameplate.UnitFrame:HookScript("OnEnter", function(frame)
@@ -638,7 +658,12 @@ function Module:HookMouseoverOnNameplate(nameplate)
             if unit then
                 local unitName = UnitName(unit) or "Unknown"
                 print(string.format("[YATP NamePlates] Frame OnEnter: %s", unitName))
-                Module:DebugNameplateState(nameplate)
+                
+                -- Capture state and show comparison
+                C_Timer.After(0.05, function()
+                    Module:DebugNameplateState(nameplate)
+                    Module:CompareNameplateStates(nameplate)
+                end)
             end
         end)
     end
@@ -739,6 +764,89 @@ function Module:HookMouseoverOnNameplate(nameplate)
     end
     
     nameplate.UnitFrame.mouseoverHooked = true
+end
+
+function Module:CaptureNameplateState(nameplate)
+    if not nameplate or not nameplate.UnitFrame then
+        return nil
+    end
+    
+    local state = {
+        textures = {}
+    }
+    
+    -- Capture all visible textures from UnitFrame
+    local allRegions = {nameplate.UnitFrame:GetRegions()}
+    for i, region in ipairs(allRegions) do
+        if region:GetObjectType() == "Texture" then
+            local shown = region:IsShown()
+            local alpha = region:GetAlpha()
+            if shown and alpha > 0 then
+                local name = region:GetName() or ("Anonymous_" .. i)
+                local texture = region:GetTexture()
+                local r, g, b, a = region:GetVertexColor()
+                state.textures[name] = {
+                    texture = texture,
+                    alpha = alpha,
+                    r = r, g = g, b = b, a = a
+                }
+            end
+        end
+    end
+    
+    -- Capture base nameplate frame state
+    if nameplate.GetChildren then
+        local children = {nameplate:GetChildren()}
+        state.childCount = #children
+    end
+    
+    return state
+end
+
+function Module:CompareNameplateStates(nameplate)
+    if not nameplate.preMouseoverState then
+        print("[YATP NamePlates] No pre-mouseover state captured to compare")
+        return
+    end
+    
+    local currentState = Module:CaptureNameplateState(nameplate)
+    if not currentState then
+        return
+    end
+    
+    local unit = nameplate.UnitFrame.unit or nameplate.UnitFrame.displayedUnit
+    local unitName = UnitName(unit) or "Unknown"
+    
+    print(string.format("[YATP NamePlates] ===== CHANGES DETECTED for %s =====", unitName))
+    
+    -- Find new textures that appeared
+    local foundChanges = false
+    for name, data in pairs(currentState.textures) do
+        if not nameplate.preMouseoverState.textures[name] then
+            print(string.format("  [NEW] %s: Texture=%s, Alpha=%.2f, Color=RGBA(%.2f,%.2f,%.2f,%.2f)",
+                name, tostring(data.texture), data.alpha, data.r, data.g, data.b, data.a))
+            foundChanges = true
+        else
+            -- Check if alpha or color changed
+            local old = nameplate.preMouseoverState.textures[name]
+            if math.abs(old.alpha - data.alpha) > 0.01 then
+                print(string.format("  [ALPHA CHANGE] %s: %.2f -> %.2f", name, old.alpha, data.alpha))
+                foundChanges = true
+            end
+            if math.abs(old.r - data.r) > 0.01 or math.abs(old.g - data.g) > 0.01 or 
+               math.abs(old.b - data.b) > 0.01 or math.abs(old.a - data.a) > 0.01 then
+                print(string.format("  [COLOR CHANGE] %s: RGBA(%.2f,%.2f,%.2f,%.2f) -> RGBA(%.2f,%.2f,%.2f,%.2f)",
+                    name, old.r, old.g, old.b, old.a, data.r, data.g, data.b, data.a))
+                foundChanges = true
+            end
+        end
+    end
+    
+    if not foundChanges then
+        print("  No visual changes detected!")
+    end
+    
+    print("[YATP NamePlates] ===== END CHANGES =====")
 end
 
 function Module:DebugNameplateState(nameplate)
@@ -2672,6 +2780,7 @@ function Module:SlashCommand(input)
         print("  |cffffcc00/yatpnp debug|r - Toggle mouseover debug mode")
         print("  |cffffcc00/yatpnp test|r - Test debug on current mouseover")
         print("  |cffffcc00/yatpnp hooks|r - Re-apply mouseover hooks to all nameplates")
+        print("  |cffffcc00/yatpnp capture|r - Manually capture pre-mouseover state for all nameplates")
         print("  |cffffcc00/yatpnp help|r - Show this help message")
     elseif command == "debug" then
         -- Toggle debug mode
@@ -2679,8 +2788,14 @@ function Module:SlashCommand(input)
         if self.mouseoverDebugEnabled then
             print("|cff00ff00[YATP NamePlates]|r Mouseover debug mode |cff00ff00ENABLED|r")
             print("  Hover over nameplates to see detailed debug information")
+            print("  State capture system activated (checks every 0.5s)")
         else
             print("|cff00ff00[YATP NamePlates]|r Mouseover debug mode |cffff0000DISABLED|r")
+            -- Stop state capture ticker
+            if self.stateCaptureTicker then
+                self.stateCaptureTicker:Cancel()
+                self.stateCaptureTicker = nil
+            end
         end
     elseif command == "test" then
         -- Test current mouseover
@@ -2700,6 +2815,21 @@ function Module:SlashCommand(input)
             count = count + 1
         end
         print("|cff00ff00[YATP NamePlates]|r Applied hooks to " .. count .. " nameplates")
+    elseif command == "capture" then
+        -- Manually capture pre-mouseover state for all nameplates
+        print("|cff00ff00[YATP NamePlates]|r Capturing pre-mouseover state for all nameplates...")
+        local count = 0
+        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+            if nameplate.UnitFrame and nameplate.UnitFrame.unit then
+                local isMouseover = UnitIsUnit(nameplate.UnitFrame.unit, "mouseover")
+                if not isMouseover then
+                    nameplate.preMouseoverState = self:CaptureNameplateState(nameplate)
+                    count = count + 1
+                end
+            end
+        end
+        print("|cff00ff00[YATP NamePlates]|r Captured state for " .. count .. " nameplates")
+        print("  Now hover over a nameplate to see what changes!")
     else
         print("|cffff0000[YATP NamePlates]|r Unknown command: " .. command)
         print("Type |cffffcc00/yatpnp help|r for available commands")
