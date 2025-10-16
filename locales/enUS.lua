@@ -609,6 +609,7 @@ L["Mouseover Health Bar Highlight (YATP Custom)"] = true
 L["Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target."] = true
 L["Enable Mouseover Highlight"] = true
 L["Highlight the health bar when mousing over non-target nameplates"] = true
+L["Highlight the health bar when mousing over non-target nameplates. Uses a white tint effect (50% mix) for subtle visibility."] = true
 L["Highlight Method"] = true
 L["Choose how the health bar color changes on mouseover"] = true
 L["Brightness"] = true
