@@ -1052,17 +1052,32 @@ end
 -------------------------------------------------
 
 function Module:SetupMouseoverBorderBlock()
+    print("[YATP Border] SetupMouseoverBorderBlock called")
+    print(string.format("[YATP Border] Module enabled: %s", tostring(self.db.profile.enabled)))
+    print(string.format("[YATP Border] Block enabled: %s", tostring(self.db.profile.blockMouseoverBorderGlow.enabled)))
+    
     if not self.db.profile.enabled then
+        print("[YATP Border] Module is disabled - skipping border block setup")
         return
     end
     
+    if not self.db.profile.blockMouseoverBorderGlow.enabled then
+        print("[YATP Border] Border block feature is disabled - skipping setup")
+        return
+    end
+    
+    print("[YATP Border] Border block feature is ENABLED - setting up")
+    
     -- Process existing nameplates after a short delay to ensure UnitFrames are created
     C_Timer.After(0.5, function()
+        local count = 0
         for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
             if nameplate.UnitFrame then
                 self:BlockNameplateBorderGlow(nameplate)
+                count = count + 1
             end
         end
+        print(string.format("[YATP Border] Processed %d existing nameplates", count))
     end)
     
     -- Note: New nameplates will be handled by OnAscensionNamePlateCreated callback
@@ -1962,9 +1977,14 @@ function Module:OnAlphaFadeTargetChanged()
 end
 
 function Module:OnAlphaFadeNameplateAdded(event, unit, nameplate)
+    print("[YATP Border DEBUG] OnAlphaFadeNameplateAdded called!")
+    
     -- ALWAYS block border glow regardless of feature states
     if nameplate and nameplate.UnitFrame then
+        print("[YATP Border DEBUG] Calling BlockNameplateBorderGlowWithRetry from OnAlphaFadeNameplateAdded")
         self:BlockNameplateBorderGlowWithRetry(nameplate, 10)
+    else
+        print("[YATP Border DEBUG] No UnitFrame yet in OnAlphaFadeNameplateAdded")
     end
     
     if not self.db.profile.nonTargetAlpha.enabled then
