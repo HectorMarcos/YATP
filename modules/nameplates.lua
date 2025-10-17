@@ -95,6 +95,7 @@ Module.defaults = {
     nonTargetAlpha = {
         enabled = false,
         alpha = 0.5, -- Alpha value for non-target nameplates (0.0 to 1.0)
+        outOfCombatAlpha = 0.3, -- Alpha value for non-target nameplates NOT in combat with you (0.0 to 1.0)
     },
     
     -- Quest Icon System
@@ -597,6 +598,11 @@ function Module:ProcessNamePlateForQuests(unitID, nameplateFrame)
     if self.db.profile.targetGlow.enabled then
         -- Check if this nameplate is for our current target
         if UnitExists("target") and nameplateFrame.UnitFrame and nameplateFrame.UnitFrame.unit and UnitIsUnit(nameplateFrame.UnitFrame.unit, "target") then
+            -- CRITICAL: Remove previous target glow first (in case of race condition)
+            if self.currentTargetFrame and self.currentTargetFrame ~= nameplateFrame then
+                self:RemoveTargetGlow(self.currentTargetFrame)
+            end
+            
             self:AddTargetGlow(nameplateFrame)
             self.currentTargetFrame = nameplateFrame
         end
@@ -2161,6 +2167,11 @@ function Module:SetupNonTargetAlpha()
     self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnAlphaFadeNameplateAdded")
     self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnAlphaFadeNameplateRemoved")
     
+    -- Register combat events to update alpha when combat state changes
+    self:RegisterEvent("PLAYER_REGEN_DISABLED", "OnAlphaCombatChanged") -- Player enters combat
+    self:RegisterEvent("PLAYER_REGEN_ENABLED", "OnAlphaCombatChanged")  -- Player leaves combat
+    self:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", "OnAlphaThreatChanged") -- Threat/combat changes
+    
     -- Apply alpha to existing nameplates
     self:UpdateAllNameplateAlphas()
     
@@ -2233,6 +2244,62 @@ function Module:OnAlphaFadeNameplateRemoved(event, unit, nameplate)
     end
 end
 
+function Module:OnAlphaCombatChanged()
+    if not self.db.profile.nonTargetAlpha.enabled then
+        return
+    end
+    
+    -- Update alpha for all nameplates when combat state changes
+    self:UpdateAllNameplateAlphas()
+end
+
+function Module:OnAlphaThreatChanged(event, unit)
+    if not self.db.profile.nonTargetAlpha.enabled then
+        return
+    end
+    
+    -- Find the nameplate for this unit and update its alpha
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame and nameplate.UnitFrame.unit == unit then
+            self:UpdateNameplateAlpha(nameplate, unit)
+            break
+        end
+    end
+end
+
+function Module:IsUnitInDirectCombatWithPlayer(unit)
+    -- Must be able to attack the unit
+    if not UnitCanAttack("player", unit) then
+        return false
+    end
+    
+    -- CRITICAL: Both player AND unit must be in combat
+    if not UnitAffectingCombat(unit) or not UnitAffectingCombat("player") then
+        return false  -- No combat = no direct engagement
+    end
+    
+    -- Check for direct engagement
+    local unitTarget = UnitExists(unit .. "target") and UnitName(unit .. "target")
+    local playerName = UnitName("player")
+    local petName = UnitExists("pet") and UnitName("pet")
+    local playerTarget = UnitExists("target") and UnitName("target")
+    local unitName = UnitName(unit)
+    
+    local isTargetingPlayerOrPet = (unitTarget == playerName) or (petName and unitTarget == petName)
+    local isPlayerTargeting = (playerTarget == unitName)
+    
+    -- Check if you have threat with this unit
+    local isTanking, status, threatpct = UnitDetailedThreatSituation("player", unit)
+    local hasThreat = isTanking or (status and status > 0) or (threatpct and threatpct > 0)
+    
+    -- Direct engagement: Unit targeting you/pet OR you targeting unit OR you have threat
+    if not isTargetingPlayerOrPet and not isPlayerTargeting and not hasThreat then
+        return false  -- In combat but not with us (e.g., fighting another player)
+    end
+    
+    return true
+end
+
 function Module:UpdateAllNameplateAlphas()
     if not self.db.profile.nonTargetAlpha.enabled then
         return
@@ -2240,19 +2307,7 @@ function Module:UpdateAllNameplateAlphas()
     
     local hasTarget = UnitExists("target")
     
-    -- IMPORTANT: Only apply alpha fade if player has a target
-    -- When no target exists, all nameplates should remain at full alpha
-    if not hasTarget then
-        -- Reset all nameplates to full alpha when no target
-        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
-            if nameplate.UnitFrame then
-                nameplate.UnitFrame:SetAlpha(1.0)
-            end
-        end
-        return
-    end
-    
-    -- Update alpha for all active nameplates when there IS a target
+    -- Update alpha for all active nameplates
     local count = 0
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
         if nameplate.UnitFrame then
@@ -2282,8 +2337,24 @@ function Module:UpdateNameplateAlpha(nameplate, unit)
     local isTarget = UnitIsUnit(unit, "target")
     local unitName = UnitName(unit) or "Unknown"
     
-    -- Set alpha: full for target, reduced for non-targets
-    local targetAlpha = isTarget and 1.0 or self.db.profile.nonTargetAlpha.alpha
+    -- Determine alpha based on priority:
+    -- 1. Target = always 100%
+    -- 2. In direct combat with player = normal non-target alpha
+    -- 3. Not in combat or fighting someone else = out-of-combat alpha
+    local targetAlpha
+    if isTarget then
+        targetAlpha = 1.0
+    else
+        -- Check if unit is in direct combat with player
+        local inDirectCombat = self:IsUnitInDirectCombatWithPlayer(unit)
+        if inDirectCombat then
+            -- In combat with us - use normal non-target alpha
+            targetAlpha = self.db.profile.nonTargetAlpha.alpha
+        else
+            -- Not in combat with us - use reduced out-of-combat alpha
+            targetAlpha = self.db.profile.nonTargetAlpha.outOfCombatAlpha
+        end
+    end
     
     -- Get current alpha to detect if WoW reset it (debug only)
     -- local currentAlpha = nameplate.UnitFrame:GetAlpha()
@@ -2298,11 +2369,17 @@ function Module:UpdateNameplateAlpha(nameplate, unit)
     if not nameplate.UnitFrame.alphaHooksApplied then
         -- Hook Show()
         hooksecurefunc(nameplate.UnitFrame, "Show", function(frame)
-            if self.db.profile.nonTargetAlpha.enabled and UnitExists("target") then
+            if self.db.profile.nonTargetAlpha.enabled then
                 local frameUnit = frame.unit
                 if frameUnit then
-                    local frameIsTarget = UnitIsUnit(frameUnit, "target")
-                    local frameAlpha = frameIsTarget and 1.0 or self.db.profile.nonTargetAlpha.alpha
+                    local frameIsTarget = UnitExists("target") and UnitIsUnit(frameUnit, "target")
+                    local frameAlpha
+                    if frameIsTarget then
+                        frameAlpha = 1.0
+                    else
+                        local inDirectCombat = self:IsUnitInDirectCombatWithPlayer(frameUnit)
+                        frameAlpha = inDirectCombat and self.db.profile.nonTargetAlpha.alpha or self.db.profile.nonTargetAlpha.outOfCombatAlpha
+                    end
                     C_Timer.After(0, function()
                         if frame then
                             frame:SetAlpha(frameAlpha)
@@ -2314,11 +2391,17 @@ function Module:UpdateNameplateAlpha(nameplate, unit)
         
         -- Hook SetPoint() - this is called when nameplate repositions
         hooksecurefunc(nameplate.UnitFrame, "SetPoint", function(frame)
-            if self.db.profile.nonTargetAlpha.enabled and UnitExists("target") then
+            if self.db.profile.nonTargetAlpha.enabled then
                 local frameUnit = frame.unit
                 if frameUnit then
-                    local frameIsTarget = UnitIsUnit(frameUnit, "target")
-                    local frameAlpha = frameIsTarget and 1.0 or self.db.profile.nonTargetAlpha.alpha
+                    local frameIsTarget = UnitExists("target") and UnitIsUnit(frameUnit, "target")
+                    local frameAlpha
+                    if frameIsTarget then
+                        frameAlpha = 1.0
+                    else
+                        local inDirectCombat = self:IsUnitInDirectCombatWithPlayer(frameUnit)
+                        frameAlpha = inDirectCombat and self.db.profile.nonTargetAlpha.alpha or self.db.profile.nonTargetAlpha.outOfCombatAlpha
+                    end
                     -- Apply immediately since SetPoint is the repositioning call
                     frame:SetAlpha(frameAlpha)
                 end
@@ -2328,12 +2411,17 @@ function Module:UpdateNameplateAlpha(nameplate, unit)
         -- Hook SetAlpha() itself to prevent external changes
         local originalSetAlpha = nameplate.UnitFrame.SetAlpha
         nameplate.UnitFrame.SetAlpha = function(frame, alpha)
-            if self.db.profile.nonTargetAlpha.enabled and UnitExists("target") then
+            if self.db.profile.nonTargetAlpha.enabled then
                 local frameUnit = frame.unit
                 if frameUnit then
-                    local frameIsTarget = UnitIsUnit(frameUnit, "target")
+                    local frameIsTarget = UnitExists("target") and UnitIsUnit(frameUnit, "target")
                     -- Override requested alpha with our value
-                    alpha = frameIsTarget and 1.0 or self.db.profile.nonTargetAlpha.alpha
+                    if frameIsTarget then
+                        alpha = 1.0
+                    else
+                        local inDirectCombat = self:IsUnitInDirectCombatWithPlayer(frameUnit)
+                        alpha = inDirectCombat and self.db.profile.nonTargetAlpha.alpha or self.db.profile.nonTargetAlpha.outOfCombatAlpha
+                    end
                 end
             end
             originalSetAlpha(frame, alpha)
@@ -3167,14 +3255,14 @@ function Module:BuildEnemyTargetTab()
         
         nonTargetAlphaDesc = {
             type = "description",
-            name = L["Fade out nameplates that are not your current target. This helps you focus on your target by dimming other enemy nameplates. Only active when you have a target selected - when no target exists, all nameplates remain at full opacity."] or "Fade out nameplates that are not your current target. This helps you focus on your target by dimming other enemy nameplates. Only active when you have a target selected - when no target exists, all nameplates remain at full opacity.",
+            name = L["Advanced alpha fade system with combat detection. Your target is always 100% visible. Non-targets in combat with you use 'Non-Target Alpha', while mobs not fighting you use the lower 'Out-of-Combat Alpha' to reduce visual clutter."] or "Advanced alpha fade system with combat detection. Your target is always 100% visible. Non-targets in combat with you use 'Non-Target Alpha', while mobs not fighting you use the lower 'Out-of-Combat Alpha' to reduce visual clutter.",
             order = 32,
         },
         
         nonTargetAlphaEnabled = {
             type = "toggle",
             name = L["Enable Non-Target Alpha Fade"] or "Enable Non-Target Alpha Fade",
-            desc = L["Reduce the opacity of enemy nameplates that are not your current target. Only applies when you have a target selected."] or "Reduce the opacity of enemy nameplates that are not your current target. Only applies when you have a target selected.",
+            desc = L["Enable smart alpha fade based on target and combat status. Target = 100%, fighting you = Non-Target Alpha, not fighting = Out-of-Combat Alpha."] or "Enable smart alpha fade based on target and combat status. Target = 100%, fighting you = Non-Target Alpha, not fighting = Out-of-Combat Alpha.",
             get = function() return self.db.profile.nonTargetAlpha.enabled end,
             set = function(_, value) 
                 self.db.profile.nonTargetAlpha.enabled = value
@@ -3190,7 +3278,7 @@ function Module:BuildEnemyTargetTab()
         nonTargetAlphaValue = {
             type = "range",
             name = L["Non-Target Alpha"] or "Non-Target Alpha",
-            desc = L["Transparency level for non-target nameplates. 0.0 = fully transparent (invisible), 1.0 = fully opaque (no fade). Only applies when you have a target selected."] or "Transparency level for non-target nameplates. 0.0 = fully transparent (invisible), 1.0 = fully opaque (no fade). Only applies when you have a target selected.",
+            desc = L["Transparency for non-target nameplates that ARE in combat with you. 0.0 = invisible, 1.0 = fully visible."] or "Transparency for non-target nameplates that ARE in combat with you. 0.0 = invisible, 1.0 = fully visible.",
             min = 0.0, max = 1.0, step = 0.05,
             get = function() return self.db.profile.nonTargetAlpha.alpha end,
             set = function(_, value) 
@@ -3201,7 +3289,21 @@ function Module:BuildEnemyTargetTab()
             order = 34,
         },
         
-        spacer4 = { type = "description", name = "\n", order = 35 },
+        outOfCombatAlphaValue = {
+            type = "range",
+            name = L["Out-of-Combat Alpha"] or "Out-of-Combat Alpha",
+            desc = L["Transparency for nameplates NOT in direct combat with you (neutral, fighting others, or nearby). 0.0 = invisible, 1.0 = fully visible. Should be lower than Non-Target Alpha."] or "Transparency for nameplates NOT in direct combat with you (neutral, fighting others, or nearby). 0.0 = invisible, 1.0 = fully visible. Should be lower than Non-Target Alpha.",
+            min = 0.0, max = 1.0, step = 0.05,
+            get = function() return self.db.profile.nonTargetAlpha.outOfCombatAlpha end,
+            set = function(_, value) 
+                self.db.profile.nonTargetAlpha.outOfCombatAlpha = value
+                self:UpdateNonTargetAlphaSettings()
+            end,
+            disabled = function() return not self.db.profile.nonTargetAlpha.enabled end,
+            order = 35,
+        },
+        
+        spacer4 = { type = "description", name = "\n", order = 36 },
         
         -- Additional enemy options reference
         additionalHeader = { type = "header", name = L["Additional Enemy Options"] or "Additional Enemy Options", order = 40 },

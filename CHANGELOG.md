@@ -7,6 +7,45 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.9.2] - 2025-10-17
+
+### Added
+
+- **NamePlates**: Combat-Aware Alpha Fade System
+  - New "Out-of-Combat Alpha" configuration option for mobs NOT in direct combat with you
+  - Three-tier alpha system: Target (1.0) → In Combat (0.5) → Out of Combat (0.3)
+  - Works independently of target selection - reduces visual clutter even without a target
+  - Smart combat detection using threat, targeting, and combat state
+  - Helps identify active threats vs neutral/passive mobs during AoE farming and world PvP
+
+### Fixed
+
+- **NamePlates**: Combat detection now includes threat-based engagement
+  - Alpha system now correctly identifies mobs in combat with player using `UnitDetailedThreatSituation`
+  - Mobs that aggro you (e.g., walking too close) now properly change to "In Combat" alpha
+  - AoE damage generating threat on multiple mobs now correctly updates all affected nameplates
+  - Prevents false negatives where mobs in combat weren't being highlighted
+
+- **NamePlates**: Target border race condition causing duplicate borders
+  - Fixed bug where non-target nameplates could receive the white target border
+  - Added cleanup of previous target border before applying new one in `OnNamePlateAdded`
+  - Ensures only one nameplate has the target border at any time
+  - Resolves edge cases where rapid target switching or nameplate spawn timing caused visual glitches
+
+### Changed
+
+- **NamePlates**: Updated alpha system to function without target requirement
+  - Removed "only when you have a target" restriction from alpha fade system
+  - System now continuously applies appropriate alpha based on combat engagement
+  - Better visual feedback in all combat situations, not just when targeting
+
+### Technical Notes
+
+- Combat detection uses three methods: unit targeting check, player targeting check, and threat status
+- OnUpdate frame ensures alpha is maintained during WoW's internal nameplate repositioning
+- Triple-hook pattern (Show, SetPoint, SetAlpha) prevents external alpha overrides
+- Updated `ASCENSION_NAMEPLATE_API.md` with complete alpha management system documentation
+
 ## [0.9.1] - 2025-10-17
 
 ### Fixed

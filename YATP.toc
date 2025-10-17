@@ -2,9 +2,9 @@
 ## Title: YATP
 ## Notes: Yet Another Tweaks Pack
 ## Author: Zavah
-## Version: 0.9.1
+## Version: 0.9.2
 ## SavedVariables: YATP_DB
-## Notes-ESMX: Quest icon and border fixes
+## Notes-ESMX: Combat-aware alpha system for nameplates
 
 # Libs (ensure these exist under YATP\Libs\)
 Libs\LibStub\LibStub.lua

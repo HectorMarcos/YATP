@@ -478,11 +478,13 @@ L["Color tint applied to the arrow textures"] = true
 
 -- Non-Target Alpha Fade System
 L["Non-Target Alpha Fade (YATP Custom)"] = true
-L["Fade out nameplates that are not your current target. This helps you focus on your target by dimming other enemy nameplates. Only active when you have a target selected - when no target exists, all nameplates remain at full opacity."] = true
+L["Advanced alpha fade system with combat detection. Your target is always 100% visible. Non-targets in combat with you use 'Non-Target Alpha', while mobs not fighting you use the lower 'Out-of-Combat Alpha' to reduce visual clutter."] = true
 L["Enable Non-Target Alpha Fade"] = true
-L["Reduce the opacity of enemy nameplates that are not your current target. Only applies when you have a target selected."] = true
+L["Enable smart alpha fade based on target and combat status. Target = 100%, fighting you = Non-Target Alpha, not fighting = Out-of-Combat Alpha."] = true
 L["Non-Target Alpha"] = true
-L["Transparency level for non-target nameplates. 0.0 = fully transparent (invisible), 1.0 = fully opaque (no fade). Only applies when you have a target selected."] = true
+L["Transparency for non-target nameplates that ARE in combat with you. 0.0 = invisible, 1.0 = fully visible."] = true
+L["Out-of-Combat Alpha"] = true
+L["Transparency for nameplates NOT in direct combat with you (neutral, fighting others, or nearby). 0.0 = invisible, 1.0 = fully visible. Should be lower than Non-Target Alpha."] = true
 
 -- Error messages
 L["Cannot enable NamePlates Integration:"] = true
