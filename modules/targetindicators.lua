@@ -33,6 +33,12 @@ Module.defaults = {
             offsetY = 0,
             color = {1, 1, 1, 1}, -- White by default
         },
+        
+        -- Health Bar Tint Settings
+        healthBarTint = {
+            enabled = true,
+            tintAmount = 0.3, -- 30% white tint by default (less than mouseover)
+        },
     }
 }
 
@@ -161,6 +167,11 @@ function Module:ApplyTargetVisuals(frame)
     if self.db.profile.arrows.enabled then
         self:AddTargetArrows(frame)
     end
+    
+    -- Apply health bar tint (only if NOT mouseover)
+    if self.db.profile.healthBarTint.enabled then
+        self:ApplyHealthBarTint(frame)
+    end
 end
 
 function Module:RemoveTargetVisuals(frame)
@@ -176,6 +187,11 @@ function Module:RemoveTargetVisuals(frame)
     -- Remove custom border
     if frame.YATPCustomBorder then
         self:RemoveCustomBorder(frame)
+    end
+    
+    -- Restore health bar color
+    if frame.YATPOriginalHealthColor then
+        self:RestoreHealthBarColor(frame)
     end
 end
 
@@ -355,6 +371,83 @@ function Module:ProcessAllNameplates()
     end
 end
 
+-------------------------------------------------
+-- Health Bar Tint System
+-------------------------------------------------
+
+function Module:ApplyHealthBarTint(frame)
+    if not frame or not frame.healthBar then
+        return
+    end
+    
+    -- Check if this nameplate is currently being moused over
+    -- We don't want to apply target tint if mouseover highlight is active
+    local nameplate = frame:GetParent()
+    if nameplate and nameplate.UnitFrame then
+        -- Get the nameplates module to check mouseover state
+        local nameplatesModule = AceAddon:GetAddon("YATP"):GetModule("Nameplates", true)
+        if nameplatesModule and nameplatesModule.mouseoverHealthBarData and nameplatesModule.mouseoverHealthBarData[nameplate] then
+            local mouseoverData = nameplatesModule.mouseoverHealthBarData[nameplate]
+            if mouseoverData.isMouseover then
+                -- This nameplate is being moused over, don't apply target tint
+                return
+            end
+        end
+    end
+    
+    local healthBar = frame.healthBar
+    
+    -- Get current color
+    local r, g, b, a = healthBar:GetStatusBarColor()
+    
+    -- Store original color if not already stored
+    if not frame.YATPOriginalHealthColor then
+        frame.YATPOriginalHealthColor = {r, g, b, a}
+    end
+    
+    -- Apply white tint
+    local tintAmount = self.db.profile.healthBarTint.tintAmount or 0.3
+    local newR, newG, newB, newA = self:ApplyWhiteTint(r, g, b, a, tintAmount)
+    
+    -- Apply new color
+    healthBar:SetStatusBarColor(newR, newG, newB, newA)
+    
+    -- Also apply to texture
+    local texture = healthBar:GetStatusBarTexture()
+    if texture then
+        texture:SetVertexColor(newR, newG, newB, newA)
+    end
+end
+
+function Module:RestoreHealthBarColor(frame)
+    if not frame or not frame.healthBar or not frame.YATPOriginalHealthColor then
+        return
+    end
+    
+    local healthBar = frame.healthBar
+    local color = frame.YATPOriginalHealthColor
+    
+    healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+    
+    -- Also restore texture color
+    local texture = healthBar:GetStatusBarTexture()
+    if texture then
+        texture:SetVertexColor(color[1], color[2], color[3], color[4])
+    end
+    
+    frame.YATPOriginalHealthColor = nil
+end
+
+-- Helper function to apply white tint to a color
+function Module:ApplyWhiteTint(r, g, b, a, tintAmount)
+    -- Mix with white (1, 1, 1) based on tintAmount
+    -- tintAmount of 0 = no change, 1 = full white
+    local newR = r + (1 - r) * tintAmount
+    local newG = g + (1 - g) * tintAmount
+    local newB = b + (1 - b) * tintAmount
+    return newR, newG, newB, a
+end
+
 function Module:CleanupAllVisuals()
     -- Remove visuals from all nameplates
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
@@ -502,6 +595,39 @@ function Module:GetOptions()
                 end,
                 disabled = function() return not self.db.profile.enabled or not self.db.profile.arrows.enabled end,
                 order = 25,
+            },
+            
+            healthBarHeader = {
+                type = "header",
+                name = L["Health Bar Tint"] or "Health Bar Tint",
+                order = 30,
+            },
+            
+            healthBarTintEnabled = {
+                type = "toggle",
+                name = L["Enable Health Bar Tint"] or "Enable Health Bar Tint",
+                desc = L["Apply a white tint to the target's health bar for better visibility. Does not apply when mousing over the target."] or "Apply a white tint to the target's health bar for better visibility. Does not apply when mousing over the target.",
+                get = function() return self.db.profile.healthBarTint.enabled end,
+                set = function(_, value)
+                    self.db.profile.healthBarTint.enabled = value
+                    self:ProcessAllNameplates()
+                end,
+                disabled = function() return not self.db.profile.enabled end,
+                order = 31,
+            },
+            
+            healthBarTintAmount = {
+                type = "range",
+                name = L["Tint Amount"] or "Tint Amount",
+                desc = L["Amount of white tint to apply (0 = no tint, 1 = full white)"] or "Amount of white tint to apply (0 = no tint, 1 = full white)",
+                min = 0.0, max = 1.0, step = 0.05,
+                get = function() return self.db.profile.healthBarTint.tintAmount end,
+                set = function(_, value)
+                    self.db.profile.healthBarTint.tintAmount = value
+                    self:ProcessAllNameplates()
+                end,
+                disabled = function() return not self.db.profile.enabled or not self.db.profile.healthBarTint.enabled end,
+                order = 32,
             },
         }
     }

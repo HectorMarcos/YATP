@@ -666,5 +666,10 @@ L["Color of the target arrows"] = true
 L["Size of the target arrows"] = true
 L["Horizontal distance from nameplate"] = true
 L["Vertical distance from nameplate"] = true
+L["Health Bar Tint"] = true
+L["Enable Health Bar Tint"] = true
+L["Apply a white tint to the target's health bar for better visibility. Does not apply when mousing over the target."] = true
+L["Tint Amount"] = true
+L["Amount of white tint to apply (0 = no tint, 1 = full white)"] = true
 
 
