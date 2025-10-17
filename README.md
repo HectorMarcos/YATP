@@ -20,7 +20,7 @@ Modular QoL + UI tweaks for WoW 3.3.5 (Ascension / BronzeBeard). Ace3 based. Ena
 | BackgroundFPSFix | Extras | Adjustable background FPS cap. |
 | Target Border | Ascension NamePlates | Colored border around current target nameplate. Configurable color & thickness. |
 | Target Arrows | Ascension NamePlates | Arrow indicators on both sides of target nameplate pointing inward. Configurable size, distance, offset & color. |
-| Non-Target Alpha Fade | Ascension NamePlates | Reduce opacity of non-targeted nameplates for improved focus. Only active when target exists. |
+| Non-Target Alpha Fade | Ascension NamePlates | Smart 3-tier alpha system based on combat status: Target (100%) → In Combat (50%) → Out of Combat (30%). Works without target selection. |
 | Mouseover Border Block | Ascension NamePlates | Forces all nameplate borders to remain black, eliminating white/yellow glow on mouseover. Always-on with frame-by-frame enforcement. |
 | Mouseover Health Highlight | Ascension NamePlates | Subtle white tint on health bar when mousing over non-target nameplates. Configurable tint amount (default 50%). |
 | Threat System | Ascension NamePlates | Color nameplates by threat level (party/raid only). Configurable colors for low/medium/high/tanking. |
