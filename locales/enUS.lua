@@ -611,8 +611,7 @@ L["Black Border (YATP Custom)"] = true
 L["Add a black border around all nameplates. This provides a clean visual separation. Target nameplates will use the custom border from Target Indicators instead."] = true
 L["Enable Black Border"] = true
 L["Show black border on all nameplates"] = true
-L["Border Thickness"] = true
-L["Thickness of the black border in pixels"] = true
+L["Color of the black border"] = true
 
 -- Mouseover Health Bar Highlight
 L["Mouseover Health Bar Highlight (YATP Custom)"] = true
@@ -663,8 +662,6 @@ L["Target Arrows"] = true
 L["Enable Arrows"] = true
 L["Show arrows pointing to target nameplate"] = true
 L["Color of the target border"] = true
-L["Border Size"] = true
-L["Thickness of the target border"] = true
 L["Color of the target arrows"] = true
 L["Size of the target arrows"] = true
 L["Horizontal distance from nameplate"] = true

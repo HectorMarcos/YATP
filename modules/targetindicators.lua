@@ -426,20 +426,6 @@ function Module:GetOptions()
                 order = 12,
             },
             
-            borderSize = {
-                type = "range",
-                name = L["Border Size"] or "Border Size",
-                desc = L["Thickness of the target border"] or "Thickness of the target border",
-                min = 1, max = 4, step = 1,
-                get = function() return self.db.profile.border.size end,
-                set = function(_, value)
-                    self.db.profile.border.size = value
-                    self:ProcessAllNameplates()
-                end,
-                disabled = function() return not self.db.profile.enabled or not self.db.profile.border.enabled end,
-                order = 13,
-            },
-            
             arrowsHeader = {
                 type = "header",
                 name = L["Target Arrows"] or "Target Arrows",

@@ -81,7 +81,8 @@ Module.defaults = {
     -- Black Border System (All Nameplates)
     blackBorder = {
         enabled = true,
-        thickness = 1, -- Border thickness in pixels
+        thickness = 1, -- Border thickness in pixels (fixed, not configurable)
+        color = {0, 0, 0, 1}, -- RGBA: Black with full opacity
     },
     
     -- Threat System
@@ -641,7 +642,7 @@ function Module:AddCustomBorder(nameplate)
     
     -- All nameplates get black borders
     local borderThickness = self.db.profile.blackBorder.thickness or 1
-    local borderColor = {0, 0, 0, 1}
+    local borderColor = self.db.profile.blackBorder.color or {0, 0, 0, 1}
     
     -- If border already exists, update its color
     if self.targetGlowFrames and self.targetGlowFrames[nameplate] then
@@ -2829,14 +2830,17 @@ function Module:BuildGeneralTab()
             order = 43,
         },
         
-        blackBorderThickness = {
-            type = "range",
-            name = L["Border Thickness"] or "Border Thickness",
-            desc = L["Thickness of the black border in pixels"] or "Thickness of the black border in pixels",
-            min = 1, max = 4, step = 1,
-            get = function() return self.db.profile.blackBorder.thickness end,
-            set = function(_, value) 
-                self.db.profile.blackBorder.thickness = value
+        blackBorderColor = {
+            type = "color",
+            name = L["Border Color"] or "Border Color",
+            desc = L["Color of the black border"] or "Color of the black border",
+            hasAlpha = true,
+            get = function()
+                local c = self.db.profile.blackBorder.color or {0, 0, 0, 1}
+                return c[1], c[2], c[3], c[4]
+            end,
+            set = function(_, r, g, b, a)
+                self.db.profile.blackBorder.color = {r, g, b, a}
                 self:SetupBlackBorders()
             end,
             disabled = function() return not self.db.profile.blackBorder.enabled end,
