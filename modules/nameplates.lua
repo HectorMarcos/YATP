@@ -657,31 +657,31 @@ function Module:AddCustomBorder(nameplate)
     
     -- Create new border frame (parent to nameplate.UnitFrame to inherit alpha)
     local borderFrame = CreateFrame("Frame", nil, nameplate.UnitFrame)
-    borderFrame:SetFrameLevel(healthBar:GetFrameLevel() + 3)  -- Higher level to ensure visibility
+    borderFrame:SetFrameLevel(healthBar:GetFrameLevel())  -- Same level as healthBar, textures below statusText
     
-    -- Top border (extends to cover corners)
-    local topBorder = borderFrame:CreateTexture(nil, "OVERLAY")
+    -- Top border (extends to cover corners) - BACKGROUND layer to be below target border
+    local topBorder = borderFrame:CreateTexture(nil, "BACKGROUND")
     topBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
     topBorder:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderThickness, borderThickness)
     topBorder:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderThickness, borderThickness)
     topBorder:SetHeight(borderThickness)
     
     -- Bottom border (extends to cover corners)
-    local bottomBorder = borderFrame:CreateTexture(nil, "OVERLAY")
+    local bottomBorder = borderFrame:CreateTexture(nil, "BACKGROUND")
     bottomBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
     bottomBorder:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderThickness, -borderThickness)
     bottomBorder:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderThickness, -borderThickness)
     bottomBorder:SetHeight(borderThickness)
     
     -- Left border (only vertical part, no corners)
-    local leftBorder = borderFrame:CreateTexture(nil, "OVERLAY")
+    local leftBorder = borderFrame:CreateTexture(nil, "BACKGROUND")
     leftBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
     leftBorder:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderThickness, 0)
     leftBorder:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderThickness, 0)
     leftBorder:SetWidth(borderThickness)
     
     -- Right border (only vertical part, no corners)
-    local rightBorder = borderFrame:CreateTexture(nil, "OVERLAY")
+    local rightBorder = borderFrame:CreateTexture(nil, "BACKGROUND")
     rightBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
     rightBorder:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderThickness, 0)
     rightBorder:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderThickness, 0)

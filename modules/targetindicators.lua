@@ -198,37 +198,37 @@ function Module:AddCustomBorder(frame)
     local borderSize = self.db.profile.border.size
     local color = self.db.profile.border.color
     
-    -- Create border container
+    -- Create border container (same level as healthBar to stay below statusText which is in OVERLAY layer)
     local borderFrame = CreateFrame("Frame", nil, healthBar)
-    borderFrame:SetFrameLevel(healthBar:GetFrameLevel() + 5)
+    borderFrame:SetFrameLevel(healthBar:GetFrameLevel())  -- Same level as healthBar, textures will be below statusText
     borderFrame:SetAllPoints(healthBar)
     
-    -- Create 4 border edges
+    -- Create 4 border edges (using BORDER layer to stay below OVERLAY layer where statusText is)
     local borders = {}
     
     -- Top (extends to cover corners)
-    borders.top = borderFrame:CreateTexture(nil, "OVERLAY")
+    borders.top = borderFrame:CreateTexture(nil, "BORDER")
     borders.top:SetColorTexture(color[1], color[2], color[3], color[4])
     borders.top:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderSize, borderSize)
     borders.top:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderSize, borderSize)
     borders.top:SetHeight(borderSize)
     
     -- Bottom (extends to cover corners)
-    borders.bottom = borderFrame:CreateTexture(nil, "OVERLAY")
+    borders.bottom = borderFrame:CreateTexture(nil, "BORDER")
     borders.bottom:SetColorTexture(color[1], color[2], color[3], color[4])
     borders.bottom:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderSize, -borderSize)
     borders.bottom:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderSize, -borderSize)
     borders.bottom:SetHeight(borderSize)
     
     -- Left (only vertical part, no corners)
-    borders.left = borderFrame:CreateTexture(nil, "OVERLAY")
+    borders.left = borderFrame:CreateTexture(nil, "BORDER")
     borders.left:SetColorTexture(color[1], color[2], color[3], color[4])
     borders.left:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderSize, 0)
     borders.left:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderSize, 0)
     borders.left:SetWidth(borderSize)
     
     -- Right (only vertical part, no corners)
-    borders.right = borderFrame:CreateTexture(nil, "OVERLAY")
+    borders.right = borderFrame:CreateTexture(nil, "BORDER")
     borders.right:SetColorTexture(color[1], color[2], color[3], color[4])
     borders.right:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderSize, 0)
     borders.right:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderSize, 0)
