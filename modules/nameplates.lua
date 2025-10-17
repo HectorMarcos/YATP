@@ -205,8 +205,7 @@ function Module:OnEnable()
         end)
     end
     
-    self:SetupTargetGlow()
-    self:SetupTargetArrows()
+    -- Setup mouseover functionality
     self:SetupMouseoverGlow()
     self:SetupMouseoverBorderBlock()
     self:SetupMouseoverHealthBarHighlight()
@@ -234,8 +233,6 @@ end
 -------------------------------------------------
 function Module:OnDisable()
     -- Clean up active functionality but keep module registered
-    self:CleanupTargetGlow()
-    self:CleanupTargetArrows()
     self:CleanupThreatSystem()
     self:CleanupHealthTextPositioning()
     self:CleanupNonTargetAlpha()
@@ -276,91 +273,6 @@ end
 -------------------------------------------------
 -- Target Border System
 -------------------------------------------------
-function Module:SetupTargetGlow()
-    if not self.db.profile.enabled then 
-        return 
-    end
-    
-    if not self.db.profile.targetGlow.enabled then
-        return
-    end
-    
-    -- Initialize target border data
-    self.targetGlowFrames = {}
-    self.currentTargetFrame = nil
-    
-    -- Register events for target border
-    -- Note: NAME_PLATE_UNIT_ADDED/REMOVED are registered in OnEnable() as core events
-    self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnTargetChanged")
-    
-    -- Test current target if any
-    if UnitExists("target") then
-        self:OnTargetChanged()
-    end
-end
-
-function Module:CleanupTargetGlow()
-    -- Remove all existing borders
-    if self.targetGlowFrames then
-        for nameplate, borderData in pairs(self.targetGlowFrames) do
-            self:RemoveTargetGlow(nameplate)
-        end
-        self.targetGlowFrames = {}
-    end
-    
-    self.currentTargetFrame = nil
-    
-    -- Unregister events
-    self:UnregisterEvent("PLAYER_TARGET_CHANGED")
-    self:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
-    self:UnregisterEvent("NAME_PLATE_UNIT_REMOVED")
-end
-
-function Module:OnTargetChanged()
-    if not self.db.profile.enabled or not self.db.profile.targetGlow.enabled then 
-        return 
-    end
-    
-    local previousTarget = self.currentTargetFrame
-    
-    -- Remove glow from previous target
-    if self.currentTargetFrame then
-        self:RemoveTargetGlow(self.currentTargetFrame)
-        self.currentTargetFrame = nil
-    end
-    
-    -- If border blocking is enabled, force previous target back to black
-    if previousTarget and self.db.profile.blockMouseoverBorderGlow.enabled then
-        if previousTarget.UnitFrame and 
-           previousTarget.UnitFrame.healthBar and 
-           previousTarget.UnitFrame.healthBar.border and 
-           previousTarget.UnitFrame.healthBar.border.Texture then
-            local texture = previousTarget.UnitFrame.healthBar.border.Texture
-            if texture.originalSetVertexColor then
-                texture.originalSetVertexColor(texture, 0, 0, 0, 1)
-            else
-                texture:SetVertexColor(0, 0, 0, 1)
-            end
-        end
-    end
-    
-    -- Add glow to new target
-    local targetUnit = "target"
-    if UnitExists(targetUnit) then
-        local targetName = UnitName(targetUnit) or "Unknown"
-        
-        local found = false
-        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
-            if nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, targetUnit) then
-                self:AddTargetGlow(nameplate)
-                self.currentTargetFrame = nameplate
-                found = true
-                break
-            end
-        end
-    end
-end
-
 -------------------------------------------------
 -- Quest Icon System
 -------------------------------------------------
@@ -393,16 +305,19 @@ function Module:ScanUnitForQuest(unitID)
                     current = tonumber(current)
                     total = tonumber(total)
                     
-                    -- Only show icon if quest is NOT complete
-                    if current < total then
-                        return true
+                    -- Show icon if quest is NOT complete (current != total)
+                    -- Hide icon if quest is complete (current >= total)
+                    if current >= total then
+                        return false  -- Quest complete, hide icon
+                    else
+                        return true   -- Quest incomplete, show icon
                     end
                 end
             end
         end
     end
     
-    return false
+    return false  -- No quest pattern found, hide icon
 end
 
 -- Create quest icon on a nameplate
@@ -421,6 +336,10 @@ function Module:CreateQuestIcon(nameplate)
     -- Create container frame with proper parent and strata
     frame.YATPQuestIcon = CreateFrame("Frame", nil, frame)
     local qi = frame.YATPQuestIcon
+    
+    -- CRITICAL: Hide immediately BEFORE setting any geometry to prevent visual flash
+    qi:Hide()
+    
     qi:SetFrameStrata("HIGH")
     qi:SetFrameLevel(frame:GetFrameLevel() + 10)
     
@@ -429,11 +348,7 @@ function Module:CreateQuestIcon(nameplate)
     qi.icon:SetTexture("Interface\\AddOns\\YATP\\media\\questionmark")
     qi.icon:SetAllPoints(qi)
     
-    -- Update size and position
-    self:UpdateQuestIconSize(nameplate)
-    
-    -- Initially hidden
-    qi:Hide()
+    -- Size and position will be set by UpdateQuestIcon when quest is detected
 end
 
 -- Update quest icon size and position based on config
@@ -501,9 +416,12 @@ function Module:UpdateQuestIcon(nameplate)
     
     -- Show/hide icon based on current scan
     if hasQuest then
+        -- Quest is incomplete, update size/position and show
         self:UpdateQuestIconSize(nameplate)
         qi:Show()
     else
+        -- Quest is complete or not a quest objective, hide immediately
+        -- Don't call UpdateQuestIconSize to avoid visual flash
         qi:Hide()
     end
 end
@@ -574,7 +492,7 @@ function Module:OnNamePlateAdded(unit, nameplateID, nameplateFrame)
     end)
 end
 
--- Process a nameplate for quest icons
+-- Process a nameplate for quest icons and hook scale changes
 function Module:ProcessNamePlateForQuests(unitID, nameplateFrame)
     if not nameplateFrame or not nameplateFrame.UnitFrame then
         return
@@ -594,29 +512,12 @@ function Module:ProcessNamePlateForQuests(unitID, nameplateFrame)
         self:UpdateQuestIcon(nameplateFrame)
     end
     
-    -- Add target glow if enabled
-    if self.db.profile.targetGlow.enabled then
-        -- Check if this nameplate is for our current target
-        if UnitExists("target") and nameplateFrame.UnitFrame and nameplateFrame.UnitFrame.unit and UnitIsUnit(nameplateFrame.UnitFrame.unit, "target") then
-            -- CRITICAL: Remove previous target glow first (in case of race condition)
-            if self.currentTargetFrame and self.currentTargetFrame ~= nameplateFrame then
-                self:RemoveTargetGlow(self.currentTargetFrame)
-            end
-            
-            self:AddTargetGlow(nameplateFrame)
-            self.currentTargetFrame = nameplateFrame
-        end
-    end
 end
 
 function Module:OnNamePlateRemoved(unit, nameplate)
-    -- Clean up glow if this nameplate had one
-    if self.targetGlowFrames and self.targetGlowFrames[nameplate] then
-        self:RemoveTargetGlow(nameplate)
-        if self.currentTargetFrame == nameplate then
-            self.currentTargetFrame = nil
-        end
-    end
+    -- Note: Custom borders are NOT removed when nameplate is removed
+    -- They will be reused when the nameplate is recycled
+    -- WoW recycles nameplate frames for performance
     
     -- Clean up quest icon if this nameplate had one
     if nameplate and nameplate.UnitFrame and nameplate.UnitFrame.YATPQuestIcon then
@@ -627,7 +528,12 @@ function Module:OnNamePlateRemoved(unit, nameplate)
     if unit and self.questTrackedUnits then
         self.questTrackedUnits[unit] = nil
     end
+    
+    -- Note: Target arrows and borders are handled by the SetScale hook
+    -- They will be automatically cleaned up when scale returns to 1.0
 end
+
+
 
 -------------------------------------------------
 -- Quest Icon Event Handlers
@@ -700,17 +606,15 @@ function Module:CleanupQuestIcons()
 end
 
 -------------------------------------------------
--- Target Glow System
+-- Custom Border System (All Nameplates)
 -------------------------------------------------
 
-function Module:AddTargetGlow(nameplate)
+-- Create or update custom border for a nameplate
+-- All nameplates get a black border by default
+-- All nameplates get black borders (target borders handled by targetindicators module)
+function Module:AddCustomBorder(nameplate)
     if not nameplate or not nameplate.UnitFrame then 
         return 
-    end
-    
-    -- Don't add border if already exists
-    if self.targetGlowFrames and self.targetGlowFrames[nameplate] then
-        return
     end
     
     local healthBar = nameplate.UnitFrame.healthBar
@@ -718,13 +622,25 @@ function Module:AddTargetGlow(nameplate)
         return 
     end
     
-    -- Create border frame
+    -- All nameplates get black borders
+    local borderThickness = 2
+    local borderColor = {0, 0, 0, 1}
+    
+    -- If border already exists, update its color
+    if self.targetGlowFrames and self.targetGlowFrames[nameplate] then
+        local borderData = self.targetGlowFrames[nameplate]
+        if borderData.borders then
+            borderData.borders.top:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+            borderData.borders.bottom:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+            borderData.borders.left:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+            borderData.borders.right:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+        end
+        return
+    end
+    
+    -- Create new border frame
     local borderFrame = CreateFrame("Frame", nil, nameplate)
     borderFrame:SetFrameLevel(healthBar:GetFrameLevel() + 1)
-    
-    -- Create border textures (4 sides)
-    local borderThickness = self.db.profile.targetGlow.size or 2
-    local borderColor = self.db.profile.targetGlow.color or {1, 1, 0, 0.8}
     
     -- Top border
     local topBorder = borderFrame:CreateTexture(nil, "OVERLAY")
@@ -754,7 +670,7 @@ function Module:AddTargetGlow(nameplate)
     rightBorder:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderThickness, -borderThickness)
     rightBorder:SetWidth(borderThickness)
     
-    -- Store border data (always static)
+    -- Store border data
     if not self.targetGlowFrames then
         self.targetGlowFrames = {}
     end
@@ -770,214 +686,20 @@ function Module:AddTargetGlow(nameplate)
     }
 end
 
-function Module:RemoveTargetGlow(nameplate)
-    if not self.targetGlowFrames or not self.targetGlowFrames[nameplate] then
-        return
-    end
-    
-    local borderData = self.targetGlowFrames[nameplate]
-    
-    -- Remove border frame and all its textures
-    if borderData.borderFrame then
-        borderData.borderFrame:Hide()
-        -- The textures will be cleaned up with the frame
-    end
-    
-    -- Remove from tracking
-    self.targetGlowFrames[nameplate] = nil
-    
-    -- Debug removed - too spammy for target border
+-- Legacy function name for compatibility
+function Module:AddTargetGlow(nameplate)
+    self:AddCustomBorder(nameplate)
 end
 
-function Module:UpdateAllTargetGlows()
-    -- Remove all existing borders
-    if self.targetGlowFrames then
-        for nameplate, borderData in pairs(self.targetGlowFrames) do
-            self:RemoveTargetGlow(nameplate)
-        end
-    end
-    
-    -- Re-add border to current target if enabled
-    if self.db.profile.targetGlow.enabled and UnitExists("target") then
-        self:OnTargetChanged()
-    end
+function Module:RemoveTargetGlow(nameplate)
+    -- Legacy function - kept for compatibility
+    -- Borders are no longer removed, just color-updated
+    -- This function is now a no-op
 end
 
 -------------------------------------------------
 -- Target Arrows System
 -------------------------------------------------
-function Module:SetupTargetArrows()
-    if not self.db.profile.enabled then 
-        return 
-    end
-    
-    if not self.db.profile.targetArrows.enabled then
-        return
-    end
-    
-    -- Initialize target arrows data
-    self.targetArrowFrames = {}
-    self.currentTargetArrowFrame = nil
-    
-    -- Register events for target arrows (reuse target border events)
-    self:RegisterEvent("PLAYER_TARGET_CHANGED", "OnTargetArrowChanged")
-    self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnNamePlateArrowAdded") 
-    self:RegisterEvent("NAME_PLATE_UNIT_REMOVED", "OnNamePlateArrowRemoved")
-    
-    -- Test current target if any
-    if UnitExists("target") then
-        self:OnTargetArrowChanged()
-    end
-end
-
-function Module:CleanupTargetArrows()
-    -- Remove all existing arrows
-    if self.targetArrowFrames then
-        for nameplate, arrowData in pairs(self.targetArrowFrames) do
-            self:RemoveTargetArrows(nameplate)
-        end
-        self.targetArrowFrames = {}
-    end
-    
-    self.currentTargetArrowFrame = nil
-    
-    -- Don't unregister events as they're shared with target border system
-end
-
-function Module:OnTargetArrowChanged()
-    if not self.db.profile.enabled or not self.db.profile.targetArrows.enabled then 
-        return 
-    end
-    
-    -- Remove arrows from previous target
-    if self.currentTargetArrowFrame then
-        self:RemoveTargetArrows(self.currentTargetArrowFrame)
-        self.currentTargetArrowFrame = nil
-    end
-    
-    -- Add arrows to new target
-    local targetUnit = "target"
-    if UnitExists(targetUnit) then
-        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
-            if nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, targetUnit) then
-                self:AddTargetArrows(nameplate)
-                self.currentTargetArrowFrame = nameplate
-                break
-            end
-        end
-    end
-end
-
-function Module:OnNamePlateArrowAdded(unit, nameplate)
-    if not self.db.profile.enabled or not self.db.profile.targetArrows.enabled then 
-        return 
-    end
-    
-    -- Check if this nameplate is for our current target
-    if UnitExists("target") and nameplate.UnitFrame and nameplate.UnitFrame.unit and UnitIsUnit(nameplate.UnitFrame.unit, "target") then
-        self:AddTargetArrows(nameplate)
-        self.currentTargetArrowFrame = nameplate
-    end
-end
-
-function Module:OnNamePlateArrowRemoved(unit, nameplate)
-    -- Clean up arrows if this nameplate had them
-    if self.targetArrowFrames and self.targetArrowFrames[nameplate] then
-        self:RemoveTargetArrows(nameplate)
-        if self.currentTargetArrowFrame == nameplate then
-            self.currentTargetArrowFrame = nil
-        end
-    end
-end
-
-function Module:AddTargetArrows(nameplate)
-    if not nameplate or not nameplate.UnitFrame then 
-        return 
-    end
-    
-    -- Don't add arrows if already exists
-    if self.targetArrowFrames and self.targetArrowFrames[nameplate] then
-        return
-    end
-    
-    local healthBar = nameplate.UnitFrame.healthBar
-    if not healthBar then 
-        return 
-    end
-    
-    -- Get settings
-    local arrowSize = self.db.profile.targetArrows.size or 32
-    local offsetX = self.db.profile.targetArrows.offsetX or 15
-    local offsetY = self.db.profile.targetArrows.offsetY or 0
-    local color = self.db.profile.targetArrows.color or {1, 1, 1, 1}
-    
-    -- Create arrow container frame with high strata
-    local arrowFrame = CreateFrame("Frame", nil, nameplate)
-    arrowFrame:SetFrameStrata("HIGH") -- Above all nameplate elements
-    arrowFrame:SetFrameLevel(healthBar:GetFrameLevel() + 10) -- Well above level/elite icons
-    
-    -- Left arrow texture (pointing RIGHT toward nameplate)
-    local leftArrow = arrowFrame:CreateTexture(nil, "OVERLAY")
-    leftArrow:SetTexture("Interface\\AddOns\\YATP\\media\\arrow")
-    leftArrow:SetSize(arrowSize, arrowSize)
-    leftArrow:SetPoint("RIGHT", healthBar, "LEFT", -offsetX, offsetY)
-    leftArrow:SetVertexColor(color[1], color[2], color[3], color[4])
-    -- Normal orientation (pointing right toward nameplate)
-    leftArrow:SetTexCoord(0, 1, 0, 1)
-    
-    -- Right arrow texture (pointing LEFT toward nameplate)
-    local rightArrow = arrowFrame:CreateTexture(nil, "OVERLAY")
-    rightArrow:SetTexture("Interface\\AddOns\\YATP\\media\\arrow")
-    rightArrow:SetSize(arrowSize, arrowSize)
-    rightArrow:SetPoint("LEFT", healthBar, "RIGHT", offsetX, offsetY)
-    rightArrow:SetVertexColor(color[1], color[2], color[3], color[4])
-    -- Flip horizontally to point left toward nameplate
-    rightArrow:SetTexCoord(1, 0, 0, 1)
-    
-    -- Store arrow data
-    if not self.targetArrowFrames then
-        self.targetArrowFrames = {}
-    end
-    
-    self.targetArrowFrames[nameplate] = {
-        arrowFrame = arrowFrame,
-        arrows = {
-            left = leftArrow,
-            right = rightArrow
-        }
-    }
-end
-
-function Module:RemoveTargetArrows(nameplate)
-    if not self.targetArrowFrames or not self.targetArrowFrames[nameplate] then
-        return
-    end
-    
-    local arrowData = self.targetArrowFrames[nameplate]
-    
-    -- Remove arrow frame and all its textures
-    if arrowData.arrowFrame then
-        arrowData.arrowFrame:Hide()
-    end
-    
-    -- Remove from tracking
-    self.targetArrowFrames[nameplate] = nil
-end
-
-function Module:UpdateAllTargetArrows()
-    -- Remove all existing arrows
-    if self.targetArrowFrames then
-        for nameplate, arrowData in pairs(self.targetArrowFrames) do
-            self:RemoveTargetArrows(nameplate)
-        end
-    end
-    
-    -- Re-add arrows to current target if enabled
-    if self.db.profile.targetArrows.enabled and UnitExists("target") then
-        self:OnTargetArrowChanged()
-    end
-end
-
 -------------------------------------------------
 -- Mouseover Glow System
 -------------------------------------------------
@@ -1365,30 +1087,15 @@ function Module:SetupMouseoverBorderBlock()
 end
 
 function Module:ForceBlackBordersOnAllNameplates()
+    -- NEW BEHAVIOR: Hide all native borders completely (alpha = 0)
+    -- We use custom borders for all nameplates instead
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
         if nameplate.UnitFrame and 
            nameplate.UnitFrame.healthBar and 
-           nameplate.UnitFrame.healthBar.border and 
-           nameplate.UnitFrame.healthBar.border.Texture then
+           nameplate.UnitFrame.healthBar.border then
             
-            -- Skip the current target if target border is enabled
-            -- Target has its own custom border, don't force black on it
-            local isCurrentTarget = self.db.profile.targetGlow.enabled and 
-                                    self.currentTargetFrame == nameplate
-            
-            if not isCurrentTarget then
-                local texture = nameplate.UnitFrame.healthBar.border.Texture
-                local r, g, b, a = texture:GetVertexColor()
-                
-                -- Force black if not already black
-                if r ~= 0 or g ~= 0 or b ~= 0 then
-                    if texture.originalSetVertexColor then
-                        texture.originalSetVertexColor(texture, 0, 0, 0, 1)
-                    else
-                        texture:SetVertexColor(0, 0, 0, 1)
-                    end
-                end
-            end
+            -- Force alpha to 0 on native border (always hidden)
+            nameplate.UnitFrame.healthBar.border:SetAlpha(0)
         end
     end
 end
@@ -1406,34 +1113,12 @@ function Module:BlockNameplateBorderGlow(nameplate)
     
     local unitFrame = nameplate.UnitFrame
     
-    if not unitFrame.healthBar or not unitFrame.healthBar.border or not unitFrame.healthBar.border.Texture then
+    if not unitFrame.healthBar or not unitFrame.healthBar.border then
         return false
     end
     
-    local texture = unitFrame.healthBar.border.Texture
-    
-    -- Store original SetVertexColor if not already hooked
-    if not texture.originalSetVertexColor then
-        texture.originalSetVertexColor = texture.SetVertexColor
-        
-        -- Replace with function that forces black EXCEPT for current target
-        texture.SetVertexColor = function(self, r, g, b, a)
-            -- Check if this nameplate is the current target with custom border
-            if Module.db.profile.targetGlow.enabled and 
-               Module.currentTargetFrame == nameplate then
-                -- Allow target border to have its own color
-                self.originalSetVertexColor(self, r, g, b, a)
-            else
-                -- Force black for all other nameplates
-                self.originalSetVertexColor(self, 0, 0, 0, 1)
-            end
-        end
-    end
-    
-    -- Force initial black color (unless it's the target)
-    if not (self.db.profile.targetGlow.enabled and self.currentTargetFrame == nameplate) then
-        texture:SetVertexColor(0, 0, 0, 1)
-    end
+    -- NEW BEHAVIOR: Simply force native border alpha to 0 (always hidden)
+    unitFrame.healthBar.border:SetAlpha(0)
     
     return true
 end
@@ -1635,12 +1320,6 @@ function Module:OnThreatTargetChanged()
     if not self.db.profile.threatSystem.enabled then return end
     
     self:UpdateAllThreatIndicators()
-    
-    -- IMPORTANT: Also call target border system since this event handler is the active one
-    self:OnTargetChanged()
-    
-    -- IMPORTANT: Also call target arrows system
-    self:OnTargetArrowChanged()
     
     -- IMPORTANT: Also call alpha fade system for non-target nameplates
     self:OnAlphaFadeTargetChanged()
@@ -2581,7 +2260,21 @@ function Module:BuildTabStructure()
             order = 4,
             args = self:BuildQuestIconsTab()
         }
-    else
+    end
+    
+    -- Target Indicators Tab (always available, separate module)
+    local targetIndicatorsModule = YATP:GetModule("TargetIndicators", true)
+    if targetIndicatorsModule and targetIndicatorsModule.GetOptions then
+        tabs.targetIndicators = {
+            type = "group",
+            name = L["Target Indicators"] or "Target Indicators",
+            desc = L["Custom border and arrows for target nameplate"] or "Custom border and arrows for target nameplate",
+            order = 5,
+            args = targetIndicatorsModule:GetOptions().args
+        }
+    end
+    
+    if not isConfigured then
         tabs.info = {
             type = "group",
             name = L["Information"] or "Information",
@@ -2635,8 +2328,6 @@ function Module:BuildStatusTab()
                     self.db.profile.enabled = value
                     if value then
                         -- Re-enable functionality without calling AceAddon Enable
-                        self:SetupTargetGlow()
-                        self:SetupTargetArrows()
                         self:SetupMouseoverGlow()
                         self:SetupThreatSystem()
                         self:SetupQuestIcons()
@@ -2646,8 +2337,6 @@ function Module:BuildStatusTab()
                         self:SetupNonTargetAlpha()
                     else
                         -- Disable functionality without calling AceAddon Disable
-                        self:CleanupTargetGlow()
-                        self:CleanupTargetArrows()
                         self:CleanupThreatSystem()
                         self:CleanupQuestIcons()
                         self:CleanupHealthTextPositioning()
@@ -3136,119 +2825,12 @@ function Module:BuildEnemyTargetTab()
             get = function() return self.db.profile.targetGlow.enabled end,
             set = function(_, value) 
                 self.db.profile.targetGlow.enabled = value
-                self:UpdateAllTargetGlows()
+                -- Black borders are always applied automatically
             end,
             order = 11,
         },
         
-        targetGlowColor = {
-            type = "color",
-            name = L["Border Color"] or "Border Color",
-            desc = L["Color of the target border effect"] or "Color of the target border effect",
-            hasAlpha = true,
-            get = function() 
-                local color = self.db.profile.targetGlow.color
-                return color[1], color[2], color[3], color[4]
-            end,
-            set = function(_, r, g, b, a) 
-                self.db.profile.targetGlow.color = {r, g, b, a}
-                self:UpdateAllTargetGlows()
-            end,
-            disabled = function() return not self.db.profile.targetGlow.enabled end,
-            order = 12,
-        },
-        
-        targetGlowSize = {
-            type = "range",
-            name = L["Border Thickness"] or "Border Thickness",
-            desc = L["Thickness of the border in pixels. Higher values create a thicker border"] or "Thickness of the border in pixels. Higher values create a thicker border",
-            min = 1, max = 5, step = 1,
-            get = function() return self.db.profile.targetGlow.size or 2 end,
-            set = function(_, value) 
-                self.db.profile.targetGlow.size = value
-                self:UpdateAllTargetGlows()
-            end,
-            disabled = function() return not self.db.profile.targetGlow.enabled end,
-            order = 13,
-        },
-        
         spacer2 = { type = "description", name = "\n", order = 20 },
-        
-        -- Target Arrows System (YATP Custom Feature)
-        targetArrowsHeader = { type = "header", name = L["Target Arrows (YATP Custom)"] or "Target Arrows (YATP Custom)", order = 21 },
-        
-        targetArrowsEnabled = {
-            type = "toggle",
-            name = L["Enable Target Arrows"] or "Enable Target Arrows",
-            desc = L["Show arrow indicators on both sides of your current target's nameplate for better visibility"] or "Show arrow indicators on both sides of your current target's nameplate for better visibility",
-            get = function() return self.db.profile.targetArrows.enabled end,
-            set = function(_, value) 
-                self.db.profile.targetArrows.enabled = value
-                self:UpdateAllTargetArrows()
-            end,
-            order = 22,
-        },
-        
-        targetArrowsSize = {
-            type = "range",
-            name = L["Arrow Size"] or "Arrow Size",
-            desc = L["Size of the arrow indicators in pixels"] or "Size of the arrow indicators in pixels",
-            min = 16, max = 64, step = 2,
-            get = function() return self.db.profile.targetArrows.size or 32 end,
-            set = function(_, value) 
-                self.db.profile.targetArrows.size = value
-                self:UpdateAllTargetArrows()
-            end,
-            disabled = function() return not self.db.profile.targetArrows.enabled end,
-            order = 23,
-        },
-        
-        targetArrowsOffsetX = {
-            type = "range",
-            name = L["Horizontal Distance"] or "Horizontal Distance",
-            desc = L["Distance of arrows from the nameplate edges"] or "Distance of arrows from the nameplate edges",
-            min = 0, max = 50, step = 1,
-            get = function() return self.db.profile.targetArrows.offsetX or 15 end,
-            set = function(_, value) 
-                self.db.profile.targetArrows.offsetX = value
-                self:UpdateAllTargetArrows()
-            end,
-            disabled = function() return not self.db.profile.targetArrows.enabled end,
-            order = 24,
-        },
-        
-        targetArrowsOffsetY = {
-            type = "range",
-            name = L["Vertical Offset"] or "Vertical Offset",
-            desc = L["Vertical offset of arrows from nameplate center. Negative moves down, positive moves up."] or "Vertical offset of arrows from nameplate center. Negative moves down, positive moves up.",
-            min = -20, max = 20, step = 1,
-            get = function() return self.db.profile.targetArrows.offsetY or 0 end,
-            set = function(_, value) 
-                self.db.profile.targetArrows.offsetY = value
-                self:UpdateAllTargetArrows()
-            end,
-            disabled = function() return not self.db.profile.targetArrows.enabled end,
-            order = 25,
-        },
-        
-        targetArrowsColor = {
-            type = "color",
-            name = L["Arrow Color"] or "Arrow Color",
-            desc = L["Color tint applied to the arrow textures"] or "Color tint applied to the arrow textures",
-            hasAlpha = true,
-            get = function() 
-                local color = self.db.profile.targetArrows.color
-                return color[1], color[2], color[3], color[4]
-            end,
-            set = function(_, r, g, b, a) 
-                self.db.profile.targetArrows.color = {r, g, b, a}
-                self:UpdateAllTargetArrows()
-            end,
-            disabled = function() return not self.db.profile.targetArrows.enabled end,
-            order = 26,
-        },
-        
-        spacer3 = { type = "description", name = "\n", order = 30 },
         
         -- Non-Target Alpha Fade (YATP Custom Feature)
         nonTargetAlphaHeader = { type = "header", name = L["Non-Target Alpha Fade (YATP Custom)"] or "Non-Target Alpha Fade (YATP Custom)", order = 31 },

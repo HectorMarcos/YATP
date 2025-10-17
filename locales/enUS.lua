@@ -643,3 +643,23 @@ L["The system scans nameplate tooltips (without requiring mouseover) to detect q
 L["Note"] = true
 L["This custom system replaces the native Ascension_NamePlates quest icons, which are automatically hidden when this feature is enabled."] = true
 
+-- Target Indicators Module
+L["Target Indicators"] = true
+L["Customize target nameplate indicators"] = true
+L["Custom border and arrows for target nameplate"] = true
+L["Enable target indicators"] = true
+L["Custom Border"] = true
+L["Enable Border"] = true
+L["Show custom border on target nameplate"] = true
+L["Target Arrows"] = true
+L["Enable Arrows"] = true
+L["Show arrows pointing to target nameplate"] = true
+L["Color of the target border"] = true
+L["Border Size"] = true
+L["Thickness of the target border"] = true
+L["Color of the target arrows"] = true
+L["Size of the target arrows"] = true
+L["Horizontal distance from nameplate"] = true
+L["Vertical distance from nameplate"] = true
+
+

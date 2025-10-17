@@ -45,4 +45,5 @@ modules\backgroundfpsfix.lua
 modules\lootrollinfo.lua
 modules\chatfilters.lua
 modules\nameplates.lua
+modules\targetindicators.lua
 modules\questtracker.lua
