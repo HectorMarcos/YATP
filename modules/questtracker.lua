@@ -788,7 +788,7 @@ function Module:ApplyObjectiveIndentation(watchLine, lineText)
     
     -- Apply indentation if not already present
     if not processedText:match("^%s%s%s%s") then
-        local indentedText = "    " .. processedText
+        local indentedText = "  " .. processedText
         watchLine.text:SetText(indentedText)
     end
 end
@@ -915,7 +915,7 @@ function Module:GetQuestTagSuffix(questTag, suggestedGroup)
         return "H"
     -- PvP quests
     elseif tag == "pvp" then
-        return "PvP"
+        return "P"
     end
     
     -- Unknown tag, return empty string
