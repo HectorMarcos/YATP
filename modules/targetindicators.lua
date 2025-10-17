@@ -22,7 +22,7 @@ Module.defaults = {
         border = {
             enabled = true,
             color = {1, 1, 0, 0.8}, -- Yellow by default
-            size = 2,
+            size = 1,
         },
         
         -- Target Arrows Settings
@@ -132,25 +132,15 @@ function Module:CheckAllNameplates()
 end
 
 -------------------------------------------------
--- Nameplate Lifecycle Events (simplified - just for debug)
+-- Nameplate Lifecycle Events (not needed with ticker system)
 -------------------------------------------------
 
 function Module:OnNamePlateAdded(event, unit)
-    -- Event registered for future use
+    -- Not used - ticker system handles all detection
 end
 
 function Module:OnNamePlateRemoved(event, unit)
-    if not self.db.profile.enabled then return end
-    
-    -- Clean up visuals if any
-    local nameplate = C_NamePlateManager.GetNamePlateForUnit(unit)
-    if nameplate and nameplate.UnitFrame then
-        local frame = nameplate.UnitFrame
-        if frame.YATPTargetArrows or frame.YATPCustomBorder then
-            self:RemoveTargetVisuals(frame)
-        end
-        frame.isYATPTarget = false
-    end
+    -- Not used - ticker system handles cleanup automatically
 end
 
 -------------------------------------------------
@@ -216,28 +206,28 @@ function Module:AddCustomBorder(frame)
     -- Create 4 border edges
     local borders = {}
     
-    -- Top
+    -- Top (extends to cover corners)
     borders.top = borderFrame:CreateTexture(nil, "OVERLAY")
     borders.top:SetColorTexture(color[1], color[2], color[3], color[4])
-    borders.top:SetPoint("TOPLEFT", healthBar, "TOPLEFT", 0, borderSize)
-    borders.top:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", 0, borderSize)
+    borders.top:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderSize, borderSize)
+    borders.top:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderSize, borderSize)
     borders.top:SetHeight(borderSize)
     
-    -- Bottom
+    -- Bottom (extends to cover corners)
     borders.bottom = borderFrame:CreateTexture(nil, "OVERLAY")
     borders.bottom:SetColorTexture(color[1], color[2], color[3], color[4])
-    borders.bottom:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", 0, -borderSize)
-    borders.bottom:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", 0, -borderSize)
+    borders.bottom:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderSize, -borderSize)
+    borders.bottom:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderSize, -borderSize)
     borders.bottom:SetHeight(borderSize)
     
-    -- Left
+    -- Left (only vertical part, no corners)
     borders.left = borderFrame:CreateTexture(nil, "OVERLAY")
     borders.left:SetColorTexture(color[1], color[2], color[3], color[4])
     borders.left:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderSize, 0)
     borders.left:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderSize, 0)
     borders.left:SetWidth(borderSize)
     
-    -- Right
+    -- Right (only vertical part, no corners)
     borders.right = borderFrame:CreateTexture(nil, "OVERLAY")
     borders.right:SetColorTexture(color[1], color[2], color[3], color[4])
     borders.right:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderSize, 0)
@@ -340,8 +330,29 @@ end
 -------------------------------------------------
 
 function Module:ProcessAllNameplates()
-    print("[YATP Target Indicators] Processing current target...")
-    self:OnTargetChanged()
+    -- Update visual properties for current target (if any)
+    if not UnitExists("target") then
+        return
+    end
+    
+    local targetGUID = UnitGUID("target")
+    if not targetGUID then
+        return
+    end
+    
+    -- Find and update the target nameplate
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        local frame = nameplate.UnitFrame
+        if frame and frame.unit then
+            local frameGUID = UnitGUID(frame.unit)
+            if frameGUID == targetGUID then
+                -- Remove old visuals and reapply with new settings
+                self:RemoveTargetVisuals(frame)
+                self:ApplyTargetVisuals(frame)
+                break
+            end
+        end
+    end
 end
 
 function Module:CleanupAllVisuals()
@@ -419,7 +430,7 @@ function Module:GetOptions()
                 type = "range",
                 name = L["Border Size"] or "Border Size",
                 desc = L["Thickness of the target border"] or "Thickness of the target border",
-                min = 1, max = 5, step = 1,
+                min = 1, max = 4, step = 1,
                 get = function() return self.db.profile.border.size end,
                 set = function(_, value)
                     self.db.profile.border.size = value

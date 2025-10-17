@@ -78,6 +78,12 @@ Module.defaults = {
         color = {1, 1, 1, 1}, -- White with full opacity (tints the texture)
     },
     
+    -- Black Border System (All Nameplates)
+    blackBorder = {
+        enabled = true,
+        thickness = 1, -- Border thickness in pixels
+    },
+    
     -- Threat System
     threatSystem = {
         enabled = true,
@@ -211,6 +217,9 @@ function Module:OnEnable()
     self:SetupMouseoverHealthBarHighlight()
     self:SetupQuestIcons()
     self:DisableAllNameplateGlows()
+    
+    -- Setup black borders for all nameplates
+    self:SetupBlackBorders()
     
     -- Setup everything after a longer delay to ensure all addons are loaded
     C_Timer.After(2.0, function()
@@ -460,6 +469,9 @@ function Module:OnAscensionNamePlateCreated(nameplate)
     -- Setup mouseover health bar highlight for this nameplate
     self:SetupMouseoverHealthBarForNameplate(nameplate)
     
+    -- Add black border to all nameplates (target borders handled by targetindicators module)
+    self:AddCustomBorder(nameplate)
+    
     -- NOTE: Quest icon setup is handled in OnNamePlateAdded with a delay
     -- because UnitFrame may not be ready at this point
 end
@@ -617,13 +629,18 @@ function Module:AddCustomBorder(nameplate)
         return 
     end
     
+    -- Check if black borders are enabled
+    if not self.db.profile.blackBorder or not self.db.profile.blackBorder.enabled then
+        return
+    end
+    
     local healthBar = nameplate.UnitFrame.healthBar
     if not healthBar then 
         return 
     end
     
     -- All nameplates get black borders
-    local borderThickness = 2
+    local borderThickness = self.db.profile.blackBorder.thickness or 1
     local borderColor = {0, 0, 0, 1}
     
     -- If border already exists, update its color
@@ -640,34 +657,34 @@ function Module:AddCustomBorder(nameplate)
     
     -- Create new border frame
     local borderFrame = CreateFrame("Frame", nil, nameplate)
-    borderFrame:SetFrameLevel(healthBar:GetFrameLevel() + 1)
+    borderFrame:SetFrameLevel(healthBar:GetFrameLevel() + 3)  -- Higher level to ensure visibility
     
-    -- Top border
+    -- Top border (extends to cover corners)
     local topBorder = borderFrame:CreateTexture(nil, "OVERLAY")
     topBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
     topBorder:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderThickness, borderThickness)
     topBorder:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderThickness, borderThickness)
     topBorder:SetHeight(borderThickness)
     
-    -- Bottom border
+    -- Bottom border (extends to cover corners)
     local bottomBorder = borderFrame:CreateTexture(nil, "OVERLAY")
     bottomBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
     bottomBorder:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderThickness, -borderThickness)
     bottomBorder:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderThickness, -borderThickness)
     bottomBorder:SetHeight(borderThickness)
     
-    -- Left border
+    -- Left border (only vertical part, no corners)
     local leftBorder = borderFrame:CreateTexture(nil, "OVERLAY")
     leftBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
-    leftBorder:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderThickness, borderThickness)
-    leftBorder:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderThickness, -borderThickness)
+    leftBorder:SetPoint("TOPLEFT", healthBar, "TOPLEFT", -borderThickness, 0)
+    leftBorder:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", -borderThickness, 0)
     leftBorder:SetWidth(borderThickness)
     
-    -- Right border
+    -- Right border (only vertical part, no corners)
     local rightBorder = borderFrame:CreateTexture(nil, "OVERLAY")
     rightBorder:SetColorTexture(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
-    rightBorder:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderThickness, borderThickness)
-    rightBorder:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderThickness, -borderThickness)
+    rightBorder:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", borderThickness, 0)
+    rightBorder:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", borderThickness, 0)
     rightBorder:SetWidth(borderThickness)
     
     -- Store border data
@@ -684,6 +701,22 @@ function Module:AddCustomBorder(nameplate)
             right = rightBorder
         }
     }
+end
+
+-- Setup black borders for all existing nameplates
+function Module:SetupBlackBorders()
+    if not self.db.profile.enabled then 
+        return 
+    end
+    
+    -- Add borders to already existing nameplates
+    C_Timer.After(0.5, function()
+        for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+            if nameplate.UnitFrame then
+                self:AddCustomBorder(nameplate)
+            end
+        end
+    end)
 end
 
 -- Legacy function name for compatibility
@@ -2775,13 +2808,50 @@ function Module:BuildGeneralTab()
         
         spacer4 = { type = "description", name = "\n", order = 40 },
         
+        -- Black Border System (YATP Custom Feature)
+        blackBorderHeader = { type = "header", name = L["Black Border (YATP Custom)"] or "Black Border (YATP Custom)", order = 41 },
+        
+        blackBorderDesc = {
+            type = "description",
+            name = L["Add a black border around all nameplates. This provides a clean visual separation. Target nameplates will use the custom border from Target Indicators instead."] or "Add a black border around all nameplates. This provides a clean visual separation. Target nameplates will use the custom border from Target Indicators instead.",
+            order = 42,
+        },
+        
+        blackBorderEnabled = {
+            type = "toggle",
+            name = L["Enable Black Border"] or "Enable Black Border",
+            desc = L["Show black border on all nameplates"] or "Show black border on all nameplates",
+            get = function() return self.db.profile.blackBorder.enabled end,
+            set = function(_, value) 
+                self.db.profile.blackBorder.enabled = value
+                self:SetupBlackBorders()
+            end,
+            order = 43,
+        },
+        
+        blackBorderThickness = {
+            type = "range",
+            name = L["Border Thickness"] or "Border Thickness",
+            desc = L["Thickness of the black border in pixels"] or "Thickness of the black border in pixels",
+            min = 1, max = 4, step = 1,
+            get = function() return self.db.profile.blackBorder.thickness end,
+            set = function(_, value) 
+                self.db.profile.blackBorder.thickness = value
+                self:SetupBlackBorders()
+            end,
+            disabled = function() return not self.db.profile.blackBorder.enabled end,
+            order = 44,
+        },
+        
+        spacer5 = { type = "description", name = "\n", order = 48 },
+        
         -- Mouseover Health Bar Highlight (YATP Custom Feature)
-        mouseoverHighlightHeader = { type = "header", name = L["Mouseover Health Bar Highlight (YATP Custom)"] or "Mouseover Health Bar Highlight (YATP Custom)", order = 45 },
+        mouseoverHighlightHeader = { type = "header", name = L["Mouseover Health Bar Highlight (YATP Custom)"] or "Mouseover Health Bar Highlight (YATP Custom)", order = 49 },
         
         mouseoverHighlightDesc = {
             type = "description",
             name = L["Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target."] or "Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target.",
-            order = 46,
+            order = 50,
         },
         
         mouseoverHighlightEnabled = {
@@ -2797,7 +2867,7 @@ function Module:BuildGeneralTab()
                     self:CleanupMouseoverHealthBarHighlight()
                 end
             end,
-            order = 47,
+            order = 51,
         },
     }
 end

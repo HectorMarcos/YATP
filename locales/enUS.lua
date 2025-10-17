@@ -606,6 +606,14 @@ L["Tracking"] = true
 L["All Quests"] = true
 L["By Zone"] = true
 
+-- Black Border System
+L["Black Border (YATP Custom)"] = true
+L["Add a black border around all nameplates. This provides a clean visual separation. Target nameplates will use the custom border from Target Indicators instead."] = true
+L["Enable Black Border"] = true
+L["Show black border on all nameplates"] = true
+L["Border Thickness"] = true
+L["Thickness of the black border in pixels"] = true
+
 -- Mouseover Health Bar Highlight
 L["Mouseover Health Bar Highlight (YATP Custom)"] = true
 L["Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target."] = true
