@@ -655,8 +655,8 @@ function Module:AddCustomBorder(nameplate)
         return
     end
     
-    -- Create new border frame
-    local borderFrame = CreateFrame("Frame", nil, nameplate)
+    -- Create new border frame (parent to nameplate.UnitFrame to inherit alpha)
+    local borderFrame = CreateFrame("Frame", nil, nameplate.UnitFrame)
     borderFrame:SetFrameLevel(healthBar:GetFrameLevel() + 3)  -- Higher level to ensure visibility
     
     -- Top border (extends to cover corners)
