@@ -26,6 +26,13 @@ Module.defaults = {
         texture = "Blizzard2", -- Default texture name from SharedMedia
     },
     
+    -- Custom Background Texture (below healthbar)
+    customBackground = {
+        enabled = false,
+        texture = "Blizzard", -- Texture from LibSharedMedia
+        color = {0, 0, 0, 0.5}, -- RGBA color (black, 50% alpha by default)
+    },
+    
     -- Health Text Positioning
     healthTextPosition = {
         enabled = false, -- Enable custom health text positioning
