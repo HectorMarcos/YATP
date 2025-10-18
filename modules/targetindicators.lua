@@ -217,11 +217,11 @@ function Module:ApplyTargetOverlay(frame)
     -- Get current healthbar color (always use the current bar color)
     local r, g, b, a = healthBar:GetStatusBarColor()
     
-    -- Blend with white based on whiteBlend setting
+    -- Blend with black based on whiteBlend setting (darken instead of lighten)
     local whiteBlend = self.db.profile.overlay.whiteBlend or 0.5
-    local blendedR = (r * (1 - whiteBlend)) + (1 * whiteBlend)  -- Mix with white (1, 1, 1)
-    local blendedG = (g * (1 - whiteBlend)) + (1 * whiteBlend)
-    local blendedB = (b * (1 - whiteBlend)) + (1 * whiteBlend)
+    local blendedR = (r * (1 - whiteBlend)) + (0 * whiteBlend)  -- Mix with black (0, 0, 0)
+    local blendedG = (g * (1 - whiteBlend)) + (0 * whiteBlend)
+    local blendedB = (b * (1 - whiteBlend)) + (0 * whiteBlend)
     
     -- Create overlay frame (higher FrameLevel to be above healthbar)
     local overlayFrame = CreateFrame("Frame", nil, healthBar)
