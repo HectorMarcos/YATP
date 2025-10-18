@@ -9,6 +9,7 @@ local addonName, YATP = ...
 local AceAddon = LibStub("AceAddon-3.0")
 local Module = AceAddon:GetAddon("YATP"):NewModule("TargetIndicators", "AceEvent-3.0", "AceTimer-3.0")
 local L = LibStub("AceLocale-3.0"):GetLocale("YATP", true) or {}
+local LSM = LibStub("LibSharedMedia-3.0", true)
 
 -------------------------------------------------
 -- Module Defaults
@@ -25,6 +26,14 @@ Module.defaults = {
             size = 1,
         },
         
+        -- Target Overlay Settings (tinted healthbar texture)
+        overlay = {
+            enabled = true,
+            texture = 1, -- Texture ID: 1, 2, or 3 (overlay_indicator_1.tga, etc.)
+            whiteBlend = 0.5, -- Blend ratio with white (0 = original color, 1 = pure white)
+            alpha = 0.3, -- 30% opacity
+        },
+        
         -- Target Arrows Settings
         arrows = {
             enabled = true,
@@ -32,12 +41,6 @@ Module.defaults = {
             offsetX = 15,
             offsetY = 0,
             color = {1, 1, 1, 1}, -- White by default
-        },
-        
-        -- Health Bar Tint Settings
-        healthBarTint = {
-            enabled = true,
-            tintAmount = 0.3, -- 30% white tint by default (less than mouseover)
         },
     }
 }
@@ -158,6 +161,11 @@ function Module:ApplyTargetVisuals(frame)
         return 
     end
     
+    -- Apply overlay tint to healthbar
+    if self.db.profile.overlay.enabled then
+        self:ApplyTargetOverlay(frame)
+    end
+    
     -- Apply custom border
     if self.db.profile.border.enabled then
         self:AddCustomBorder(frame)
@@ -167,16 +175,16 @@ function Module:ApplyTargetVisuals(frame)
     if self.db.profile.arrows.enabled then
         self:AddTargetArrows(frame)
     end
-    
-    -- Apply health bar tint (only if NOT mouseover)
-    if self.db.profile.healthBarTint.enabled then
-        self:ApplyHealthBarTint(frame)
-    end
 end
 
 function Module:RemoveTargetVisuals(frame)
     if not frame then 
         return 
+    end
+    
+    -- Remove overlay
+    if frame.YATPTargetOverlay then
+        self:RemoveTargetOverlay(frame)
     end
     
     -- Remove arrows
@@ -188,11 +196,70 @@ function Module:RemoveTargetVisuals(frame)
     if frame.YATPCustomBorder then
         self:RemoveCustomBorder(frame)
     end
-    
-    -- Restore health bar color
-    if frame.YATPOriginalHealthColor then
-        self:RestoreHealthBarColor(frame)
+end
+
+-------------------------------------------------
+-- Target Overlay System (Tinted Healthbar Texture)
+-------------------------------------------------
+
+function Module:ApplyTargetOverlay(frame)
+    if not frame or not frame.healthBar then
+        return
     end
+    
+    local healthBar = frame.healthBar
+    
+    -- Remove existing overlay if any
+    if frame.YATPTargetOverlay then
+        self:RemoveTargetOverlay(frame)
+    end
+    
+    -- Get current healthbar color (always use the current bar color)
+    local r, g, b, a = healthBar:GetStatusBarColor()
+    
+    -- Blend with white based on whiteBlend setting
+    local whiteBlend = self.db.profile.overlay.whiteBlend or 0.5
+    local blendedR = (r * (1 - whiteBlend)) + (1 * whiteBlend)  -- Mix with white (1, 1, 1)
+    local blendedG = (g * (1 - whiteBlend)) + (1 * whiteBlend)
+    local blendedB = (b * (1 - whiteBlend)) + (1 * whiteBlend)
+    
+    -- Create overlay frame (higher FrameLevel to be above healthbar)
+    local overlayFrame = CreateFrame("Frame", nil, healthBar)
+    overlayFrame:SetFrameLevel(healthBar:GetFrameLevel() + 1)  -- +1 to be above healthbar
+    overlayFrame:SetAllPoints(healthBar)
+    
+    -- Create texture (use BORDER layer to be below statusText which is in OVERLAY)
+    local overlayTexture = overlayFrame:CreateTexture(nil, "BORDER")
+    overlayTexture:SetAllPoints(overlayFrame)
+    
+    -- Get texture path from media folder (overlay_indicator_1.tga, 2, or 3)
+    local textureID = self.db.profile.overlay.texture or 1
+    local texturePath = "Interface\\AddOns\\YATP\\media\\overlay_indicator_" .. textureID .. ".tga"
+    
+    overlayTexture:SetTexture(texturePath)
+    overlayTexture:SetVertexColor(blendedR, blendedG, blendedB, self.db.profile.overlay.alpha)
+    
+    -- Store overlay data
+    frame.YATPTargetOverlay = {
+        frame = overlayFrame,
+        texture = overlayTexture
+    }
+end
+
+function Module:RemoveTargetOverlay(frame)
+    if not frame or not frame.YATPTargetOverlay then
+        return
+    end
+    
+    -- Destroy overlay frame
+    if frame.YATPTargetOverlay.frame then
+        frame.YATPTargetOverlay.frame:Hide()
+        frame.YATPTargetOverlay.frame:SetParent(nil)
+        frame.YATPTargetOverlay.frame = nil
+    end
+    
+    -- Clear overlay data
+    frame.YATPTargetOverlay = nil
 end
 
 -------------------------------------------------
@@ -371,83 +438,6 @@ function Module:ProcessAllNameplates()
     end
 end
 
--------------------------------------------------
--- Health Bar Tint System
--------------------------------------------------
-
-function Module:ApplyHealthBarTint(frame)
-    if not frame or not frame.healthBar then
-        return
-    end
-    
-    -- Check if this nameplate is currently being moused over
-    -- We don't want to apply target tint if mouseover highlight is active
-    local nameplate = frame:GetParent()
-    if nameplate and nameplate.UnitFrame then
-        -- Get the nameplates module to check mouseover state
-        local nameplatesModule = AceAddon:GetAddon("YATP"):GetModule("Nameplates", true)
-        if nameplatesModule and nameplatesModule.mouseoverHealthBarData and nameplatesModule.mouseoverHealthBarData[nameplate] then
-            local mouseoverData = nameplatesModule.mouseoverHealthBarData[nameplate]
-            if mouseoverData.isMouseover then
-                -- This nameplate is being moused over, don't apply target tint
-                return
-            end
-        end
-    end
-    
-    local healthBar = frame.healthBar
-    
-    -- Get current color
-    local r, g, b, a = healthBar:GetStatusBarColor()
-    
-    -- Store original color if not already stored
-    if not frame.YATPOriginalHealthColor then
-        frame.YATPOriginalHealthColor = {r, g, b, a}
-    end
-    
-    -- Apply white tint
-    local tintAmount = self.db.profile.healthBarTint.tintAmount or 0.3
-    local newR, newG, newB, newA = self:ApplyWhiteTint(r, g, b, a, tintAmount)
-    
-    -- Apply new color
-    healthBar:SetStatusBarColor(newR, newG, newB, newA)
-    
-    -- Also apply to texture
-    local texture = healthBar:GetStatusBarTexture()
-    if texture then
-        texture:SetVertexColor(newR, newG, newB, newA)
-    end
-end
-
-function Module:RestoreHealthBarColor(frame)
-    if not frame or not frame.healthBar or not frame.YATPOriginalHealthColor then
-        return
-    end
-    
-    local healthBar = frame.healthBar
-    local color = frame.YATPOriginalHealthColor
-    
-    healthBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
-    
-    -- Also restore texture color
-    local texture = healthBar:GetStatusBarTexture()
-    if texture then
-        texture:SetVertexColor(color[1], color[2], color[3], color[4])
-    end
-    
-    frame.YATPOriginalHealthColor = nil
-end
-
--- Helper function to apply white tint to a color
-function Module:ApplyWhiteTint(r, g, b, a, tintAmount)
-    -- Mix with white (1, 1, 1) based on tintAmount
-    -- tintAmount of 0 = no change, 1 = full white
-    local newR = r + (1 - r) * tintAmount
-    local newG = g + (1 - g) * tintAmount
-    local newB = b + (1 - b) * tintAmount
-    return newR, newG, newB, a
-end
-
 function Module:CleanupAllVisuals()
     -- Remove visuals from all nameplates
     for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
@@ -517,6 +507,71 @@ function Module:GetOptions()
                 end,
                 disabled = function() return not self.db.profile.enabled or not self.db.profile.border.enabled end,
                 order = 12,
+            },
+            
+            overlayHeader = {
+                type = "header",
+                name = L["Target Overlay"] or "Target Overlay",
+                order = 15,
+            },
+            
+            overlayEnabled = {
+                type = "toggle",
+                name = L["Enable Overlay"] or "Enable Overlay",
+                desc = L["Apply a tinted texture overlay to the target healthbar"] or "Apply a tinted texture overlay to the target healthbar",
+                get = function() return self.db.profile.overlay.enabled end,
+                set = function(_, value)
+                    self.db.profile.overlay.enabled = value
+                    self:ProcessAllNameplates()
+                end,
+                disabled = function() return not self.db.profile.enabled end,
+                order = 16,
+            },
+            
+            overlayTexture = {
+                type = "select",
+                name = L["Overlay Texture"] or "Overlay Texture",
+                desc = L["Choose the overlay texture pattern"] or "Choose the overlay texture pattern",
+                values = {
+                    [1] = "Texture 1",
+                    [2] = "Texture 2",
+                    [3] = "Texture 3",
+                },
+                get = function() return self.db.profile.overlay.texture end,
+                set = function(_, value)
+                    self.db.profile.overlay.texture = value
+                    self:ProcessAllNameplates()
+                end,
+                disabled = function() return not self.db.profile.enabled or not self.db.profile.overlay.enabled end,
+                order = 17,
+            },
+            
+            overlayWhiteBlend = {
+                type = "range",
+                name = L["White Blend"] or "White Blend",
+                desc = L["Amount of white to blend with the healthbar color (0 = original color, 1 = pure white)"] or "Amount of white to blend with the healthbar color (0 = original color, 1 = pure white)",
+                min = 0.0, max = 1.0, step = 0.05,
+                get = function() return self.db.profile.overlay.whiteBlend end,
+                set = function(_, value)
+                    self.db.profile.overlay.whiteBlend = value
+                    self:ProcessAllNameplates()
+                end,
+                disabled = function() return not self.db.profile.enabled or not self.db.profile.overlay.enabled end,
+                order = 18,
+            },
+            
+            overlayAlpha = {
+                type = "range",
+                name = L["Overlay Alpha"] or "Overlay Alpha",
+                desc = L["Transparency of the overlay effect (0 = invisible, 1 = solid)"] or "Transparency of the overlay effect (0 = invisible, 1 = solid)",
+                min = 0.0, max = 1.0, step = 0.05,
+                get = function() return self.db.profile.overlay.alpha end,
+                set = function(_, value)
+                    self.db.profile.overlay.alpha = value
+                    self:ProcessAllNameplates()
+                end,
+                disabled = function() return not self.db.profile.enabled or not self.db.profile.overlay.enabled end,
+                order = 19,
             },
             
             arrowsHeader = {
@@ -595,39 +650,6 @@ function Module:GetOptions()
                 end,
                 disabled = function() return not self.db.profile.enabled or not self.db.profile.arrows.enabled end,
                 order = 25,
-            },
-            
-            healthBarHeader = {
-                type = "header",
-                name = L["Health Bar Tint"] or "Health Bar Tint",
-                order = 30,
-            },
-            
-            healthBarTintEnabled = {
-                type = "toggle",
-                name = L["Enable Health Bar Tint"] or "Enable Health Bar Tint",
-                desc = L["Apply a white tint to the target's health bar for better visibility. Does not apply when mousing over the target."] or "Apply a white tint to the target's health bar for better visibility. Does not apply when mousing over the target.",
-                get = function() return self.db.profile.healthBarTint.enabled end,
-                set = function(_, value)
-                    self.db.profile.healthBarTint.enabled = value
-                    self:ProcessAllNameplates()
-                end,
-                disabled = function() return not self.db.profile.enabled end,
-                order = 31,
-            },
-            
-            healthBarTintAmount = {
-                type = "range",
-                name = L["Tint Amount"] or "Tint Amount",
-                desc = L["Amount of white tint to apply (0 = no tint, 1 = full white)"] or "Amount of white tint to apply (0 = no tint, 1 = full white)",
-                min = 0.0, max = 1.0, step = 0.05,
-                get = function() return self.db.profile.healthBarTint.tintAmount end,
-                set = function(_, value)
-                    self.db.profile.healthBarTint.tintAmount = value
-                    self:ProcessAllNameplates()
-                end,
-                disabled = function() return not self.db.profile.enabled or not self.db.profile.healthBarTint.enabled end,
-                order = 32,
             },
         }
     }

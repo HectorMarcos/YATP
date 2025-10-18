@@ -658,18 +658,22 @@ L["Enable target indicators"] = true
 L["Custom Border"] = true
 L["Enable Border"] = true
 L["Show custom border on target nameplate"] = true
+L["Color of the target border"] = true
+L["Target Overlay"] = true
+L["Enable Overlay"] = true
+L["Apply a tinted texture overlay to the target healthbar"] = true
+L["Overlay Texture"] = true
+L["Choose the overlay texture pattern"] = true
+L["White Blend"] = true
+L["Amount of white to blend with the healthbar color (0 = original color, 1 = pure white)"] = true
+L["Overlay Alpha"] = true
+L["Transparency of the overlay effect (0 = invisible, 1 = solid)"] = true
 L["Target Arrows"] = true
 L["Enable Arrows"] = true
 L["Show arrows pointing to target nameplate"] = true
-L["Color of the target border"] = true
 L["Color of the target arrows"] = true
 L["Size of the target arrows"] = true
 L["Horizontal distance from nameplate"] = true
 L["Vertical distance from nameplate"] = true
-L["Health Bar Tint"] = true
-L["Enable Health Bar Tint"] = true
-L["Apply a white tint to the target's health bar for better visibility. Does not apply when mousing over the target."] = true
-L["Tint Amount"] = true
-L["Amount of white tint to apply (0 = no tint, 1 = full white)"] = true
 
 
