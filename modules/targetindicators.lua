@@ -9,6 +9,7 @@ local addonName, YATP = ...
 local AceAddon = LibStub("AceAddon-3.0")
 local Module = AceAddon:GetAddon("YATP"):NewModule("TargetIndicators", "AceEvent-3.0", "AceTimer-3.0")
 local L = LibStub("AceLocale-3.0"):GetLocale("YATP", true) or {}
+local LSM = LibStub("LibSharedMedia-3.0", true)
 
 -------------------------------------------------
 -- Module Defaults
@@ -23,6 +24,14 @@ Module.defaults = {
             enabled = true,
             color = {1, 1, 0, 0.8}, -- Yellow by default
             size = 1,
+        },
+        
+        -- Target Overlay Settings (tinted healthbar texture)
+        overlay = {
+            enabled = true,
+            texture = 1, -- Texture ID: 1, 2, or 3 (overlay_indicator_1.tga, etc.)
+            whiteBlend = 0.5, -- Blend ratio with white (0 = original color, 1 = pure white)
+            alpha = 0.3, -- 30% opacity
         },
         
         -- Target Arrows Settings
@@ -152,6 +161,11 @@ function Module:ApplyTargetVisuals(frame)
         return 
     end
     
+    -- Apply overlay tint to healthbar
+    if self.db.profile.overlay.enabled then
+        self:ApplyTargetOverlay(frame)
+    end
+    
     -- Apply custom border
     if self.db.profile.border.enabled then
         self:AddCustomBorder(frame)
@@ -168,6 +182,11 @@ function Module:RemoveTargetVisuals(frame)
         return 
     end
     
+    -- Remove overlay
+    if frame.YATPTargetOverlay then
+        self:RemoveTargetOverlay(frame)
+    end
+    
     -- Remove arrows
     if frame.YATPTargetArrows then
         self:RemoveTargetArrows(frame)
@@ -177,6 +196,70 @@ function Module:RemoveTargetVisuals(frame)
     if frame.YATPCustomBorder then
         self:RemoveCustomBorder(frame)
     end
+end
+
+-------------------------------------------------
+-- Target Overlay System (Tinted Healthbar Texture)
+-------------------------------------------------
+
+function Module:ApplyTargetOverlay(frame)
+    if not frame or not frame.healthBar then
+        return
+    end
+    
+    local healthBar = frame.healthBar
+    
+    -- Remove existing overlay if any
+    if frame.YATPTargetOverlay then
+        self:RemoveTargetOverlay(frame)
+    end
+    
+    -- Get current healthbar color (always use the current bar color)
+    local r, g, b, a = healthBar:GetStatusBarColor()
+    
+    -- Blend with black based on whiteBlend setting (darken instead of lighten)
+    local whiteBlend = self.db.profile.overlay.whiteBlend or 0.5
+    local blendedR = (r * (1 - whiteBlend)) + (0 * whiteBlend)  -- Mix with black (0, 0, 0)
+    local blendedG = (g * (1 - whiteBlend)) + (0 * whiteBlend)
+    local blendedB = (b * (1 - whiteBlend)) + (0 * whiteBlend)
+    
+    -- Create overlay frame (higher FrameLevel to be above healthbar)
+    local overlayFrame = CreateFrame("Frame", nil, healthBar)
+    overlayFrame:SetFrameLevel(healthBar:GetFrameLevel() + 1)  -- +1 to be above healthbar
+    overlayFrame:SetAllPoints(healthBar)
+    
+    -- Create texture (use BORDER layer to be below statusText which is in OVERLAY)
+    local overlayTexture = overlayFrame:CreateTexture(nil, "BORDER")
+    overlayTexture:SetAllPoints(overlayFrame)
+    
+    -- Get texture path from media folder (overlay_indicator_1.tga, 2, or 3)
+    local textureID = self.db.profile.overlay.texture or 1
+    local texturePath = "Interface\\AddOns\\YATP\\media\\overlay_indicator_" .. textureID .. ".tga"
+    
+    overlayTexture:SetTexture(texturePath)
+    overlayTexture:SetVertexColor(blendedR, blendedG, blendedB, self.db.profile.overlay.alpha)
+    
+    -- Store overlay data
+    frame.YATPTargetOverlay = {
+        frame = overlayFrame,
+        texture = overlayTexture
+    }
+end
+
+function Module:RemoveTargetOverlay(frame)
+    if not frame or not frame.YATPTargetOverlay then
+        return
+    end
+    
+    -- Destroy overlay frame
+    if frame.YATPTargetOverlay.frame then
+        frame.YATPTargetOverlay.frame:Hide()
+        frame.YATPTargetOverlay.frame:SetParent(nil)
+        frame.YATPTargetOverlay.frame = nil
+    end
+    
+    -- Clear overlay data
+    frame.YATPTargetOverlay = nil
 end
 
 -------------------------------------------------
@@ -426,18 +509,69 @@ function Module:GetOptions()
                 order = 12,
             },
             
-            borderSize = {
-                type = "range",
-                name = L["Border Size"] or "Border Size",
-                desc = L["Thickness of the target border"] or "Thickness of the target border",
-                min = 1, max = 4, step = 1,
-                get = function() return self.db.profile.border.size end,
+            overlayHeader = {
+                type = "header",
+                name = L["Target Overlay"] or "Target Overlay",
+                order = 15,
+            },
+            
+            overlayEnabled = {
+                type = "toggle",
+                name = L["Enable Overlay"] or "Enable Overlay",
+                desc = L["Apply a tinted texture overlay to the target healthbar"] or "Apply a tinted texture overlay to the target healthbar",
+                get = function() return self.db.profile.overlay.enabled end,
                 set = function(_, value)
-                    self.db.profile.border.size = value
+                    self.db.profile.overlay.enabled = value
                     self:ProcessAllNameplates()
                 end,
-                disabled = function() return not self.db.profile.enabled or not self.db.profile.border.enabled end,
-                order = 13,
+                disabled = function() return not self.db.profile.enabled end,
+                order = 16,
+            },
+            
+            overlayTexture = {
+                type = "select",
+                name = L["Overlay Texture"] or "Overlay Texture",
+                desc = L["Choose the overlay texture pattern"] or "Choose the overlay texture pattern",
+                values = {
+                    [1] = "Texture 1",
+                    [2] = "Texture 2",
+                    [3] = "Texture 3",
+                },
+                get = function() return self.db.profile.overlay.texture end,
+                set = function(_, value)
+                    self.db.profile.overlay.texture = value
+                    self:ProcessAllNameplates()
+                end,
+                disabled = function() return not self.db.profile.enabled or not self.db.profile.overlay.enabled end,
+                order = 17,
+            },
+            
+            overlayWhiteBlend = {
+                type = "range",
+                name = L["White Blend"] or "White Blend",
+                desc = L["Amount of white to blend with the healthbar color (0 = original color, 1 = pure white)"] or "Amount of white to blend with the healthbar color (0 = original color, 1 = pure white)",
+                min = 0.0, max = 1.0, step = 0.05,
+                get = function() return self.db.profile.overlay.whiteBlend end,
+                set = function(_, value)
+                    self.db.profile.overlay.whiteBlend = value
+                    self:ProcessAllNameplates()
+                end,
+                disabled = function() return not self.db.profile.enabled or not self.db.profile.overlay.enabled end,
+                order = 18,
+            },
+            
+            overlayAlpha = {
+                type = "range",
+                name = L["Overlay Alpha"] or "Overlay Alpha",
+                desc = L["Transparency of the overlay effect (0 = invisible, 1 = solid)"] or "Transparency of the overlay effect (0 = invisible, 1 = solid)",
+                min = 0.0, max = 1.0, step = 0.05,
+                get = function() return self.db.profile.overlay.alpha end,
+                set = function(_, value)
+                    self.db.profile.overlay.alpha = value
+                    self:ProcessAllNameplates()
+                end,
+                disabled = function() return not self.db.profile.enabled or not self.db.profile.overlay.enabled end,
+                order = 19,
             },
             
             arrowsHeader = {

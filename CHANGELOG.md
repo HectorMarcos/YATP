@@ -7,6 +7,30 @@ and this project adheres (aspirationally) to Semantic Versioning once it reaches
 
 ## [Unreleased]
 
+## [0.9.3] - 2025-10-18
+
+### Changed
+
+- **Target Indicators**: Target overlay now darkens health bar color instead of lightening
+  - Changed blend from white (1,1,1) to black (0,0,0) for better visual contrast
+  - `whiteBlend` parameter now controls darkness: 0 = original color, 1 = fully darkened
+  - Default value remains 0.5 for 50% darkening effect
+  - Provides better visibility against bright health bar colors
+
+### Fixed
+
+- **NamePlates**: Custom background texture alpha now works consistently at all transparency levels
+  - Fixed incorrect use of `SetVertexColor()` with 4 parameters (RGBA) - API only accepts 3 (RGB)
+  - Alpha now properly applied to parent frame using `SetAlpha()` instead of texture
+  - Resolves inconsistent transparency behavior when adjusting alpha below 100%
+  - Background texture alpha slider now functions correctly from 0% to 100%
+
+### Technical Notes
+
+- Target overlay blend calculation simplified: `(color * (1 - blend)) + (0 * blend)` 
+- Background texture rendering: RGB via `SetVertexColor()`, alpha via frame `SetAlpha()`
+- WoW texture API limitation: `SetVertexColor()` ignores 4th parameter, requires separate alpha control
+
 ## [0.9.2] - 2025-10-17
 
 ### Added

@@ -22,13 +22,13 @@ Module.defaults = {
     
     -- Global Health Bar Texture Override
     globalHealthBarTexture = {
-        enabled = false,
+        enabled = true,
         texture = "Blizzard2", -- Default texture name from SharedMedia
     },
     
     -- Health Text Positioning
     healthTextPosition = {
-        enabled = false, -- Enable custom health text positioning
+        enabled = true, -- Enable custom health text positioning
         offsetX = 0,     -- Horizontal offset from center
         offsetY = 1,     -- Vertical offset from center (default: 1)
     },
@@ -81,7 +81,15 @@ Module.defaults = {
     -- Black Border System (All Nameplates)
     blackBorder = {
         enabled = true,
-        thickness = 1, -- Border thickness in pixels
+        thickness = 1, -- Border thickness in pixels (fixed, not configurable)
+        color = {0, 0, 0, 1}, -- RGBA: Black with full opacity
+    },
+    
+    -- Custom Background Texture System (All Nameplates)
+    customBackground = {
+        enabled = true,
+        texture = "Blizzard", -- Texture name from LibSharedMedia
+        color = {0, 0, 0, 0.8}, -- RGBA: Black with 80% opacity by default
     },
     
     -- Threat System
@@ -218,8 +226,11 @@ function Module:OnEnable()
     self:SetupQuestIcons()
     self:DisableAllNameplateGlows()
     
-    -- Setup black borders for all nameplates
+    -- Setup black borders for all nameplates (always enabled)
     self:SetupBlackBorders()
+    
+    -- Setup custom backgrounds for all nameplates (always enabled)
+    self:SetupCustomBackgrounds()
     
     -- Setup everything after a longer delay to ensure all addons are loaded
     C_Timer.After(2.0, function()
@@ -227,10 +238,10 @@ function Module:OnEnable()
         self:SetupThreatSystem()
     end)
     
-    -- Apply global health bar texture if enabled
+    -- Apply global health bar texture (always enabled)
     self:ApplyGlobalHealthBarTexture()
     
-    -- Setup health text positioning if enabled
+    -- Setup health text positioning (always enabled)
     self:SetupHealthTextPositioning()
     
     -- Setup non-target alpha fade if enabled
@@ -469,6 +480,9 @@ function Module:OnAscensionNamePlateCreated(nameplate)
     -- Setup mouseover health bar highlight for this nameplate
     self:SetupMouseoverHealthBarForNameplate(nameplate)
     
+    -- Add custom background texture to all nameplates
+    self:AddCustomBackground(nameplate)
+    
     -- Add black border to all nameplates (target borders handled by targetindicators module)
     self:AddCustomBorder(nameplate)
     
@@ -618,6 +632,71 @@ function Module:CleanupQuestIcons()
 end
 
 -------------------------------------------------
+-- Custom Background Texture System (All Nameplates)
+-------------------------------------------------
+
+function Module:AddCustomBackground(nameplate)
+    if not nameplate or not nameplate.UnitFrame then 
+        return 
+    end
+    
+    -- Check if custom backgrounds are enabled
+    if not self.db.profile.customBackground or not self.db.profile.customBackground.enabled then
+        return
+    end
+    
+    local healthBar = nameplate.UnitFrame.healthBar
+    if not healthBar then 
+        return 
+    end
+    
+    -- Remove existing background if any
+    if nameplate.YATPCustomBackground then
+        nameplate.YATPCustomBackground:Hide()
+        nameplate.YATPCustomBackground:SetParent(nil)
+        nameplate.YATPCustomBackground = nil
+    end
+    
+    -- Create background frame (parent to healthBar, below the actual bar)
+    local bgFrame = CreateFrame("Frame", nil, healthBar)
+    bgFrame:SetFrameLevel(healthBar:GetFrameLevel() - 1)  -- One level below healthBar
+    bgFrame:SetAllPoints(healthBar)
+    
+    -- Create background texture
+    local bgTexture = bgFrame:CreateTexture(nil, "BACKGROUND")
+    bgTexture:SetAllPoints(bgFrame)
+    
+    -- Get texture path from LibSharedMedia
+    local LSM = LibStub("LibSharedMedia-3.0", true)
+    local texturePath = "Interface\\TargetingFrame\\UI-StatusBar" -- Default Blizzard texture
+    if LSM then
+        local selectedTexture = self.db.profile.customBackground.texture or "Blizzard"
+        texturePath = LSM:Fetch("statusbar", selectedTexture, true) or texturePath
+    end
+    
+    bgTexture:SetTexture(texturePath)
+    
+    -- Apply color (RGB only, no alpha in SetVertexColor)
+    local color = self.db.profile.customBackground.color or {0, 0, 0, 0.8}
+    bgTexture:SetVertexColor(color[1], color[2], color[3])
+    
+    -- Apply alpha to the frame (not the texture)
+    bgFrame:SetAlpha(color[4])
+    
+    -- Store reference
+    nameplate.YATPCustomBackground = bgFrame
+end
+
+function Module:SetupCustomBackgrounds()
+    -- Apply to all active nameplates (always enabled)
+    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
+        if nameplate.UnitFrame then
+            self:AddCustomBackground(nameplate)
+        end
+    end
+end
+
+-------------------------------------------------
 -- Custom Border System (All Nameplates)
 -------------------------------------------------
 
@@ -629,19 +708,14 @@ function Module:AddCustomBorder(nameplate)
         return 
     end
     
-    -- Check if black borders are enabled
-    if not self.db.profile.blackBorder or not self.db.profile.blackBorder.enabled then
-        return
-    end
-    
     local healthBar = nameplate.UnitFrame.healthBar
     if not healthBar then 
         return 
     end
     
-    -- All nameplates get black borders
+    -- All nameplates get black borders (always enabled)
     local borderThickness = self.db.profile.blackBorder.thickness or 1
-    local borderColor = {0, 0, 0, 1}
+    local borderColor = self.db.profile.blackBorder.color or {0, 0, 0, 1}
     
     -- If border already exists, update its color
     if self.targetGlowFrames and self.targetGlowFrames[nameplate] then
@@ -827,11 +901,11 @@ end
 -------------------------------------------------
 
 function Module:SetupMouseoverHealthBarHighlight()
-    if not self.db.profile.enabled or not self.db.profile.mouseoverHealthBarHighlight.enabled then
+    if not self.db.profile.enabled then
         return
     end
     
-    -- Initialize tracking
+    -- Initialize tracking (always enabled)
     self.mouseoverHealthBarData = {}
     
     -- Register mouseover event
@@ -841,9 +915,7 @@ function Module:SetupMouseoverHealthBarHighlight()
     if not self.mouseoverUpdateFrame then
         self.mouseoverUpdateFrame = CreateFrame("Frame")
         self.mouseoverUpdateFrame:SetScript("OnUpdate", function()
-            if self.db.profile.mouseoverHealthBarHighlight.enabled then
-                self:MaintainMouseoverColors()
-            end
+            self:MaintainMouseoverColors()
         end)
     end
     self.mouseoverUpdateFrame:Show()
@@ -1114,6 +1186,7 @@ function Module:SetupMouseoverBorderBlock()
         for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
             if nameplate.UnitFrame then
                 self:BlockNameplateBorderGlow(nameplate)
+                self:HideHealthBarBackground(nameplate.UnitFrame)
             end
         end
     end)
@@ -1129,6 +1202,11 @@ function Module:ForceBlackBordersOnAllNameplates()
             
             -- Force alpha to 0 on native border (always hidden)
             nameplate.UnitFrame.healthBar.border:SetAlpha(0)
+        end
+        
+        -- Also hide healthbar backgrounds
+        if nameplate.UnitFrame then
+            self:HideHealthBarBackground(nameplate.UnitFrame)
         end
     end
 end
@@ -1153,7 +1231,54 @@ function Module:BlockNameplateBorderGlow(nameplate)
     -- NEW BEHAVIOR: Simply force native border alpha to 0 (always hidden)
     unitFrame.healthBar.border:SetAlpha(0)
     
+    -- Also hide the healthbar background (make it fully transparent)
+    self:HideHealthBarBackground(unitFrame)
+    
     return true
+end
+
+function Module:HideHealthBarBackground(unitFrame)
+    if not unitFrame or not unitFrame.healthBar then
+        return
+    end
+    
+    local healthBar = unitFrame.healthBar
+    
+    -- Force backdrop background to transparent
+    local bgFile = healthBar:GetBackdrop()
+    if bgFile then
+        healthBar:SetBackdropColor(0, 0, 0, 0)
+    end
+    
+    -- Hide .bg property if it exists
+    if healthBar.bg then
+        healthBar.bg:SetAlpha(0)
+    end
+    
+    -- Hide all BACKGROUND layer textures
+    local regions = {healthBar:GetRegions()}
+    for _, region in ipairs(regions) do
+        if region:GetObjectType() == "Texture" then
+            local drawLayer = region:GetDrawLayer()
+            if drawLayer == "BACKGROUND" then
+                region:SetAlpha(0)
+            end
+        end
+    end
+    
+    -- Check for common background property names
+    if healthBar.background then
+        healthBar.background:SetAlpha(0)
+    end
+    if healthBar.Background then
+        healthBar.Background:SetAlpha(0)
+    end
+    if healthBar.BG then
+        healthBar.BG:SetAlpha(0)
+    end
+    if healthBar.bgTexture then
+        healthBar.bgTexture:SetAlpha(0)
+    end
 end
 
 function Module:UnblockAllBorderGlows()
@@ -1761,16 +1886,12 @@ function Module:SetNamePlatesOption(section, key, subkey, newValue)
 end
 
 function Module:ApplyGlobalHealthBarTexture()
-    if not self.db.profile.globalHealthBarTexture.enabled then
-        return
-    end
-    
     local textureName = self.db.profile.globalHealthBarTexture.texture
     if not textureName then
         return
     end
     
-    -- Apply to all nameplate types
+    -- Apply to all nameplate types (always enabled)
     self:SetNamePlatesOption("friendly", "health", "statusBar", textureName)
     self:SetNamePlatesOption("enemy", "health", "statusBar", textureName)
     self:SetNamePlatesOption("personal", "health", "statusBar", textureName)
@@ -1780,22 +1901,16 @@ end
 -- Health Text Positioning System
 -------------------------------------------------
 function Module:SetupHealthTextPositioning()
-    if not self.db.profile.healthTextPosition.enabled then
-        return
-    end
-    
     -- Register events to apply positioning to nameplates
     self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "OnHealthTextNameplateAdded")
     
     -- Apply positioning to existing nameplates
     self:ApplyHealthTextPositionToAll()
     
-    -- Create a timer to periodically check and apply positioning
+    -- Create a timer to periodically check and apply positioning (always enabled)
     if not self.healthTextPositionTimer then
         self.healthTextPositionTimer = C_Timer.NewTicker(1, function()
-            if self.db.profile.healthTextPosition.enabled then
-                self:ApplyHealthTextPositionToAll()
-            end
+            self:ApplyHealthTextPositionToAll()
         end)
     end
 end
@@ -2293,6 +2408,14 @@ function Module:BuildTabStructure()
             order = 4,
             args = self:BuildQuestIconsTab()
         }
+        
+        tabs.threat = {
+            type = "group",
+            name = L["Threat System"] or "Threat System",
+            desc = L["Configure threat-based nameplate coloring"] or "Configure threat-based nameplate coloring",
+            order = 5,
+            args = self:BuildThreatTab()
+        }
     end
     
     -- Target Indicators Tab (always available, separate module)
@@ -2302,7 +2425,7 @@ function Module:BuildTabStructure()
             type = "group",
             name = L["Target Indicators"] or "Target Indicators",
             desc = L["Custom border and arrows for target nameplate"] or "Custom border and arrows for target nameplate",
-            order = 5,
+            order = 6,
             args = targetIndicatorsModule:GetOptions().args
         }
     end
@@ -2616,20 +2739,6 @@ function Module:BuildGeneralTab()
             order = 11,
         },
         
-        globalTextureEnabled = {
-            type = "toggle",
-            name = L["Enable Global Health Bar Texture"] or "Enable Global Health Bar Texture",
-            desc = L["Apply the same health bar texture to all nameplate types"] or "Apply the same health bar texture to all nameplate types",
-            get = function() return self.db.profile.globalHealthBarTexture.enabled end,
-            set = function(_, value) 
-                self.db.profile.globalHealthBarTexture.enabled = value
-                if value then
-                    self:ApplyGlobalHealthBarTexture()
-                end
-            end,
-            order = 12,
-        },
-        
         globalTexture = {
             type = "select",
             name = L["Health Bar Texture"] or "Health Bar Texture",
@@ -2642,39 +2751,53 @@ function Module:BuildGeneralTab()
             get = function() return self.db.profile.globalHealthBarTexture.texture end,
             set = function(_, value) 
                 self.db.profile.globalHealthBarTexture.texture = value
-                if self.db.profile.globalHealthBarTexture.enabled then
-                    self:ApplyGlobalHealthBarTexture()
-                end
+                self:ApplyGlobalHealthBarTexture()
             end,
-            disabled = function() return not self.db.profile.globalHealthBarTexture.enabled end,
+            order = 12,
+        },
+        
+        customBackgroundTexture = {
+            type = "select",
+            name = L["Background Texture"] or "Background Texture",
+            desc = L["Texture to use for the background behind health bars"] or "Texture to use for the background behind health bars",
+            dialogControl = "LSM30_Statusbar",
+            values = function() 
+                local LSM = LibStub("LibSharedMedia-3.0", true)
+                return LSM and LSM:HashTable("statusbar") or {}
+            end,
+            get = function() return self.db.profile.customBackground.texture end,
+            set = function(_, value)
+                self.db.profile.customBackground.texture = value
+                self:SetupCustomBackgrounds()
+            end,
             order = 13,
+        },
+        
+        customBackgroundColor = {
+            type = "color",
+            name = L["Background Color"] or "Background Color",
+            desc = L["Color and transparency of the background texture"] or "Color and transparency of the background texture",
+            hasAlpha = true,
+            get = function()
+                local c = self.db.profile.customBackground.color or {0, 0, 0, 0.8}
+                return c[1], c[2], c[3], c[4]
+            end,
+            set = function(_, r, g, b, a)
+                self.db.profile.customBackground.color = {r, g, b, a}
+                self:SetupCustomBackgrounds()
+            end,
+            order = 14,
         },
         
         spacer2 = { type = "description", name = "\n", order = 15 },
         
         -- Health Text Positioning
-        healthTextHeader = { type = "header", name = L["Health Text Positioning"] or "Health Text Positioning", order = 16 },
+        healthTextHeader = { type = "header", name = L["Health Text Positioning"] or "Health Text Positioning", order = 20 },
         
         healthTextDesc = {
             type = "description",
             name = L["Customize the position of the health text displayed on nameplates. The default position is centered with a 1 pixel offset upward."] or "Customize the position of the health text displayed on nameplates. The default position is centered with a 1 pixel offset upward.",
-            order = 17,
-        },
-        
-        healthTextEnabled = {
-            type = "toggle",
-            name = L["Enable Custom Health Text Position"] or "Enable Custom Health Text Position",
-            desc = L["Enable custom positioning for health text on all nameplates"] or "Enable custom positioning for health text on all nameplates",
-            get = function() return self.db.profile.healthTextPosition.enabled end,
-            set = function(_, value) 
-                self.db.profile.healthTextPosition.enabled = value
-                if value then
-                    self:SetupHealthTextPositioning()
-                else
-                    self:CleanupHealthTextPositioning()
-                end
-            end,
-            order = 18,
+            order = 21,
         },
         
         healthTextOffsetX = {
@@ -2687,8 +2810,7 @@ function Module:BuildGeneralTab()
                 self.db.profile.healthTextPosition.offsetX = value
                 self:UpdateHealthTextPosition()
             end,
-            disabled = function() return not self.db.profile.healthTextPosition.enabled end,
-            order = 19,
+            order = 22,
         },
         
         healthTextOffsetY = {
@@ -2701,173 +2823,45 @@ function Module:BuildGeneralTab()
                 self.db.profile.healthTextPosition.offsetY = value
                 self:UpdateHealthTextPosition()
             end,
-            disabled = function() return not self.db.profile.healthTextPosition.enabled end,
-            order = 20,
-        },
-        
-        healthTextReset = {
-            type = "execute",
-            name = L["Reset to Default"] or "Reset to Default",
-            desc = L["Reset health text position to default values (X: 0, Y: 1)"] or "Reset health text position to default values (X: 0, Y: 1)",
-            func = function()
-                self.db.profile.healthTextPosition.offsetX = 0
-                self.db.profile.healthTextPosition.offsetY = 1
-                self:UpdateHealthTextPosition()
-            end,
-            disabled = function() return not self.db.profile.healthTextPosition.enabled end,
-            order = 21,
+            order = 23,
         },
         
         spacer3 = { type = "description", name = "\n", order = 25 },
         
-        -- Threat System (YATP Custom Feature)
-        threatHeader = { type = "header", name = L["Threat System (YATP Custom)"] or "Threat System (YATP Custom)", order = 35 },
-        
-        threatEnabled = {
-            type = "toggle",
-            name = L["Enable Threat System"] or "Enable Threat System",
-            desc = "Color nameplates based on your threat level with that enemy. Only works when in a party or raid - automatically disabled when solo since threat is not meaningful.",
-            get = function() return self.db.profile.threatSystem.enabled end,
-            set = function(_, value) 
-                self.db.profile.threatSystem.enabled = value
-                if value then
-                    self:SetupThreatSystem()
-                else
-                    self:CleanupThreatSystem()
-                end
-            end,
-            order = 36,
-        },
-        
-        threatColors = {
-            type = "group",
-            name = L["Threat Colors"] or "Threat Colors",
-            desc = L["Configure colors for different threat levels"] or "Configure colors for different threat levels",
-            inline = true,
-            disabled = function() return not self.db.profile.threatSystem.enabled end,
-            order = 37,
-            args = {
-                low = {
-                    type = "color",
-                    name = L["Low Threat"] or "Low Threat",
-                    desc = L["Color when you have low threat"] or "Color when you have low threat",
-                    get = function() 
-                        local c = self.db.profile.threatSystem.colors.low
-                        return c[1], c[2], c[3], c[4]
-                    end,
-                    set = function(_, r, g, b, a) 
-                        self.db.profile.threatSystem.colors.low = {r, g, b, a}
-                        self:UpdateThreatSettings()
-                    end,
-                    order = 1,
-                },
-                medium = {
-                    type = "color",
-                    name = L["Medium Threat"] or "Medium Threat",
-                    desc = L["Color when you have medium threat"] or "Color when you have medium threat",
-                    get = function() 
-                        local c = self.db.profile.threatSystem.colors.medium
-                        return c[1], c[2], c[3], c[4]
-                    end,
-                    set = function(_, r, g, b, a) 
-                        self.db.profile.threatSystem.colors.medium = {r, g, b, a}
-                        self:UpdateThreatSettings()
-                    end,
-                    order = 2,
-                },
-                high = {
-                    type = "color",
-                    name = L["High Threat"] or "High Threat",
-                    desc = L["Color when you have high threat"] or "Color when you have high threat",
-                    get = function() 
-                        local c = self.db.profile.threatSystem.colors.high
-                        return c[1], c[2], c[3], c[4]
-                    end,
-                    set = function(_, r, g, b, a) 
-                        self.db.profile.threatSystem.colors.high = {r, g, b, a}
-                        self:UpdateThreatSettings()
-                    end,
-                    order = 3,
-                },
-                tanking = {
-                    type = "color",
-                    name = L["Tanking"] or "Tanking",
-                    desc = L["Color when you have aggro"] or "Color when you have aggro",
-                    get = function() 
-                        local c = self.db.profile.threatSystem.colors.tanking
-                        return c[1], c[2], c[3], c[4]
-                    end,
-                    set = function(_, r, g, b, a) 
-                        self.db.profile.threatSystem.colors.tanking = {r, g, b, a}
-                        self:UpdateThreatSettings()
-                    end,
-                    order = 4,
-                },
-            },
-        },
-        
-        spacer4 = { type = "description", name = "\n", order = 40 },
-        
         -- Black Border System (YATP Custom Feature)
-        blackBorderHeader = { type = "header", name = L["Black Border (YATP Custom)"] or "Black Border (YATP Custom)", order = 41 },
+        blackBorderHeader = { type = "header", name = L["Black Border (YATP Custom)"] or "Black Border (YATP Custom)", order = 30 },
         
         blackBorderDesc = {
             type = "description",
             name = L["Add a black border around all nameplates. This provides a clean visual separation. Target nameplates will use the custom border from Target Indicators instead."] or "Add a black border around all nameplates. This provides a clean visual separation. Target nameplates will use the custom border from Target Indicators instead.",
-            order = 42,
+            order = 31,
         },
         
-        blackBorderEnabled = {
-            type = "toggle",
-            name = L["Enable Black Border"] or "Enable Black Border",
-            desc = L["Show black border on all nameplates"] or "Show black border on all nameplates",
-            get = function() return self.db.profile.blackBorder.enabled end,
-            set = function(_, value) 
-                self.db.profile.blackBorder.enabled = value
+        blackBorderColor = {
+            type = "color",
+            name = L["Border Color"] or "Border Color",
+            desc = L["Color of the black border"] or "Color of the black border",
+            hasAlpha = true,
+            get = function()
+                local c = self.db.profile.blackBorder.color or {0, 0, 0, 1}
+                return c[1], c[2], c[3], c[4]
+            end,
+            set = function(_, r, g, b, a)
+                self.db.profile.blackBorder.color = {r, g, b, a}
                 self:SetupBlackBorders()
             end,
-            order = 43,
+            order = 32,
         },
         
-        blackBorderThickness = {
-            type = "range",
-            name = L["Border Thickness"] or "Border Thickness",
-            desc = L["Thickness of the black border in pixels"] or "Thickness of the black border in pixels",
-            min = 1, max = 4, step = 1,
-            get = function() return self.db.profile.blackBorder.thickness end,
-            set = function(_, value) 
-                self.db.profile.blackBorder.thickness = value
-                self:SetupBlackBorders()
-            end,
-            disabled = function() return not self.db.profile.blackBorder.enabled end,
-            order = 44,
-        },
-        
-        spacer5 = { type = "description", name = "\n", order = 48 },
+        spacer4 = { type = "description", name = "\n", order = 35 },
         
         -- Mouseover Health Bar Highlight (YATP Custom Feature)
-        mouseoverHighlightHeader = { type = "header", name = L["Mouseover Health Bar Highlight (YATP Custom)"] or "Mouseover Health Bar Highlight (YATP Custom)", order = 49 },
+        mouseoverHighlightHeader = { type = "header", name = L["Mouseover Health Bar Highlight (YATP Custom)"] or "Mouseover Health Bar Highlight (YATP Custom)", order = 40 },
         
         mouseoverHighlightDesc = {
             type = "description",
-            name = L["Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target."] or "Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target.",
-            order = 50,
-        },
-        
-        mouseoverHighlightEnabled = {
-            type = "toggle",
-            name = L["Enable Mouseover Highlight"] or "Enable Mouseover Highlight",
-            desc = L["Highlight the health bar when mousing over non-target nameplates. Uses a white tint effect (50% mix) for subtle visibility."] or "Highlight the health bar when mousing over non-target nameplates. Uses a white tint effect (50% mix) for subtle visibility.",
-            get = function() return self.db.profile.mouseoverHealthBarHighlight.enabled end,
-            set = function(_, value) 
-                self.db.profile.mouseoverHealthBarHighlight.enabled = value
-                if value then
-                    self:SetupMouseoverHealthBarHighlight()
-                else
-                    self:CleanupMouseoverHealthBarHighlight()
-                end
-            end,
-            order = 51,
+            name = L["A subtle color change is applied to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target."] or "A subtle color change is applied to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target.",
+            order = 41,
         },
     }
 end
@@ -3109,4 +3103,134 @@ function Module:BuildQuestIconsTab()
         },
     }
 end
+
+-------------------------------------------------
+-- Build Threat Tab
+-------------------------------------------------
+function Module:BuildThreatTab()
+    return {
+        desc = {
+            type = "description",
+            name = L["Configure the Threat System to color nameplates based on your threat level with enemies. Only active when in a party or raid."] or "Configure the Threat System to color nameplates based on your threat level with enemies. Only active when in a party or raid.",
+            order = 1,
+        },
+        
+        spacer1 = { type = "description", name = "\n", order = 5 },
+        
+        -- Threat System Enabled
+        threatHeader = { type = "header", name = L["Threat System Settings"] or "Threat System Settings", order = 10 },
+        
+        threatEnabled = {
+            type = "toggle",
+            name = L["Enable Threat System"] or "Enable Threat System",
+            desc = L["Color nameplates based on your threat level with that enemy. Only works when in a party or raid - automatically disabled when solo since threat is not meaningful."] or "Color nameplates based on your threat level with that enemy. Only works when in a party or raid - automatically disabled when solo since threat is not meaningful.",
+            get = function() return self.db.profile.threatSystem.enabled end,
+            set = function(_, value) 
+                self.db.profile.threatSystem.enabled = value
+                if value then
+                    self:SetupThreatSystem()
+                else
+                    self:CleanupThreatSystem()
+                end
+            end,
+            order = 11,
+        },
+        
+        spacer2 = { type = "description", name = "\n", order = 15 },
+        
+        -- Threat Colors
+        threatColorsHeader = { type = "header", name = L["Threat Colors"] or "Threat Colors", order = 20 },
+        
+        threatColorsDesc = {
+            type = "description",
+            name = L["Configure the colors for each threat level. The health bar will change color based on your threat status."] or "Configure the colors for each threat level. The health bar will change color based on your threat status.",
+            order = 21,
+        },
+        
+        threatColorLow = {
+            type = "color",
+            name = L["Low Threat"] or "Low Threat",
+            desc = L["Color when you have low threat (someone else has solid aggro)"] or "Color when you have low threat (someone else has solid aggro)",
+            hasAlpha = true,
+            get = function() 
+                local c = self.db.profile.threatSystem.colors.low
+                return c[1], c[2], c[3], c[4]
+            end,
+            set = function(_, r, g, b, a) 
+                self.db.profile.threatSystem.colors.low = {r, g, b, a}
+                self:UpdateThreatSettings()
+            end,
+            disabled = function() return not self.db.profile.threatSystem.enabled end,
+            order = 22,
+        },
+        
+        threatColorMedium = {
+            type = "color",
+            name = L["Medium Threat"] or "Medium Threat",
+            desc = L["Color when you have medium threat (pulling aggro)"] or "Color when you have medium threat (pulling aggro)",
+            hasAlpha = true,
+            get = function() 
+                local c = self.db.profile.threatSystem.colors.medium
+                return c[1], c[2], c[3], c[4]
+            end,
+            set = function(_, r, g, b, a) 
+                self.db.profile.threatSystem.colors.medium = {r, g, b, a}
+                self:UpdateThreatSettings()
+            end,
+            disabled = function() return not self.db.profile.threatSystem.enabled end,
+            order = 23,
+        },
+        
+        threatColorHigh = {
+            type = "color",
+            name = L["High Threat"] or "High Threat",
+            desc = L["Color when you have high threat (about to pull aggro)"] or "Color when you have high threat (about to pull aggro)",
+            hasAlpha = true,
+            get = function() 
+                local c = self.db.profile.threatSystem.colors.high
+                return c[1], c[2], c[3], c[4]
+            end,
+            set = function(_, r, g, b, a) 
+                self.db.profile.threatSystem.colors.high = {r, g, b, a}
+                self:UpdateThreatSettings()
+            end,
+            disabled = function() return not self.db.profile.threatSystem.enabled end,
+            order = 24,
+        },
+        
+        threatColorTanking = {
+            type = "color",
+            name = L["Tanking (Aggro)"] or "Tanking (Aggro)",
+            desc = L["Color when you have aggro (enemy is attacking you)"] or "Color when you have aggro (enemy is attacking you)",
+            hasAlpha = true,
+            get = function() 
+                local c = self.db.profile.threatSystem.colors.tanking
+                return c[1], c[2], c[3], c[4]
+            end,
+            set = function(_, r, g, b, a) 
+                self.db.profile.threatSystem.colors.tanking = {r, g, b, a}
+                self:UpdateThreatSettings()
+            end,
+            disabled = function() return not self.db.profile.threatSystem.enabled end,
+            order = 25,
+        },
+        
+        spacer3 = { type = "description", name = "\n", order = 30 },
+        
+        -- Information
+        threatInfoHeader = { type = "header", name = L["How It Works"] or "How It Works", order = 35 },
+        
+        threatInfo = {
+            type = "description",
+            name = "|cff00ff00" .. (L["Threat Detection"] or "Threat Detection") .. ":|r\n" ..
+                   (L["The system monitors your threat level against each enemy and colors their health bar accordingly. This helps you understand your threat status at a glance."] or 
+                   "The system monitors your threat level against each enemy and colors their health bar accordingly. This helps you understand your threat status at a glance.") .. "\n\n" ..
+                   "|cffFFD700" .. (L["Party/Raid Only"] or "Party/Raid Only") .. ":|r\n" ..
+                   (L["The threat system only activates when you're in a party or raid. When solo, threat is not meaningful since you always have aggro, so the system remains inactive to avoid unnecessary performance impact."] or
+                   "The threat system only activates when you're in a party or raid. When solo, threat is not meaningful since you always have aggro, so the system remains inactive to avoid unnecessary performance impact."),
+            order = 36,
+        },
+    }
+end
+
 

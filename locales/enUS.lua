@@ -414,9 +414,14 @@ L["Pulse (Fade In/Out)"] = true
 L["Breathe (Scale In/Out)"] = true
 
 -- Threat System
+L["Threat System"] = true
+L["Configure threat-based nameplate coloring"] = true
+L["Configure the Threat System to color nameplates based on your threat level with enemies. Only active when in a party or raid."] = true
+L["Threat System Settings"] = true
 L["Threat System (YATP Custom)"] = true
 L["Enable Threat System"] = true
 L["Color nameplates based on your threat level with that enemy"] = true
+L["Color nameplates based on your threat level with that enemy. Only works when in a party or raid - automatically disabled when solo since threat is not meaningful."] = true
 L["Threat Display Method"] = true
 L["How threat levels are displayed on nameplates"] = true
 L["Name Color"] = true
@@ -424,16 +429,26 @@ L["Health Bar Color"] = true
 L["Border Color"] = true
 L["Threat Colors"] = true
 L["Configure colors for different threat levels"] = true
+L["Configure the colors for each threat level. The health bar will change color based on your threat status."] = true
 L["No Threat"] = true
 L["Color when you have no threat"] = true
 L["Low Threat"] = true
 L["Color when you have low threat"] = true
+L["Color when you have low threat (someone else has solid aggro)"] = true
 L["Medium Threat"] = true
 L["Color when you have medium threat"] = true
+L["Color when you have medium threat (pulling aggro)"] = true
 L["High Threat"] = true
 L["Color when you have high threat"] = true
+L["Color when you have high threat (about to pull aggro)"] = true
 L["Tanking"] = true
+L["Tanking (Aggro)"] = true
 L["Color when you have aggro"] = true
+L["Color when you have aggro (enemy is attacking you)"] = true
+L["Threat Detection"] = true
+L["The system monitors your threat level against each enemy and colors their health bar accordingly. This helps you understand your threat status at a glance."] = true
+L["Party/Raid Only"] = true
+L["The threat system only activates when you're in a party or raid. When solo, threat is not meaningful since you always have aggro, so the system remains inactive to avoid unnecessary performance impact."] = true
 
 L["Additional Enemy Options"] = true
 L["For more enemy nameplate customization options, visit the"] = true
@@ -606,13 +621,22 @@ L["Tracking"] = true
 L["All Quests"] = true
 L["By Zone"] = true
 
+-- Custom Background Texture System
+L["Custom Background Texture"] = true
+L["Add a custom texture background behind all healthbars. Choose texture and color."] = true
+L["Enable Custom Background"] = true
+L["Show custom background texture on all nameplates"] = true
+L["Background Texture"] = true
+L["Texture to use for the background"] = true
+L["Background Color"] = true
+L["Color and transparency of the background texture"] = true
+
 -- Black Border System
 L["Black Border (YATP Custom)"] = true
 L["Add a black border around all nameplates. This provides a clean visual separation. Target nameplates will use the custom border from Target Indicators instead."] = true
 L["Enable Black Border"] = true
 L["Show black border on all nameplates"] = true
-L["Border Thickness"] = true
-L["Thickness of the black border in pixels"] = true
+L["Color of the black border"] = true
 
 -- Mouseover Health Bar Highlight
 L["Mouseover Health Bar Highlight (YATP Custom)"] = true
@@ -659,12 +683,19 @@ L["Enable target indicators"] = true
 L["Custom Border"] = true
 L["Enable Border"] = true
 L["Show custom border on target nameplate"] = true
+L["Color of the target border"] = true
+L["Target Overlay"] = true
+L["Enable Overlay"] = true
+L["Apply a tinted texture overlay to the target healthbar"] = true
+L["Overlay Texture"] = true
+L["Choose the overlay texture pattern"] = true
+L["White Blend"] = true
+L["Amount of white to blend with the healthbar color (0 = original color, 1 = pure white)"] = true
+L["Overlay Alpha"] = true
+L["Transparency of the overlay effect (0 = invisible, 1 = solid)"] = true
 L["Target Arrows"] = true
 L["Enable Arrows"] = true
 L["Show arrows pointing to target nameplate"] = true
-L["Color of the target border"] = true
-L["Border Size"] = true
-L["Thickness of the target border"] = true
 L["Color of the target arrows"] = true
 L["Size of the target arrows"] = true
 L["Horizontal distance from nameplate"] = true
