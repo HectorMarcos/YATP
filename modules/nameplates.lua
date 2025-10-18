@@ -676,9 +676,12 @@ function Module:AddCustomBackground(nameplate)
     
     bgTexture:SetTexture(texturePath)
     
-    -- Apply color and alpha
+    -- Apply color (RGB only, no alpha in SetVertexColor)
     local color = self.db.profile.customBackground.color or {0, 0, 0, 0.8}
-    bgTexture:SetVertexColor(color[1], color[2], color[3], color[4])
+    bgTexture:SetVertexColor(color[1], color[2], color[3])
+    
+    -- Apply alpha to the frame (not the texture)
+    bgFrame:SetAlpha(color[4])
     
     -- Store reference
     nameplate.YATPCustomBackground = bgFrame
