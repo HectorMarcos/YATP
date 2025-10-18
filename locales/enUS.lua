@@ -613,16 +613,6 @@ L["Enable Black Border"] = true
 L["Show black border on all nameplates"] = true
 L["Color of the black border"] = true
 
--- Custom Background Texture
-L["Custom Background Texture (YATP Custom)"] = true
-L["Add a custom background texture below the health bar. The original background is forced to 0% alpha to avoid interference."] = true
-L["Enable Custom Background"] = true
-L["Show custom background texture on all nameplates"] = true
-L["Background Texture"] = true
-L["Texture to use for the background"] = true
-L["Background Color"] = true
-L["Color and alpha of the background texture"] = true
-
 -- Mouseover Health Bar Highlight
 L["Mouseover Health Bar Highlight (YATP Custom)"] = true
 L["Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target."] = true

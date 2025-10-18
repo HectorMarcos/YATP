@@ -26,13 +26,6 @@ Module.defaults = {
         texture = "Blizzard2", -- Default texture name from SharedMedia
     },
     
-    -- Custom Background Texture (below healthbar)
-    customBackground = {
-        enabled = false,
-        texture = "Blizzard", -- Texture from LibSharedMedia
-        color = {0, 0, 0, 0.5}, -- RGBA color (black, 50% alpha by default)
-    },
-    
     -- Health Text Positioning
     healthTextPosition = {
         enabled = false, -- Enable custom health text positioning
@@ -480,9 +473,6 @@ function Module:OnAscensionNamePlateCreated(nameplate)
     -- Add black border to all nameplates (target borders handled by targetindicators module)
     self:AddCustomBorder(nameplate)
     
-    -- Setup custom background texture (force original background to 0% alpha)
-    self:SetupCustomBackground(nameplate)
-    
     -- NOTE: Quest icon setup is handled in OnNamePlateAdded with a delay
     -- because UnitFrame may not be ready at this point
 end
@@ -728,70 +718,6 @@ function Module:SetupBlackBorders()
             end
         end
     end)
-end
-
--------------------------------------------------
--- Custom Background Texture System
--------------------------------------------------
-
-function Module:SetupCustomBackground(nameplate)
-    -- Step 1: Force original background to 0% alpha using SetNamePlatesOption
-    -- This affects ALL nameplates globally
-    self:SetNamePlatesOption("friendly", "health", "backgroundAlpha", 0)
-    self:SetNamePlatesOption("enemy", "health", "backgroundAlpha", 0)
-    self:SetNamePlatesOption("personal", "health", "backgroundAlpha", 0)
-    
-    -- Step 2: Add our custom background texture (only if enabled and nameplate valid)
-    if not self.db.profile.customBackground.enabled then
-        return
-    end
-    
-    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
-        return
-    end
-    
-    self:AddCustomBackgroundTexture(nameplate)
-end
-
-function Module:AddCustomBackgroundTexture(nameplate)
-    if not nameplate or not nameplate.UnitFrame or not nameplate.UnitFrame.healthBar then
-        return
-    end
-    
-    local healthBar = nameplate.UnitFrame.healthBar
-    
-    -- Remove existing custom background if any
-    if nameplate.YATPCustomBackground then
-        nameplate.YATPCustomBackground:Hide()
-        nameplate.YATPCustomBackground:SetParent(nil)
-        nameplate.YATPCustomBackground = nil
-    end
-    
-    -- Create background frame (BELOW healthbar)
-    local bgFrame = CreateFrame("Frame", nil, healthBar)
-    bgFrame:SetFrameLevel(healthBar:GetFrameLevel() - 1)  -- Below healthbar
-    bgFrame:SetAllPoints(healthBar)
-    
-    -- Create texture
-    local bgTexture = bgFrame:CreateTexture(nil, "BACKGROUND")
-    bgTexture:SetAllPoints(bgFrame)
-    
-    -- Get texture path from LibSharedMedia
-    local LSM = LibStub("LibSharedMedia-3.0", true)
-    local texturePath = "Interface\\TargetingFrame\\UI-StatusBar"  -- Default
-    if LSM then
-        local selectedTexture = self.db.profile.customBackground.texture or "Blizzard"
-        texturePath = LSM:Fetch("statusbar", selectedTexture, true) or texturePath
-    end
-    
-    bgTexture:SetTexture(texturePath)
-    
-    -- Apply color and alpha
-    local color = self.db.profile.customBackground.color or {0, 0, 0, 0.5}
-    bgTexture:SetVertexColor(color[1], color[2], color[3], color[4])
-    
-    -- Store reference
-    nameplate.YATPCustomBackground = bgFrame
 end
 
 -- Legacy function name for compatibility
@@ -1189,6 +1115,7 @@ function Module:SetupMouseoverBorderBlock()
         for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
             if nameplate.UnitFrame then
                 self:BlockNameplateBorderGlow(nameplate)
+                self:HideHealthBarBackground(nameplate.UnitFrame)
             end
         end
     end)
@@ -1204,6 +1131,11 @@ function Module:ForceBlackBordersOnAllNameplates()
             
             -- Force alpha to 0 on native border (always hidden)
             nameplate.UnitFrame.healthBar.border:SetAlpha(0)
+        end
+        
+        -- Also hide healthbar backgrounds
+        if nameplate.UnitFrame then
+            self:HideHealthBarBackground(nameplate.UnitFrame)
         end
     end
 end
@@ -1228,7 +1160,54 @@ function Module:BlockNameplateBorderGlow(nameplate)
     -- NEW BEHAVIOR: Simply force native border alpha to 0 (always hidden)
     unitFrame.healthBar.border:SetAlpha(0)
     
+    -- Also hide the healthbar background (make it fully transparent)
+    self:HideHealthBarBackground(unitFrame)
+    
     return true
+end
+
+function Module:HideHealthBarBackground(unitFrame)
+    if not unitFrame or not unitFrame.healthBar then
+        return
+    end
+    
+    local healthBar = unitFrame.healthBar
+    
+    -- Force backdrop background to transparent
+    local bgFile = healthBar:GetBackdrop()
+    if bgFile then
+        healthBar:SetBackdropColor(0, 0, 0, 0)
+    end
+    
+    -- Hide .bg property if it exists
+    if healthBar.bg then
+        healthBar.bg:SetAlpha(0)
+    end
+    
+    -- Hide all BACKGROUND layer textures
+    local regions = {healthBar:GetRegions()}
+    for _, region in ipairs(regions) do
+        if region:GetObjectType() == "Texture" then
+            local drawLayer = region:GetDrawLayer()
+            if drawLayer == "BACKGROUND" then
+                region:SetAlpha(0)
+            end
+        end
+    end
+    
+    -- Check for common background property names
+    if healthBar.background then
+        healthBar.background:SetAlpha(0)
+    end
+    if healthBar.Background then
+        healthBar.Background:SetAlpha(0)
+    end
+    if healthBar.BG then
+        healthBar.BG:SetAlpha(0)
+    end
+    if healthBar.bgTexture then
+        healthBar.bgTexture:SetAlpha(0)
+    end
 end
 
 function Module:UnblockAllBorderGlows()
@@ -2923,89 +2902,13 @@ function Module:BuildGeneralTab()
         
         spacer5 = { type = "description", name = "\n", order = 48 },
         
-        -- Custom Background Texture (YATP Custom Feature)
-        customBackgroundHeader = { type = "header", name = L["Custom Background Texture (YATP Custom)"] or "Custom Background Texture (YATP Custom)", order = 49 },
-        
-        customBackgroundDesc = {
-            type = "description",
-            name = L["Add a custom background texture below the health bar. The original background is forced to 0% alpha to avoid interference."] or "Add a custom background texture below the health bar. The original background is forced to 0% alpha to avoid interference.",
-            order = 50,
-        },
-        
-        customBackgroundEnabled = {
-            type = "toggle",
-            name = L["Enable Custom Background"] or "Enable Custom Background",
-            desc = L["Show custom background texture on all nameplates"] or "Show custom background texture on all nameplates",
-            get = function() return self.db.profile.customBackground.enabled end,
-            set = function(_, value) 
-                self.db.profile.customBackground.enabled = value
-                -- Reload all nameplates
-                C_Timer.After(0.1, function()
-                    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
-                        self:SetupCustomBackground(nameplate)
-                    end
-                end)
-            end,
-            order = 51,
-        },
-        
-        customBackgroundTexture = {
-            type = "select",
-            name = L["Background Texture"] or "Background Texture",
-            desc = L["Texture to use for the background"] or "Texture to use for the background",
-            values = function()
-                local t = { ["Blizzard"] = "Blizzard" }
-                local LSM = LibStub("LibSharedMedia-3.0", true)
-                if LSM then 
-                    for _, name in ipairs(LSM:List("statusbar")) do 
-                        t[name] = name 
-                    end 
-                end
-                return t
-            end,
-            get = function() return self.db.profile.customBackground.texture end,
-            set = function(_, value)
-                self.db.profile.customBackground.texture = value
-                C_Timer.After(0.1, function()
-                    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
-                        self:SetupCustomBackground(nameplate)
-                    end
-                end)
-            end,
-            disabled = function() return not self.db.profile.customBackground.enabled end,
-            order = 52,
-        },
-        
-        customBackgroundColor = {
-            type = "color",
-            name = L["Background Color"] or "Background Color",
-            desc = L["Color and alpha of the background texture"] or "Color and alpha of the background texture",
-            hasAlpha = true,
-            get = function()
-                local c = self.db.profile.customBackground.color or {0, 0, 0, 0.5}
-                return c[1], c[2], c[3], c[4]
-            end,
-            set = function(_, r, g, b, a)
-                self.db.profile.customBackground.color = {r, g, b, a}
-                C_Timer.After(0.1, function()
-                    for nameplate in C_NamePlateManager.EnumerateActiveNamePlates() do
-                        self:SetupCustomBackground(nameplate)
-                    end
-                end)
-            end,
-            disabled = function() return not self.db.profile.customBackground.enabled end,
-            order = 53,
-        },
-        
-        spacer6 = { type = "description", name = "\n", order = 58 },
-        
         -- Mouseover Health Bar Highlight (YATP Custom Feature)
-        mouseoverHighlightHeader = { type = "header", name = L["Mouseover Health Bar Highlight (YATP Custom)"] or "Mouseover Health Bar Highlight (YATP Custom)", order = 59 },
+        mouseoverHighlightHeader = { type = "header", name = L["Mouseover Health Bar Highlight (YATP Custom)"] or "Mouseover Health Bar Highlight (YATP Custom)", order = 49 },
         
         mouseoverHighlightDesc = {
             type = "description",
             name = L["Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target."] or "Add a subtle color change to the health bar when you mouse over non-target nameplates. This provides visual feedback without the default white glow. Does not affect your current target.",
-            order = 60,
+            order = 50,
         },
         
         mouseoverHighlightEnabled = {
@@ -3021,7 +2924,7 @@ function Module:BuildGeneralTab()
                     self:CleanupMouseoverHealthBarHighlight()
                 end
             end,
-            order = 61,
+            order = 51,
         },
     }
 end
